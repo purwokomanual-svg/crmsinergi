@@ -1,0 +1,9 @@
+# Catatan: config.js SENGAJA tidak di-gitignore.
+# Isinya hanya "anon key" Supabase yang memang aman dipakai
+# di sisi klien (keamanan data diatur lewat RLS di database,
+# bukan dengan menyembunyikan anon key). Lihat README.md.
+
+# File sistem/editor
+.DS_Store
+Thumbs.db
+.vscode/
