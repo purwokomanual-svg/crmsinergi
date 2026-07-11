@@ -123,3 +123,127 @@ insert into aktivitas (tipe, teks) values
   ('tugas', 'Tugas <b>Jadwalkan demo produk</b> ditandai selesai'),
   ('proyek', 'Proyek <b>Audit Keamanan Data</b> dibatalkan oleh klien'),
   ('pelanggan', 'Kontak dengan <b>Meridian Retailindo</b> diperbarui');
+
+-- =========================================================
+-- TAMBAHAN v2 — TABEL CATATAN TIM (dipakai oleh menu "Pesan")
+-- Jika database Anda sudah pernah menjalankan skema di atas
+-- sebelumnya, Anda cukup salin & jalankan HANYA blok di bawah
+-- ini di SQL Editor. Aman dijalankan ulang di database lama,
+-- tidak akan menghapus data yang sudah ada.
+-- =========================================================
+create table if not exists catatan_tim (
+  id uuid primary key default gen_random_uuid(),
+  isi text not null,
+  dibuat_oleh text not null default 'Admin',
+  dibuat_pada timestamptz default now()
+);
+
+alter table catatan_tim enable row level security;
+
+create policy "publik dapat membaca catatan tim" on catatan_tim for select using (true);
+create policy "publik dapat menambah catatan tim" on catatan_tim for insert with check (true);
+create policy "publik dapat menghapus catatan tim" on catatan_tim for delete using (true);
+
+insert into catatan_tim (isi, dibuat_oleh) values
+  ('Selamat datang di Dealstack! Gunakan halaman ini untuk pengumuman dan catatan internal tim penjualan.', 'Sistem');
+
+-- =========================================================
+-- TAMBAHAN v3 — MULTI-USER (LOGIN, PERAN, PENUGASAN TUGAS)
+-- Jalankan SELURUH blok ini SEKALI di SQL Editor Supabase.
+-- SEBELUM menjalankan: buka Authentication > Providers di dashboard
+-- Supabase Anda, pastikan "Email" aktif. Untuk tim internal kecil,
+-- sebaiknya matikan "Confirm email" di Authentication > Settings
+-- supaya anggota tim bisa langsung login setelah mendaftar tanpa
+-- perlu mengecek kotak masuk email.
+-- =========================================================
+
+-- ---- Tabel profil (1 baris per pengguna yang login) ----
+create table if not exists profil (
+  id uuid primary key references auth.users(id) on delete cascade,
+  nama text not null,
+  email text not null,
+  peran text not null default 'anggota' check (peran in ('admin','anggota')),
+  dibuat_pada timestamptz default now()
+);
+alter table profil enable row level security;
+create policy "pengguna login dapat membaca semua profil" on profil for select using (auth.uid() is not null);
+create policy "pengguna dapat memperbarui profil sendiri" on profil for update using (auth.uid() = id);
+
+-- ---- Trigger: otomatis buat baris profil saat ada pengguna baru mendaftar ----
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profil (id, nama, email, peran)
+  values (new.id, coalesce(new.raw_user_meta_data->>'nama', split_part(new.email,'@',1)), new.email, 'anggota');
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+-- ---- Jadikan diri Anda admin ----
+-- Daftar dulu 1 akun lewat aplikasi (menu Daftar), lalu jalankan baris di
+-- bawah ini SENDIRI (ganti email) untuk menjadikannya Admin pertama:
+-- update profil set peran = 'admin' where email = 'email_anda@contoh.com';
+
+-- ---- Perluas tabel tugas: penugasan, prioritas, status bertahap ----
+alter table tugas add column if not exists ditugaskan_ke uuid references profil(id) on delete set null;
+alter table tugas add column if not exists ditugaskan_oleh uuid references profil(id) on delete set null;
+alter table tugas add column if not exists deskripsi text;
+alter table tugas add column if not exists prioritas text not null default 'normal' check (prioritas in ('rendah','normal','tinggi'));
+alter table tugas add column if not exists status_kerja text not null default 'belum' check (status_kerja in ('belum','dikerjakan','review','selesai'));
+update tugas set status_kerja = 'selesai' where selesai = true and status_kerja = 'belum';
+
+-- ---- Perketat RLS: wajib login, bukan lagi bebas publik ----
+drop policy if exists "publik dapat membaca pelanggan" on pelanggan;
+drop policy if exists "publik dapat menambah pelanggan" on pelanggan;
+drop policy if exists "publik dapat mengubah pelanggan" on pelanggan;
+drop policy if exists "publik dapat menghapus pelanggan" on pelanggan;
+create policy "pengguna login dapat membaca pelanggan" on pelanggan for select using (auth.uid() is not null);
+create policy "pengguna login dapat menambah pelanggan" on pelanggan for insert with check (auth.uid() is not null);
+create policy "pengguna login dapat mengubah pelanggan" on pelanggan for update using (auth.uid() is not null);
+create policy "hanya admin dapat menghapus pelanggan" on pelanggan for delete using (
+  exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+
+drop policy if exists "publik dapat membaca proyek" on proyek;
+drop policy if exists "publik dapat menambah proyek" on proyek;
+drop policy if exists "publik dapat mengubah proyek" on proyek;
+drop policy if exists "publik dapat menghapus proyek" on proyek;
+create policy "pengguna login dapat membaca proyek" on proyek for select using (auth.uid() is not null);
+create policy "pengguna login dapat menambah proyek" on proyek for insert with check (auth.uid() is not null);
+create policy "pengguna login dapat mengubah proyek" on proyek for update using (auth.uid() is not null);
+create policy "hanya admin dapat menghapus proyek" on proyek for delete using (
+  exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+
+drop policy if exists "publik dapat membaca tugas" on tugas;
+drop policy if exists "publik dapat menambah tugas" on tugas;
+drop policy if exists "publik dapat mengubah tugas" on tugas;
+drop policy if exists "publik dapat menghapus tugas" on tugas;
+create policy "lihat tugas sendiri atau semua jika admin" on tugas for select using (
+  auth.uid() is not null and (
+    ditugaskan_ke = auth.uid() or ditugaskan_oleh = auth.uid() or ditugaskan_ke is null or
+    exists (select 1 from profil where id = auth.uid() and peran = 'admin')
+  ));
+create policy "pengguna login dapat menambah tugas" on tugas for insert with check (auth.uid() is not null);
+create policy "pemilik tugas atau admin dapat mengubah tugas" on tugas for update using (
+  auth.uid() is not null and (
+    ditugaskan_ke = auth.uid() or ditugaskan_oleh = auth.uid() or
+    exists (select 1 from profil where id = auth.uid() and peran = 'admin')
+  ));
+create policy "hanya admin dapat menghapus tugas" on tugas for delete using (
+  exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+
+drop policy if exists "publik dapat membaca aktivitas" on aktivitas;
+drop policy if exists "publik dapat menambah aktivitas" on aktivitas;
+create policy "pengguna login dapat membaca aktivitas" on aktivitas for select using (auth.uid() is not null);
+create policy "pengguna login dapat menambah aktivitas" on aktivitas for insert with check (auth.uid() is not null);
+
+drop policy if exists "publik dapat membaca catatan tim" on catatan_tim;
+drop policy if exists "publik dapat menambah catatan tim" on catatan_tim;
+drop policy if exists "publik dapat menghapus catatan tim" on catatan_tim;
+create policy "pengguna login dapat membaca catatan tim" on catatan_tim for select using (auth.uid() is not null);
+create policy "pengguna login dapat menambah catatan tim" on catatan_tim for insert with check (auth.uid() is not null);
+create policy "pengguna login dapat menghapus catatan tim" on catatan_tim for delete using (auth.uid() is not null);

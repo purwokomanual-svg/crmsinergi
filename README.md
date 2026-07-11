@@ -45,6 +45,46 @@ const SUPABASE_ANON_KEY = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
 Coba buka `index.html` langsung di browser untuk memastikan data pelanggan,
 proyek, tugas, dan aktivitas sudah tampil dari Supabase.
 
+### 1b. Jika database Anda sudah pernah dibuat sebelumnya
+
+Menu **Pesan** memakai tabel baru `catatan_tim`. Jika Anda sudah pernah
+menjalankan `schema.sql` versi lama, buka **SQL Editor** lagi dan jalankan
+HANYA bagian di bawah judul `TAMBAHAN v2` di akhir file `schema.sql` — aman
+dijalankan di database yang sudah berisi data, tidak akan menghapus apa pun.
+Jika ini instalasi baru, cukup jalankan seluruh `schema.sql` seperti biasa.
+
+### 1c. Mengaktifkan login multi-pengguna (v3)
+
+Versi ini sekarang punya login sungguhan, peran (Admin/Anggota Tim), dan
+penugasan tugas ke anggota tertentu. Langkah setup:
+
+1. Di dashboard Supabase, buka **Authentication → Providers**, pastikan
+   **Email** aktif (biasanya sudah aktif secara default).
+2. Untuk tim internal kecil, buka **Authentication → Settings** dan
+   matikan **"Confirm email"** supaya anggota tim bisa langsung masuk
+   setelah mendaftar tanpa perlu mengecek email.
+3. Di **SQL Editor**, jalankan blok **`TAMBAHAN v3`** di akhir file
+   `schema.sql` (jika ini instalasi baru, cukup jalankan seluruh file
+   `schema.sql` sekali — v3 sudah termasuk di dalamnya).
+4. Buka aplikasi, klik tab **Daftar**, buat akun pertama Anda.
+5. Kembali ke SQL Editor, jalankan (ganti dengan email Anda):
+   ```sql
+   update profil set peran = 'admin' where email = 'email_anda@contoh.com';
+   ```
+   Keluar dan masuk lagi supaya peran Admin aktif.
+6. Anggota tim lain cukup mendaftar sendiri lewat tab **Daftar** — mereka
+   otomatis mendapat peran **Anggota Tim**.
+
+**Yang berubah untuk Admin:** bisa melihat & menugaskan semua tugas ke
+anggota manapun, melihat semua data, menghapus pelanggan/proyek/tugas,
+dan membuka menu **Pengawasan Tim** untuk memantau beban kerja & progres
+tiap anggota.
+
+**Yang berubah untuk Anggota Tim:** hanya melihat tugas yang ditugaskan
+kepadanya (atau yang ia buat sendiri), bisa mengubah status tugasnya
+sendiri (Belum Dikerjakan/Dikerjakan/Review/Selesai), tapi tidak bisa
+menghapus data dan tidak melihat menu Pengawasan Tim.
+
 ## 3. Unggah ke GitHub
 
 ```bash
@@ -72,13 +112,40 @@ Setiap kali Anda `git push` ke branch `main`, Vercel otomatis men-deploy ulang.
 ## Fitur aplikasi
 
 - **Ringkasan** — KPI (total nilai, rata-rata, tingkat menang, jumlah proyek)
-  dihitung otomatis dari data proyek di database.
+  dihitung otomatis dari data proyek di database, header ringkas jumlah
+  pelanggan aktif & proyek berjalan, aksi favorit/bagikan tautan/unduh CSV,
+  dan grafik dengan rentang waktu, mode layar penuh, kisi, bandingkan
+  periode, dan unduh sebagai PNG.
 - **Pelanggan** — tambah, cari, filter status, dan hapus pelanggan.
 - **Proyek** — tambah proyek, ubah status langsung (Berjalan/Tertunda/
   Selesai/Dibatalkan), progres, dan hapus proyek.
+- **Pesan** — papan catatan/pengumuman internal tim (memerlukan migrasi
+  tabel `catatan_tim`, lihat langkah 1b di bawah).
+- **Kalender** — tenggat proyek & tugas otomatis ditampilkan per bulan,
+  lengkap dengan agenda harian.
 - **Analitik** — corong penjualan berdasarkan nilai & jumlah proyek per tahap.
+- **Laporan** — ringkasan performa per industri & status, bisa diunduh
+  sebagai CSV atau dicetak.
 - **Aktivitas** — log otomatis setiap ada perubahan status/proyek baru.
-- **Tugas** — checklist tugas tim penjualan.
+- **Tugas** — tambah tugas, tugaskan ke anggota tertentu, atur prioritas
+  & tenggat, ubah status bertahap (Belum Dikerjakan/Dikerjakan/Review/
+  Selesai).
+- **Pengawasan Tim** *(khusus Admin)* — beban kerja & progres tiap
+  anggota tim, termasuk jumlah tugas terlambat.
+- **Integrasi** — status koneksi database Supabase (bisa diuji langsung),
+  serta daftar integrasi pihak ketiga yang direncanakan (Slack, WhatsApp,
+  Google Calendar).
+- **Pusat Bantuan** — FAQ penggunaan aplikasi.
+- **Login multi-pengguna** — Admin dan Anggota Tim, lihat langkah 1c di
+  bawah untuk aktivasi.
+- **Notifikasi & Pencarian Global** — ikon lonceng menampilkan proyek/tugas
+  yang jatuh tempo dalam 3 hari; kolom pencarian di topbar mencari lintas
+  pelanggan, proyek, dan tugas sekaligus.
+
+> **Catatan:** Fondasi multi-user (login, peran, penugasan tugas per
+> anggota, dan dashboard pengawasan) sudah aktif di versi ini — lihat
+> langkah 1c. Yang belum ada: notifikasi push/email saat ada tugas baru,
+> dan riwayat log siapa mengubah apa (audit trail) selain di menu Aktivitas.
 
 ## Menjalankan secara lokal
 
