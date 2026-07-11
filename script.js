@@ -163,6 +163,7 @@ async function masukKeAplikasi(session){
   renderKPI();
   renderTagRingkasan();
   renderPelanggan();
+  isiDropdownPelangganProyek();
   renderProyek();
   renderFunnel();
   renderAktivitas();
@@ -507,31 +508,41 @@ function unduhLaporanCSV(){
 /* ---------------------------------------------------------
    5. RENDER: TABEL PELANGGAN
 --------------------------------------------------------- */
+function hitungTotalNilaiProyek(pelangganId, filterStatus){
+  return DATA.proyek
+    .filter(pr => pr.pelanggan_id === pelangganId && (filterStatus === 'semua' || pr.status === filterStatus))
+    .reduce((total, pr) => total + (pr.nilai || 0), 0);
+}
+
 function renderPelanggan(){
   const tbody = document.getElementById('tbody-pelanggan');
   const q = (document.getElementById('cari-pelanggan').value || '').toLowerCase();
-  const filterStatus = document.getElementById('filter-status-pelanggan').value;
+  const filterNilaiProyek = document.getElementById('filter-nilai-proyek-pelanggan').value;
 
   const data = DATA.pelanggan.filter(p => {
-    const cocokCari = p.nama.toLowerCase().includes(q) || (p.industri || '').toLowerCase().includes(q);
-    const cocokStatus = filterStatus === 'semua' || p.status === filterStatus;
-    return cocokCari && cocokStatus;
+    return p.nama.toLowerCase().includes(q) || (p.industri || '').toLowerCase().includes(q);
   });
 
   if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
       <p>Tidak ada pelanggan yang cocok dengan pencarian.</p></div></td></tr>`;
     return;
   }
 
   tbody.innerHTML = data.map(p => `
     <tr>
-      <td class="cell-name">${p.nama}<div class="cell-muted">${p.kode}</div></td>
+      <td class="cell-muted">${p.kode}</td>
+      <td class="cell-name">${p.nama}</td>
       <td>${p.industri || '—'}</td>
-      <td><span class="badge badge-${p.status === 'nonaktif' ? 'dibatalkan' : p.status}"><span class="dot"></span>${labelStatusPelanggan(p.status)}</span></td>
-      <td>${formatRupiah(p.nilai)}</td>
-      <td class="cell-muted">${formatTanggal(p.kontak_terakhir)}</td>
+      <td>${p.alamat || '—'}</td>
+      <td>${p.no_telepon || '—'}</td>
+      <td>${p.no_whatsapp || '—'}</td>
+      <td>${p.nama_pic || '—'}</td>
+      <td>${formatRupiah(hitungTotalNilaiProyek(p.id, filterNilaiProyek))}</td>
       <td class="cell-actions">
+        <div class="icon-btn" title="Edit" onclick="editPelanggan('${p.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </div>
         <div class="icon-btn" title="Hapus" onclick="hapusPelanggan('${p.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
         </div>
@@ -546,93 +557,148 @@ async function hapusPelanggan(id){
   if(error){ console.error(error); tampilkanToast('Gagal menghapus pelanggan', true); return; }
   DATA.pelanggan = DATA.pelanggan.filter(x => x.id !== id);
   renderPelanggan();
+  isiDropdownPelangganProyek();
   if(p) await catatAktivitas('pelanggan', `Pelanggan <b>${p.nama}</b> dihapus`);
   tampilkanToast('Pelanggan dihapus');
 }
 
-async function tambahPelanggan(e){
+function bukaModalTambahPelanggan(){
+  document.getElementById('form-pelanggan').reset();
+  document.getElementById('input-id-pelanggan').value = '';
+  document.getElementById('input-kode-pelanggan').value = kodeAcak('CL');
+  document.getElementById('judul-modal-pelanggan').textContent = 'Tambah Pelanggan Baru';
+  document.getElementById('btn-simpan-pelanggan').textContent = 'Simpan Pelanggan';
+  bukaModal('modal-pelanggan');
+}
+
+function editPelanggan(id){
+  const p = DATA.pelanggan.find(x => x.id === id);
+  if(!p) return;
+  document.getElementById('input-id-pelanggan').value = p.id;
+  document.getElementById('input-kode-pelanggan').value = p.kode || '';
+  document.getElementById('input-nama-pelanggan').value = p.nama || '';
+  document.getElementById('input-industri-pelanggan').value = p.industri || '';
+  document.getElementById('input-alamat-pelanggan').value = p.alamat || '';
+  document.getElementById('input-telepon-pelanggan').value = p.no_telepon || '';
+  document.getElementById('input-whatsapp-pelanggan').value = p.no_whatsapp || '';
+  document.getElementById('input-pic-pelanggan').value = p.nama_pic || '';
+  document.getElementById('judul-modal-pelanggan').textContent = 'Edit Pelanggan';
+  document.getElementById('btn-simpan-pelanggan').textContent = 'Simpan Perubahan';
+  bukaModal('modal-pelanggan');
+}
+
+function pesanErrorKode(error, label){
+  if(error && error.code === '23505') return `${label} sudah dipakai pelanggan/proyek lain. Gunakan ${label.toLowerCase()} yang berbeda.`;
+  return null;
+}
+
+async function simpanPelanggan(e){
   e.preventDefault();
+  const id = document.getElementById('input-id-pelanggan').value;
+  const kode = document.getElementById('input-kode-pelanggan').value.trim();
   const nama = document.getElementById('input-nama-pelanggan').value.trim();
   const industri = document.getElementById('input-industri-pelanggan').value.trim() || 'Umum';
-  const nilai = parseInt(document.getElementById('input-nilai-pelanggan').value || '0', 10);
-  if(!nama) return;
+  const alamat = document.getElementById('input-alamat-pelanggan').value.trim() || null;
+  const no_telepon = document.getElementById('input-telepon-pelanggan').value.trim() || null;
+  const no_whatsapp = document.getElementById('input-whatsapp-pelanggan').value.trim() || null;
+  const nama_pic = document.getElementById('input-pic-pelanggan').value.trim() || null;
+  if(!nama || !kode) return;
 
-  const baris = {
-    kode: kodeAcak('CL'), nama, industri, status: 'aktif', nilai,
-    kontak_terakhir: new Date().toISOString().slice(0,10)
-  };
-  const { data, error } = await supabaseClient.from('pelanggan').insert(baris).select().single();
-  if(error){ console.error(error); tampilkanToast('Gagal menambah pelanggan', true); return; }
+  if(id){
+    // --- mode edit ---
+    const baris = { kode, nama, industri, alamat, no_telepon, no_whatsapp, nama_pic };
+    const { data, error } = await supabaseClient.from('pelanggan').update(baris).eq('id', id).select().single();
+    if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'ID Pelanggan') || 'Gagal menyimpan perubahan pelanggan', true); return; }
 
-  DATA.pelanggan.unshift(data);
-  renderPelanggan();
-  await catatAktivitas('pelanggan', `Pelanggan baru <b>${nama}</b> ditambahkan ke sistem`);
-  tutupModal('modal-pelanggan');
+    const idx = DATA.pelanggan.findIndex(x => x.id === id);
+    if(idx > -1) DATA.pelanggan[idx] = data;
+    renderPelanggan();
+    isiDropdownPelangganProyek();
+    await catatAktivitas('pelanggan', `Data pelanggan <b>${nama}</b> diperbarui`);
+    tutupModal('modal-pelanggan');
+    tampilkanToast('Perubahan pelanggan disimpan');
+  } else {
+    // --- mode tambah ---
+    const baris = {
+      kode, nama, industri, status: 'aktif',
+      alamat, no_telepon, no_whatsapp, nama_pic,
+      kontak_terakhir: new Date().toISOString().slice(0,10)
+    };
+    const { data, error } = await supabaseClient.from('pelanggan').insert(baris).select().single();
+    if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'ID Pelanggan') || 'Gagal menambah pelanggan', true); return; }
+
+    DATA.pelanggan.unshift(data);
+    renderPelanggan();
+    isiDropdownPelangganProyek();
+    await catatAktivitas('pelanggan', `Pelanggan baru <b>${nama}</b> ditambahkan ke sistem`);
+    tutupModal('modal-pelanggan');
+    tampilkanToast('Pelanggan baru ditambahkan');
+  }
   e.target.reset();
-  tampilkanToast('Pelanggan baru ditambahkan');
+  document.getElementById('input-id-pelanggan').value = '';
 }
 
 /* ---------------------------------------------------------
    6. RENDER: TABEL PROYEK
 --------------------------------------------------------- */
+function hitungPajakNominal(subTotal, taxPersen){
+  return Math.round((subTotal || 0) * (taxPersen || 0) / 100);
+}
+function hitungGrandTotal(subTotal, taxPersen, danaLainnya){
+  return (subTotal || 0) + hitungPajakNominal(subTotal, taxPersen) + (danaLainnya || 0);
+}
+function hitungPersenBudget(budgetTerpakai, totalBudget){
+  if(!totalBudget) return 0;
+  return Math.round(((budgetTerpakai || 0) / totalBudget) * 1000) / 10; // 1 desimal
+}
+
 function renderProyek(){
   const tbody = document.getElementById('tbody-proyek');
   const q = (document.getElementById('cari-proyek').value || '').toLowerCase();
   const filterStatus = document.getElementById('filter-status-proyek').value;
 
   const data = DATA.proyek.filter(p => {
-    const cocokCari = p.nama.toLowerCase().includes(q) || p.pelanggan_nama.toLowerCase().includes(q);
+    const cocokCari = p.nama.toLowerCase().includes(q) || p.pelanggan_nama.toLowerCase().includes(q) || (p.kode||'').toLowerCase().includes(q);
     const cocokStatus = filterStatus === 'semua' || p.status === filterStatus;
     return cocokCari && cocokStatus;
   });
 
   if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="13"><div class="empty-state">
       <p>Tidak ada proyek yang cocok dengan pencarian.</p></div></td></tr>`;
     return;
   }
 
-  tbody.innerHTML = data.map(p => `
+  tbody.innerHTML = data.map(p => {
+    const persenBudget = hitungPersenBudget(p.budget_terpakai, p.total_budget);
+    return `
     <tr>
-      <td class="cell-name">${p.nama}<div class="cell-muted">${p.kode} · ${p.pelanggan_nama}</div></td>
-      <td>
-        <select class="filter-select" style="font-size:12px;padding:5px 8px;" onchange="ubahStatusProyek('${p.id}', this.value)">
-          ${['berjalan','tertunda','selesai','dibatalkan'].map(s => `<option value="${s}" ${s===p.status?'selected':''}>${labelStatusProyek(s)}</option>`).join('')}
-        </select>
-      </td>
-      <td>
-        <div class="progress-mini"><div class="progress-mini-fill" style="width:${p.progres}%"></div></div>
-        <div class="progress-mini-label">${p.progres}%</div>
-      </td>
-      <td>${formatRupiah(p.nilai)}</td>
+      <td class="cell-name">${p.kode}<div class="cell-muted">${p.nama}</div></td>
+      <td>${p.pelanggan_nama}</td>
+      <td class="cell-muted">${formatTanggal(p.tanggal)}</td>
       <td class="cell-muted">${formatTanggal(p.tenggat)}</td>
+      <td class="cell-muted">${p.dibuat_oleh_nama || '—'}</td>
+      <td>${formatRupiah(p.sub_total)}</td>
+      <td>${formatRupiah(hitungPajakNominal(p.sub_total, p.tax_persen))}<div class="cell-muted">${p.tax_persen || 0}%</div></td>
+      <td>${formatRupiah(p.dana_lainnya)}</td>
+      <td><b>${formatRupiah(p.grand_total)}</b></td>
+      <td>${formatRupiah(p.total_budget)}</td>
+      <td>${formatRupiah(p.budget_terpakai)}</td>
+      <td>
+        <div class="progress-mini"><div class="progress-mini-fill" style="width:${Math.min(persenBudget,100)}%"></div></div>
+        <div class="progress-mini-label">${persenBudget}%</div>
+      </td>
       <td class="cell-actions">
+        <div class="icon-btn" title="Edit" onclick="editProyek('${p.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </div>
         <div class="icon-btn" title="Hapus" onclick="hapusProyek('${p.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
         </div>
       </td>
     </tr>
-  `).join('');
-}
-
-async function ubahStatusProyek(id, statusBaru){
-  const proyek = DATA.proyek.find(p => p.id === id);
-  if(!proyek) return;
-  const progresBaru = statusBaru === 'selesai' ? 100 : proyek.progres;
-
-  const { error } = await supabaseClient.from('proyek')
-    .update({ status: statusBaru, progres: progresBaru })
-    .eq('id', id);
-  if(error){ console.error(error); tampilkanToast('Gagal mengubah status proyek', true); return; }
-
-  proyek.status = statusBaru;
-  proyek.progres = progresBaru;
-
-  renderProyek();
-  renderKPI();
-  renderFunnel();
-  await catatAktivitas('proyek', `Status proyek <b>${proyek.nama}</b> diubah menjadi ${labelStatusProyek(statusBaru)}`);
-  tampilkanToast('Status proyek diperbarui');
+  `;
+  }).join('');
 }
 
 async function hapusProyek(id){
@@ -643,30 +709,121 @@ async function hapusProyek(id){
   renderProyek();
   renderKPI();
   renderFunnel();
+  renderPelanggan();
   if(p) await catatAktivitas('proyek', `Proyek <b>${p.nama}</b> dihapus`);
   tampilkanToast('Proyek dihapus');
 }
 
-async function tambahProyek(e){
+function isiDropdownPelangganProyek(){
+  const select = document.getElementById('input-pelanggan-proyek');
+  if(!select) return;
+  const nilaiSebelumnya = select.value;
+  select.innerHTML = `<option value="" disabled ${!nilaiSebelumnya ? 'selected' : ''}>Pilih pelanggan...</option>` +
+    DATA.pelanggan.map(p => `<option value="${p.id}">${p.nama}</option>`).join('');
+  if(DATA.pelanggan.some(p => p.id === nilaiSebelumnya)) select.value = nilaiSebelumnya;
+}
+
+function perbaruiKalkulasiFormProyek(){
+  const subTotal = parseInt(document.getElementById('input-subtotal-proyek').value || '0', 10);
+  const taxPersen = parseFloat(document.getElementById('input-tax-proyek').value || '0');
+  const danaLain = parseInt(document.getElementById('input-dana-lain-proyek').value || '0', 10);
+  const totalBudget = parseInt(document.getElementById('input-total-budget-proyek').value || '0', 10);
+  const budgetTerpakai = parseInt(document.getElementById('input-budget-terpakai-proyek').value || '0', 10);
+
+  document.getElementById('tampil-grand-total-proyek').value = formatRupiah(hitungGrandTotal(subTotal, taxPersen, danaLain));
+  document.getElementById('tampil-persen-budget-proyek').value = hitungPersenBudget(budgetTerpakai, totalBudget) + '%';
+}
+
+function bukaModalTambahProyek(){
+  document.getElementById('form-proyek').reset();
+  document.getElementById('input-id-proyek').value = '';
+  document.getElementById('input-kode-proyek').value = kodeAcak('PO');
+  document.getElementById('input-tanggal-proyek').value = new Date().toISOString().slice(0,10);
+  document.getElementById('judul-modal-proyek').textContent = 'Tambah Proyek Baru';
+  document.getElementById('btn-simpan-proyek').textContent = 'Simpan Proyek';
+  isiDropdownPelangganProyek();
+  perbaruiKalkulasiFormProyek();
+  bukaModal('modal-proyek');
+}
+
+function editProyek(id){
+  const p = DATA.proyek.find(x => x.id === id);
+  if(!p) return;
+  isiDropdownPelangganProyek();
+  document.getElementById('input-id-proyek').value = p.id;
+  document.getElementById('input-kode-proyek').value = p.kode || '';
+  document.getElementById('input-nama-proyek').value = p.nama || '';
+  document.getElementById('input-pelanggan-proyek').value = p.pelanggan_id || '';
+  document.getElementById('input-tanggal-proyek').value = p.tanggal || '';
+  document.getElementById('input-tenggat-proyek').value = p.tenggat || '';
+  document.getElementById('input-status-proyek').value = p.status || 'berjalan';
+  document.getElementById('input-subtotal-proyek').value = p.sub_total || 0;
+  document.getElementById('input-tax-proyek').value = p.tax_persen || 0;
+  document.getElementById('input-dana-lain-proyek').value = p.dana_lainnya || 0;
+  document.getElementById('input-total-budget-proyek').value = p.total_budget || 0;
+  document.getElementById('input-budget-terpakai-proyek').value = p.budget_terpakai || 0;
+  perbaruiKalkulasiFormProyek();
+  document.getElementById('judul-modal-proyek').textContent = 'Edit Proyek';
+  document.getElementById('btn-simpan-proyek').textContent = 'Simpan Perubahan';
+  bukaModal('modal-proyek');
+}
+
+async function simpanProyek(e){
   e.preventDefault();
+  const id = document.getElementById('input-id-proyek').value;
+  const kode = document.getElementById('input-kode-proyek').value.trim();
   const nama = document.getElementById('input-nama-proyek').value.trim();
-  const pelanggan_nama = document.getElementById('input-pelanggan-proyek').value.trim();
-  const nilai = parseInt(document.getElementById('input-nilai-proyek').value || '0', 10);
+  const pelanggan_id = document.getElementById('input-pelanggan-proyek').value;
+  const pelanggan = DATA.pelanggan.find(p => p.id === pelanggan_id);
+  const tanggal = document.getElementById('input-tanggal-proyek').value || null;
   const tenggat = document.getElementById('input-tenggat-proyek').value || null;
-  if(!nama || !pelanggan_nama) return;
+  const status = document.getElementById('input-status-proyek').value;
+  const sub_total = parseInt(document.getElementById('input-subtotal-proyek').value || '0', 10);
+  const tax_persen = parseFloat(document.getElementById('input-tax-proyek').value || '0');
+  const dana_lainnya = parseInt(document.getElementById('input-dana-lain-proyek').value || '0', 10);
+  const total_budget = parseInt(document.getElementById('input-total-budget-proyek').value || '0', 10);
+  const budget_terpakai = parseInt(document.getElementById('input-budget-terpakai-proyek').value || '0', 10);
+  const grand_total = hitungGrandTotal(sub_total, tax_persen, dana_lainnya);
+  const progres = status === 'selesai' ? 100 : 0;
+  if(!nama || !kode || !pelanggan) return;
 
-  const baris = { kode: kodeAcak('PR'), nama, pelanggan_nama, status:'berjalan', progres:0, nilai, tenggat };
-  const { data, error } = await supabaseClient.from('proyek').insert(baris).select().single();
-  if(error){ console.error(error); tampilkanToast('Gagal menambah proyek', true); return; }
+  if(id){
+    // --- mode edit ---
+    const baris = {
+      kode, nama, pelanggan_id: pelanggan.id, pelanggan_nama: pelanggan.nama,
+      tanggal, tenggat, status, progres, sub_total, tax_persen, dana_lainnya, grand_total,
+      total_budget, budget_terpakai, nilai: grand_total
+    };
+    const { data, error } = await supabaseClient.from('proyek').update(baris).eq('id', id).select().single();
+    if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'No PO') || 'Gagal menyimpan perubahan proyek', true); return; }
 
-  DATA.proyek.unshift(data);
-  renderProyek();
-  renderKPI();
-  renderFunnel();
-  await catatAktivitas('proyek', `Proyek baru <b>${nama}</b> dibuat untuk ${pelanggan_nama}`);
-  tutupModal('modal-proyek');
+    const idx = DATA.proyek.findIndex(x => x.id === id);
+    if(idx > -1) DATA.proyek[idx] = data;
+    renderProyek(); renderKPI(); renderFunnel(); renderPelanggan();
+    await catatAktivitas('proyek', `Proyek <b>${nama}</b> (${data.kode}) diperbarui`);
+    tutupModal('modal-proyek');
+    tampilkanToast('Perubahan proyek disimpan');
+  } else {
+    // --- mode tambah ---
+    const baris = {
+      kode, nama, pelanggan_id: pelanggan.id, pelanggan_nama: pelanggan.nama,
+      tanggal, tenggat, status: status || 'berjalan', progres,
+      dibuat_oleh_id: CURRENT_USER ? CURRENT_USER.id : null,
+      dibuat_oleh_nama: CURRENT_USER ? CURRENT_USER.nama : null,
+      sub_total, tax_persen, dana_lainnya, grand_total,
+      total_budget, budget_terpakai, nilai: grand_total
+    };
+    const { data, error } = await supabaseClient.from('proyek').insert(baris).select().single();
+    if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'No PO') || 'Gagal menambah proyek', true); return; }
+
+    DATA.proyek.unshift(data);
+    renderProyek(); renderKPI(); renderFunnel(); renderPelanggan();
+    await catatAktivitas('proyek', `Proyek baru <b>${nama}</b> (${data.kode}) dibuat untuk ${pelanggan.nama}`);
+    tutupModal('modal-proyek');
+    tampilkanToast('Proyek baru ditambahkan');
+  }
   e.target.reset();
-  tampilkanToast('Proyek baru ditambahkan');
+  document.getElementById('input-id-proyek').value = '';
 }
 
 /* ---------------------------------------------------------
@@ -1628,12 +1785,14 @@ function initNavigasi(){
 }
 function initEventListener(){
   document.getElementById('cari-pelanggan').addEventListener('input', renderPelanggan);
-  document.getElementById('filter-status-pelanggan').addEventListener('change', renderPelanggan);
-  document.getElementById('form-pelanggan').addEventListener('submit', tambahPelanggan);
+  document.getElementById('filter-nilai-proyek-pelanggan').addEventListener('change', renderPelanggan);
+  document.getElementById('form-pelanggan').addEventListener('submit', simpanPelanggan);
 
   document.getElementById('cari-proyek').addEventListener('input', renderProyek);
   document.getElementById('filter-status-proyek').addEventListener('change', renderProyek);
-  document.getElementById('form-proyek').addEventListener('submit', tambahProyek);
+  document.getElementById('form-proyek').addEventListener('submit', simpanProyek);
+  ['input-subtotal-proyek','input-tax-proyek','input-dana-lain-proyek','input-total-budget-proyek','input-budget-terpakai-proyek']
+    .forEach(id => document.getElementById(id).addEventListener('input', perbaruiKalkulasiFormProyek));
 
   document.getElementById('form-tugas').addEventListener('submit', tambahTugas);
 

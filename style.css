@@ -278,7 +278,10 @@ button{font-family:inherit;}
 }
 
 /* ============ DATA TABLE ============ */
-.table-card{background:var(--panel);border:1px solid var(--edge);border-radius:var(--radius);overflow:hidden;}
+.table-card{background:var(--panel);border:1px solid var(--edge);border-radius:var(--radius);overflow-x:auto;overflow-y:hidden;}
+.data-table{min-width:100%;}
+.data-table td, .data-table th{white-space:nowrap;}
+.data-table td.cell-name{white-space:normal;}
 .data-table{width:100%;border-collapse:collapse;font-size:13.5px;}
 .data-table th{
   text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted-2);

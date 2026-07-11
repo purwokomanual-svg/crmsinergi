@@ -237,7 +237,7 @@
           <h2>Pelanggan</h2>
           <p>Kelola seluruh data pelanggan dan status hubungan bisnis.</p>
         </div>
-        <button class="btn btn-primary" onclick="bukaModal('modal-pelanggan')">
+        <button class="btn btn-primary" onclick="bukaModalTambahPelanggan()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
           Tambah Pelanggan
         </button>
@@ -248,11 +248,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input type="text" id="cari-pelanggan" placeholder="Cari nama atau industri...">
         </div>
-        <select class="filter-select" id="filter-status-pelanggan">
-          <option value="semua">Semua Status</option>
-          <option value="aktif">Aktif</option>
-          <option value="tertunda">Tertunda</option>
-          <option value="nonaktif">Nonaktif</option>
+        <select class="filter-select" id="filter-nilai-proyek-pelanggan" title="Cakupan Total Nilai Proyek">
+          <option value="semua">Total Nilai Proyek: Semua</option>
+          <option value="berjalan">Total Nilai Proyek: Berjalan</option>
+          <option value="tertunda">Total Nilai Proyek: Tertunda</option>
+          <option value="selesai">Total Nilai Proyek: Selesai</option>
+          <option value="dibatalkan">Total Nilai Proyek: Dibatalkan</option>
         </select>
         <div class="toolbar-spacer"></div>
       </div>
@@ -261,11 +262,14 @@
         <table class="data-table">
           <thead>
             <tr>
+              <th>ID Pelanggan</th>
               <th>Nama Pelanggan</th>
               <th>Industri</th>
-              <th>Status</th>
-              <th>Nilai Total</th>
-              <th>Kontak Terakhir</th>
+              <th>Alamat</th>
+              <th>No. Telepon</th>
+              <th>No. WhatsApp</th>
+              <th>Nama PIC</th>
+              <th>Total Nilai Proyek</th>
               <th></th>
             </tr>
           </thead>
@@ -279,9 +283,9 @@
       <div class="view-head">
         <div>
           <h2>Proyek</h2>
-          <p>Pantau progres dan status setiap proyek yang sedang berjalan.</p>
+          <p>Pantau PO, anggaran, dan realisasi budget setiap proyek.</p>
         </div>
-        <button class="btn btn-primary" onclick="bukaModal('modal-proyek')">
+        <button class="btn btn-primary" onclick="bukaModalTambahProyek()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
           Tambah Proyek
         </button>
@@ -290,7 +294,7 @@
       <div class="toolbar">
         <div class="search-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          <input type="text" id="cari-proyek" placeholder="Cari nama proyek atau pelanggan...">
+          <input type="text" id="cari-proyek" placeholder="Cari No PO, nama proyek, atau pelanggan...">
         </div>
         <select class="filter-select" id="filter-status-proyek">
           <option value="semua">Semua Status</option>
@@ -306,11 +310,18 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>Nama Proyek</th>
-              <th>Status</th>
-              <th>Progres</th>
-              <th>Nilai</th>
+              <th>No PO</th>
+              <th>Nama Pelanggan</th>
+              <th>Tanggal</th>
               <th>Tenggat</th>
+              <th>Dibuat Oleh</th>
+              <th>Sub Total</th>
+              <th>Tax</th>
+              <th>Dana Lainnya</th>
+              <th>Grand Total</th>
+              <th>Total Budget</th>
+              <th>Budget Terpakai</th>
+              <th>% Budget</th>
               <th></th>
             </tr>
           </thead>
@@ -668,11 +679,16 @@
 </main>
 </div><!-- /#app-shell -->
 
-<!-- ===================== MODAL: TAMBAH PELANGGAN ===================== -->
+<!-- ===================== MODAL: TAMBAH / EDIT PELANGGAN ===================== -->
 <div class="modal-overlay hidden" id="modal-pelanggan">
   <div class="modal-box">
-    <h3>Tambah Pelanggan Baru</h3>
+    <h3 id="judul-modal-pelanggan">Tambah Pelanggan Baru</h3>
     <form id="form-pelanggan">
+      <input type="hidden" id="input-id-pelanggan">
+      <div class="form-group">
+        <label>ID Pelanggan</label>
+        <input type="text" id="input-kode-pelanggan" placeholder="Contoh: CL-2049" required>
+      </div>
       <div class="form-group">
         <label>Nama Pelanggan</label>
         <input type="text" id="input-nama-pelanggan" placeholder="Contoh: Samudra Digital" required>
@@ -682,41 +698,105 @@
         <input type="text" id="input-industri-pelanggan" placeholder="Contoh: Teknologi">
       </div>
       <div class="form-group">
-        <label>Nilai Potensial (Rp)</label>
-        <input type="number" id="input-nilai-pelanggan" placeholder="Contoh: 150000" min="0">
+        <label>Alamat</label>
+        <input type="text" id="input-alamat-pelanggan" placeholder="Contoh: Jl. Sudirman No. 12, Jakarta">
       </div>
+      <div class="form-group">
+        <label>No. Telepon</label>
+        <input type="text" id="input-telepon-pelanggan" placeholder="Contoh: 021-5551234">
+      </div>
+      <div class="form-group">
+        <label>No. WhatsApp</label>
+        <input type="text" id="input-whatsapp-pelanggan" placeholder="Contoh: 0812-3456-7890">
+      </div>
+      <div class="form-group">
+        <label>Nama PIC</label>
+        <input type="text" id="input-pic-pelanggan" placeholder="Contoh: Budi Santoso">
+      </div>
+      <p class="modal-note">Total Nilai Proyek dihitung otomatis dari data proyek pelanggan ini dan tidak diisi manual di sini.</p>
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" onclick="tutupModal('modal-pelanggan')">Batal</button>
-        <button type="submit" class="btn btn-primary">Simpan Pelanggan</button>
+        <button type="submit" class="btn btn-primary" id="btn-simpan-pelanggan">Simpan Pelanggan</button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- ===================== MODAL: TAMBAH PROYEK ===================== -->
+<!-- ===================== MODAL: TAMBAH / EDIT PROYEK ===================== -->
 <div class="modal-overlay hidden" id="modal-proyek">
   <div class="modal-box">
-    <h3>Tambah Proyek Baru</h3>
+    <h3 id="judul-modal-proyek">Tambah Proyek Baru</h3>
     <form id="form-proyek">
+      <input type="hidden" id="input-id-proyek">
+      <div class="form-group">
+        <label>No PO</label>
+        <input type="text" id="input-kode-proyek" placeholder="Contoh: PO-2026-0001" required>
+      </div>
       <div class="form-group">
         <label>Nama Proyek</label>
         <input type="text" id="input-nama-proyek" placeholder="Contoh: Integrasi Sistem CRM" required>
       </div>
       <div class="form-group">
         <label>Nama Pelanggan</label>
-        <input type="text" id="input-pelanggan-proyek" placeholder="Contoh: Northshore Corp." required>
+        <select id="input-pelanggan-proyek" required>
+          <option value="" disabled selected>Pilih pelanggan...</option>
+        </select>
+      </div>
+      <div class="settings-form-grid">
+        <div class="form-group">
+          <label>Tanggal</label>
+          <input type="date" id="input-tanggal-proyek">
+        </div>
+        <div class="form-group">
+          <label>Tenggat</label>
+          <input type="date" id="input-tenggat-proyek">
+        </div>
       </div>
       <div class="form-group">
-        <label>Nilai Proyek (Rp)</label>
-        <input type="number" id="input-nilai-proyek" placeholder="Contoh: 100000" min="0">
+        <label>Status</label>
+        <select id="input-status-proyek">
+          <option value="berjalan">Berjalan</option>
+          <option value="tertunda">Tertunda</option>
+          <option value="selesai">Selesai</option>
+          <option value="dibatalkan">Dibatalkan</option>
+        </select>
+      </div>
+      <div class="settings-form-grid">
+        <div class="form-group">
+          <label>Sub Total (Rp)</label>
+          <input type="number" id="input-subtotal-proyek" placeholder="Contoh: 100000" min="0">
+        </div>
+        <div class="form-group">
+          <label>Tax (%)</label>
+          <input type="number" id="input-tax-proyek" placeholder="Contoh: 11" min="0" step="0.01">
+        </div>
       </div>
       <div class="form-group">
-        <label>Tenggat Waktu</label>
-        <input type="date" id="input-tenggat-proyek">
+        <label>Dana Lainnya (Rp)</label>
+        <input type="number" id="input-dana-lain-proyek" placeholder="Contoh: 50000" min="0">
       </div>
+      <div class="form-group">
+        <label>Grand Total (Rp)</label>
+        <input type="text" id="tampil-grand-total-proyek" readonly disabled placeholder="Otomatis dihitung">
+      </div>
+      <div class="settings-form-grid">
+        <div class="form-group">
+          <label>Total Budget (Rp)</label>
+          <input type="number" id="input-total-budget-proyek" placeholder="Contoh: 200000" min="0">
+        </div>
+        <div class="form-group">
+          <label>Budget Terpakai (Rp)</label>
+          <input type="number" id="input-budget-terpakai-proyek" placeholder="Contoh: 80000" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>% Budget Terpakai</label>
+        <input type="text" id="tampil-persen-budget-proyek" readonly disabled placeholder="Otomatis dihitung">
+      </div>
+      <p class="modal-note">Grand Total dan % Budget dihitung otomatis. No PO & Dibuat Oleh diisi otomatis oleh sistem.</p>
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" onclick="tutupModal('modal-proyek')">Batal</button>
-        <button type="submit" class="btn btn-primary">Simpan Proyek</button>
+        <button type="submit" class="btn btn-primary" id="btn-simpan-proyek">Simpan Proyek</button>
       </div>
     </form>
   </div>

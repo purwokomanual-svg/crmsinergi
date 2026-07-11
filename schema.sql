@@ -380,3 +380,60 @@ create policy "admin dapat menghapus logo perusahaan" on storage.objects
   for delete using (
     bucket_id = 'logo-perusahaan'
     and exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+
+-- =========================================================
+-- TAMBAHAN v7 — DATA KONTAK PELANGGAN & TOTAL NILAI PROYEK
+-- Jalankan blok ini di SQL Editor untuk mengaktifkan kolom
+-- kontak (Alamat, No Telepon, No WhatsApp, Nama PIC) pada
+-- menu Pelanggan, serta menyinkronkan pelanggan_id di tabel
+-- proyek supaya "Total Nilai Proyek" per pelanggan bisa
+-- dihitung otomatis dan akurat (bukan dicocokkan dari nama).
+-- Aman dijalankan berulang kali / di database yang sudah
+-- berisi data.
+-- =========================================================
+
+-- ---- Perluas tabel pelanggan: alamat & kontak PIC ----
+alter table pelanggan add column if not exists alamat text;
+alter table pelanggan add column if not exists no_telepon text;
+alter table pelanggan add column if not exists no_whatsapp text;
+alter table pelanggan add column if not exists nama_pic text;
+
+-- ---- Sinkronkan proyek yang belum tertaut ke pelanggan_id ----
+-- Sebelum v7, form Proyek hanya menyimpan nama pelanggan sebagai
+-- teks bebas, sehingga pelanggan_id bisa kosong (null). Baris di
+-- bawah ini mencocokkan proyek yang belum tertaut berdasarkan nama
+-- pelanggan yang identik, sekali jalan, agar Total Nilai Proyek
+-- pada data lama tetap terhitung benar.
+update proyek pr
+set pelanggan_id = pl.id
+from pelanggan pl
+where pr.pelanggan_id is null
+  and pr.pelanggan_nama = pl.nama;
+
+-- ---- Indeks bantu untuk agregasi Total Nilai Proyek ----
+create index if not exists idx_proyek_pelanggan_id on proyek (pelanggan_id);
+
+-- =========================================================
+-- TAMBAHAN v8 — PROYEK SEBAGAI PO (PURCHASE ORDER) & BUDGET
+-- Jalankan blok ini di SQL Editor untuk mengaktifkan susunan
+-- kolom baru pada menu Proyek:
+-- No PO, Nama Pelanggan, Tanggal, Tenggat, Dibuat Oleh,
+-- Sub Total, Tax, Dana Lainnya, Grand Total, Total Budget,
+-- Budget Terpakai, % Budget, Aksi (Edit/Hapus).
+-- Aman dijalankan berulang / di database yang sudah berisi data.
+-- =========================================================
+
+alter table proyek add column if not exists tanggal date default current_date;
+alter table proyek add column if not exists dibuat_oleh_id uuid references profil(id) on delete set null;
+alter table proyek add column if not exists dibuat_oleh_nama text;
+alter table proyek add column if not exists sub_total bigint not null default 0;
+alter table proyek add column if not exists tax_persen numeric not null default 0;
+alter table proyek add column if not exists dana_lainnya bigint not null default 0;
+alter table proyek add column if not exists grand_total bigint not null default 0;
+alter table proyek add column if not exists total_budget bigint not null default 0;
+alter table proyek add column if not exists budget_terpakai bigint not null default 0;
+
+-- ---- Data lama: isi tanggal & sub_total/grand_total dari kolom nilai ----
+update proyek set tanggal = dibuat_pada::date where tanggal is null;
+update proyek set sub_total = nilai, grand_total = nilai
+  where sub_total = 0 and grand_total = 0 and nilai > 0;

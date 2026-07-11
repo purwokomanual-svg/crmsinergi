@@ -121,6 +121,71 @@ Jika Anda belum pernah mengaktifkan fitur Storage di project Supabase,
 buka menu **Storage** di dashboard sekali saja agar layanan Storage aktif,
 baru jalankan migrasi v6.
 
+### 1f. Data kontak Pelanggan & Total Nilai Proyek otomatis (v7)
+
+Jalankan blok **`TAMBAHAN v7`** di akhir `schema.sql` untuk mengaktifkan
+susunan kolom baru pada menu **Pelanggan**:
+
+`ID Pelanggan · Nama Pelanggan · Industri · Alamat · No Telepon ·
+No WhatsApp · Nama PIC · Total Nilai Proyek · Aksi (Edit/Hapus)`
+
+- **Alamat, No Telepon, No WhatsApp, Nama PIC** — kolom kontak baru,
+  diisi lewat tombol **Edit** (ikon pensil) di setiap baris pelanggan.
+- **Total Nilai Proyek** — dihitung **otomatis** dari total nilai semua
+  proyek milik pelanggan tersebut (bukan lagi diisi manual). Gunakan
+  dropdown di atas tabel untuk memilih cakupan: **Semua, Berjalan,
+  Tertunda, Selesai,** atau **Dibatalkan** — angka di setiap baris akan
+  menyesuaikan sesuai status proyek yang dipilih.
+- Form **Tambah Proyek** kini memilih pelanggan lewat **dropdown**
+  (bukan mengetik nama manual) agar setiap proyek selalu tertaut ke
+  data pelanggan yang benar — ini yang membuat Total Nilai Proyek
+  akurat dan tersinkron dengan database.
+- Migrasi ini juga otomatis menautkan ulang proyek lama (yang dibuat
+  sebelum v7) ke pelanggan yang cocok berdasarkan nama, sekali jalan,
+  jadi Total Nilai Proyek tetap benar untuk data yang sudah ada.
+
+### 1g. Proyek sebagai PO (Purchase Order) & Anggaran (v8)
+
+Jalankan blok **`TAMBAHAN v8`** di akhir `schema.sql` untuk mengaktifkan
+susunan kolom baru pada menu **Proyek**:
+
+`No PO · Nama Pelanggan · Tanggal · Tenggat · Dibuat Oleh · Sub Total ·
+Tax · Dana Lainnya · Grand Total · Total Budget · Budget Terpakai ·
+% Budget · Aksi (Edit/Hapus)`
+
+- **No PO** memakai kode proyek yang sudah ada (format baru `PO-xxxx`
+  untuk proyek baru; proyek lama tetap memakai kode `PR-xxxx`-nya).
+- **Nama Pelanggan** tetap dipilih lewat dropdown (tersinkron dengan
+  menu Pelanggan) — bukan diketik manual, supaya Total Nilai Proyek
+  di menu Pelanggan selalu akurat.
+- **Dibuat Oleh** diisi otomatis dari akun yang membuat proyek, tidak
+  bisa diubah lewat form.
+- **Grand Total** = Sub Total + (Sub Total × Tax%) + Dana Lainnya,
+  dihitung otomatis dan tampil langsung saat mengisi form.
+- **% Budget** = Budget Terpakai ÷ Total Budget × 100, dihitung
+  otomatis di tabel maupun form.
+- Status proyek (Berjalan/Tertunda/Selesai/Dibatalkan) sekarang diatur
+  lewat tombol **Edit**, bukan dropdown langsung di tabel, karena tabel
+  sudah padat dengan kolom keuangan di atas.
+- Migrasi ini mengisi `tanggal` dan `sub_total`/`grand_total` proyek
+  lama dari data yang sudah ada, jadi data lama tidak hilang.
+
+### 1h. ID Pelanggan & No PO input manual (v9)
+
+Tidak perlu migrasi SQL tambahan untuk bagian ini (kolom `kode` yang
+dipakai sudah ada sejak awal). Perubahannya ada di formulir:
+
+- **ID Pelanggan** (menu Pelanggan) dan **No PO** (menu Proyek) kini
+  jadi kolom input terpisah yang **bisa diisi manual**, misalnya sesuai
+  format penomoran internal perusahaan Anda (contoh: `CL-2049`,
+  `PO-2026-0001`).
+- Saat klik **Tambah**, sistem tetap menyarankan ID/No PO otomatis
+  supaya Anda tidak mulai dari kosong, tapi nilainya bebas diubah
+  sebelum disimpan.
+- Nilai ini juga bisa diedit lagi lewat tombol **Edit**.
+- ID Pelanggan dan No PO harus **unik** — jika sudah dipakai baris
+  lain, aplikasi akan menampilkan pesan agar Anda memakai nilai lain.
+
 ## 3. Unggah ke GitHub
 
 ```bash
@@ -152,9 +217,15 @@ Setiap kali Anda `git push` ke branch `main`, Vercel otomatis men-deploy ulang.
   pelanggan aktif & proyek berjalan, aksi favorit/bagikan tautan/unduh CSV,
   dan grafik dengan rentang waktu, mode layar penuh, kisi, bandingkan
   periode, dan unduh sebagai PNG.
-- **Pelanggan** — tambah, cari, filter status, dan hapus pelanggan.
-- **Proyek** — tambah proyek, ubah status langsung (Berjalan/Tertunda/
-  Selesai/Dibatalkan), progres, dan hapus proyek.
+- **Pelanggan** — tambah, edit, cari, dan hapus pelanggan, lengkap
+  dengan data kontak (alamat, no. telepon, no. WhatsApp, nama PIC) dan
+  Total Nilai Proyek otomatis yang bisa disaring per status proyek,
+  lihat langkah 1f.
+- **Proyek** — dikelola sebagai PO (Purchase Order): No PO, pelanggan
+  (tersinkron dropdown), tanggal, tenggat, dibuat oleh, rincian Sub
+  Total/Tax/Dana Lainnya/Grand Total, serta Total Budget, Budget
+  Terpakai, dan % Budget — semua dihitung otomatis. Tambah, edit, dan
+  hapus PO, lihat langkah 1g.
 - **Pesan** — papan catatan/pengumuman internal tim (memerlukan migrasi
   tabel `catatan_tim`, lihat langkah 1b di bawah).
 - **Kalender** — tenggat proyek & tugas otomatis ditampilkan per bulan,
