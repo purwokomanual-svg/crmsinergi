@@ -26,7 +26,7 @@ function muatPengaturan(){
   document.getElementById('setting-rupiah-ringkas').checked = PENGATURAN.rupiahRingkas;
   document.getElementById('setting-notif-aktif').checked = PENGATURAN.notifAktif;
   const btnFavorit = document.getElementById('btn-favorit-ringkasan');
-  if(btnFavorit) btnFavorit.style.color = PENGATURAN.ringkasanFavorit ? 'var(--purple-bright)' : '';
+  if(btnFavorit) btnFavorit.style.color = PENGATURAN.ringkasanFavorit ? 'var(--accent-bright)' : '';
 }
 function simpanPengaturan(){
   PENGATURAN.rupiahRingkas = document.getElementById('setting-rupiah-ringkas').checked;
@@ -418,7 +418,7 @@ function toggleFavoritRingkasan(){
   PENGATURAN.ringkasanFavorit = !PENGATURAN.ringkasanFavorit;
   localStorage.setItem('dealstack_pengaturan', JSON.stringify(PENGATURAN));
   const btn = document.getElementById('btn-favorit-ringkasan');
-  btn.style.color = PENGATURAN.ringkasanFavorit ? 'var(--purple-bright)' : '';
+  btn.style.color = PENGATURAN.ringkasanFavorit ? 'var(--accent-bright)' : '';
   tampilkanToast(PENGATURAN.ringkasanFavorit ? 'Ditandai sebagai favorit' : 'Favorit dihapus');
 }
 
@@ -1085,14 +1085,14 @@ function renderChart(){
   svg.innerHTML = `
     <defs>
       <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.55"/>
-        <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
+        <stop offset="0%" stop-color="#ef3f4d" stop-opacity="0.55"/>
+        <stop offset="100%" stop-color="#ef3f4d" stop-opacity="0"/>
       </linearGradient>
     </defs>
     <line x1="0" y1="0" x2="${W}" y2="0" stroke="rgba(255,255,255,.08)" stroke-dasharray="3 5"/>
     <path id="chart-ghost-path" d="${ghostPath}" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="1.5" style="${compareHidden ? 'display:none' : ''}"/>
     <path d="${areaPath}" fill="url(#areaGrad)"/>
-    <path d="${linePath}" fill="none" stroke="#a78bfa" stroke-width="2"/>
+    <path d="${linePath}" fill="none" stroke="#ff6b74" stroke-width="2"/>
   `;
 
   const crossIdx = Math.round(N * 0.42);
@@ -1100,7 +1100,7 @@ function renderChart(){
   const crossY = H - (mainSeries[crossIdx] / maxV) * H;
   svg.innerHTML += `
     <line x1="${crossX}" y1="0" x2="${crossX}" y2="${H}" stroke="rgba(255,255,255,.35)" stroke-dasharray="4 4"/>
-    <circle cx="${crossX}" cy="${crossY}" r="4.5" fill="#0c0a17" stroke="#fff" stroke-width="2"/>
+    <circle cx="${crossX}" cy="${crossY}" r="4.5" fill="#161618" stroke="#fff" stroke-width="2"/>
   `;
 
   const wrap = document.getElementById('chart-wrap');
@@ -1124,7 +1124,7 @@ function renderChart(){
   const brushSeries = buildSeries(N, 55);
   const bMax = Math.max(...brushSeries) * 1.15;
   const brushLine = toPath(brushSeries, W, 52, bMax);
-  brushSvg.innerHTML = `<path d="${brushLine}" fill="none" stroke="rgba(167,139,250,.55)" stroke-width="1.5"/>`;
+  brushSvg.innerHTML = `<path d="${brushLine}" fill="none" stroke="rgba(255,107,116,.55)" stroke-width="1.5"/>`;
 
   const brushWindow = document.getElementById('brush-window');
   brushWindow.style.left = '74%';
@@ -1167,7 +1167,7 @@ function unduhGrafik(){
     const canvas = document.createElement('canvas');
     canvas.width = 1200; canvas.height = 360;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#151125';
+    ctx.fillStyle = '#1b1a1d';
     ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     URL.revokeObjectURL(url);
@@ -1277,7 +1277,7 @@ function renderKalender(){
     agendaTitle.textContent = `Agenda ${calHariDipilih} ${BULAN_INDO[calBulan]}`;
     agendaList.innerHTML = items.length ? items.map(it => `
       <div class="agenda-item">
-        <div class="dot" style="background:${it.tipe==='proyek' ? 'var(--blue)' : 'var(--purple-bright)'}"></div>
+        <div class="dot" style="background:${it.tipe==='proyek' ? 'var(--blue)' : 'var(--accent-bright)'}"></div>
         <div><b>${it.teks}</b> — <span class="cell-muted">${it.sub}</span></div>
       </div>`).join('') : `<div class="empty-state"><p>Tidak ada agenda di tanggal ini.</p></div>`;
   } else {
@@ -1286,7 +1286,7 @@ function renderKalender(){
     for(let h=1; h<=jumlahHari; h++) itemUntukTanggal(h, calBulan, calTahun).forEach(it => semuaItem.push({ ...it, hari: h }));
     agendaList.innerHTML = semuaItem.length ? semuaItem.map(it => `
       <div class="agenda-item">
-        <div class="dot" style="background:${it.tipe==='proyek' ? 'var(--blue)' : 'var(--purple-bright)'}"></div>
+        <div class="dot" style="background:${it.tipe==='proyek' ? 'var(--blue)' : 'var(--accent-bright)'}"></div>
         <div><b>${it.teks}</b> — <span class="cell-muted">${it.sub} · ${it.hari} ${BULAN_SINGKAT_INDO[calBulan]}</span></div>
       </div>`).join('') : `<div class="empty-state"><p>Tidak ada tenggat proyek/tugas di bulan ini.</p></div>`;
   }
