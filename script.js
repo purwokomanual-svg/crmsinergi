@@ -138,7 +138,8 @@ async function masukKeAplikasi(session){
   renderPesan();
   renderNotifikasi();
   renderChart();
-  if(CURRENT_USER.peran === 'admin') renderPengawasanTim();
+  if(CURRENT_USER.peran === 'admin'){ renderPengawasanTim(); renderPenggunaAdmin(); }
+  initRealtime();
 }
 
 function initAuthUI(){
@@ -328,7 +329,7 @@ async function muatSemuaData(){
     supabaseClient.from('pelanggan').select('*').order('dibuat_pada', { ascending: false }),
     supabaseClient.from('proyek').select('*').order('dibuat_pada', { ascending: false }),
     supabaseClient.from('tugas').select('*').order('dibuat_pada', { ascending: false }),
-    supabaseClient.from('aktivitas').select('*').order('dibuat_pada', { ascending: false }).limit(20),
+    supabaseClient.from('aktivitas').select('*').order('dibuat_pada', { ascending: false }).limit(80),
     supabaseClient.from('catatan_tim').select('*').order('dibuat_pada', { ascending: false }),
     supabaseClient.from('profil').select('*').order('nama', { ascending: true }),
   ]);
@@ -350,8 +351,19 @@ async function muatSemuaData(){
 }
 
 async function catatAktivitas(tipe, teks){
-  const { error } = await supabaseClient.from('aktivitas').insert({ tipe, teks });
-  if(error) console.error(error);
+  const baris = { tipe, teks, pelaku_id: CURRENT_USER ? CURRENT_USER.id : null, pelaku_nama: CURRENT_USER ? CURRENT_USER.nama : null };
+  const { data, error } = await supabaseClient.from('aktivitas').insert(baris).select().single();
+  if(error){
+    console.error(error);
+    // Kolom pelaku_id/pelaku_nama mungkin belum ada jika migrasi v4 belum dijalankan — coba lagi tanpa kolom itu.
+    const fallback = await supabaseClient.from('aktivitas').insert({ tipe, teks }).select().single();
+    if(fallback.error){ console.error(fallback.error); return; }
+    DATA.aktivitas.unshift(fallback.data);
+    renderAktivitas();
+    return;
+  }
+  DATA.aktivitas.unshift(data);
+  renderAktivitas();
 }
 
 /* ---------------------------------------------------------
@@ -370,6 +382,7 @@ function pindahTampilan(namaView){
   if(namaView === 'integrasi') tesKoneksiSupabase();
   if(namaView === 'bantuan') renderFAQ();
   if(namaView === 'pengawasan') renderPengawasanTim();
+  if(namaView === 'pengguna') renderPenggunaAdmin();
 }
 
 /* ---------------------------------------------------------
@@ -489,10 +502,12 @@ function renderPelanggan(){
 }
 
 async function hapusPelanggan(id){
+  const p = DATA.pelanggan.find(x => x.id === id);
   const { error } = await supabaseClient.from('pelanggan').delete().eq('id', id);
   if(error){ console.error(error); tampilkanToast('Gagal menghapus pelanggan', true); return; }
-  DATA.pelanggan = DATA.pelanggan.filter(p => p.id !== id);
+  DATA.pelanggan = DATA.pelanggan.filter(x => x.id !== id);
   renderPelanggan();
+  if(p) await catatAktivitas('pelanggan', `Pelanggan <b>${p.nama}</b> dihapus`);
   tampilkanToast('Pelanggan dihapus');
 }
 
@@ -512,6 +527,7 @@ async function tambahPelanggan(e){
 
   DATA.pelanggan.unshift(data);
   renderPelanggan();
+  await catatAktivitas('pelanggan', `Pelanggan baru <b>${nama}</b> ditambahkan ke sistem`);
   tutupModal('modal-pelanggan');
   e.target.reset();
   tampilkanToast('Pelanggan baru ditambahkan');
@@ -572,23 +588,23 @@ async function ubahStatusProyek(id, statusBaru){
 
   proyek.status = statusBaru;
   proyek.progres = progresBaru;
-  await catatAktivitas('proyek', `Status proyek <b>${proyek.nama}</b> diubah menjadi ${labelStatusProyek(statusBaru)}`);
-  DATA.aktivitas.unshift({ tipe:'proyek', teks:`Status proyek <b>${proyek.nama}</b> diubah menjadi ${labelStatusProyek(statusBaru)}`, dibuat_pada: new Date().toISOString() });
 
   renderProyek();
   renderKPI();
   renderFunnel();
-  renderAktivitas();
+  await catatAktivitas('proyek', `Status proyek <b>${proyek.nama}</b> diubah menjadi ${labelStatusProyek(statusBaru)}`);
   tampilkanToast('Status proyek diperbarui');
 }
 
 async function hapusProyek(id){
+  const p = DATA.proyek.find(x => x.id === id);
   const { error } = await supabaseClient.from('proyek').delete().eq('id', id);
   if(error){ console.error(error); tampilkanToast('Gagal menghapus proyek', true); return; }
-  DATA.proyek = DATA.proyek.filter(p => p.id !== id);
+  DATA.proyek = DATA.proyek.filter(x => x.id !== id);
   renderProyek();
   renderKPI();
   renderFunnel();
+  if(p) await catatAktivitas('proyek', `Proyek <b>${p.nama}</b> dihapus`);
   tampilkanToast('Proyek dihapus');
 }
 
@@ -605,13 +621,10 @@ async function tambahProyek(e){
   if(error){ console.error(error); tampilkanToast('Gagal menambah proyek', true); return; }
 
   DATA.proyek.unshift(data);
-  await catatAktivitas('proyek', `Proyek baru <b>${nama}</b> dibuat untuk ${pelanggan_nama}`);
-  DATA.aktivitas.unshift({ tipe:'proyek', teks:`Proyek baru <b>${nama}</b> dibuat untuk ${pelanggan_nama}`, dibuat_pada: new Date().toISOString() });
-
   renderProyek();
   renderKPI();
   renderFunnel();
-  renderAktivitas();
+  await catatAktivitas('proyek', `Proyek baru <b>${nama}</b> dibuat untuk ${pelanggan_nama}`);
   tutupModal('modal-proyek');
   e.target.reset();
   tampilkanToast('Proyek baru ditambahkan');
@@ -652,6 +665,7 @@ const ikonAktivitas = {
   proyek: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>',
   pelanggan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0113 0"/></svg>',
   tugas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l2.5 2.5L16 9"/></svg>',
+  pengguna: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0114 0"/></svg>',
 };
 function waktuRelatif(iso){
   const detik = Math.floor((Date.now() - new Date(iso).getTime())/1000);
@@ -662,16 +676,25 @@ function waktuRelatif(iso){
 }
 function renderAktivitas(){
   const wrap = document.getElementById('timeline-wrap');
-  if(!DATA.aktivitas.length){
-    wrap.innerHTML = `<div class="empty-state"><p>Belum ada aktivitas.</p></div>`;
+  const q = (document.getElementById('cari-aktivitas')?.value || '').toLowerCase();
+  const filterTipe = document.getElementById('filter-tipe-aktivitas')?.value || 'semua';
+
+  const data = DATA.aktivitas.filter(a => {
+    const cocokTipe = filterTipe === 'semua' || a.tipe === filterTipe;
+    const cocokCari = !q || a.teks.toLowerCase().includes(q) || (a.pelaku_nama || '').toLowerCase().includes(q);
+    return cocokTipe && cocokCari;
+  });
+
+  if(!data.length){
+    wrap.innerHTML = `<div class="empty-state"><p>Tidak ada aktivitas yang cocok.</p></div>`;
     return;
   }
-  wrap.innerHTML = DATA.aktivitas.map(a => `
+  wrap.innerHTML = data.map(a => `
     <div class="timeline-item">
       <div class="timeline-dot">${ikonAktivitas[a.tipe] || ikonAktivitas.proyek}</div>
       <div class="timeline-body">
         <div class="timeline-title">${a.teks}</div>
-        <div class="timeline-meta">${waktuRelatif(a.dibuat_pada)}</div>
+        <div class="timeline-meta">${waktuRelatif(a.dibuat_pada)}${a.pelaku_nama ? ' · oleh ' + a.pelaku_nama : ''}</div>
       </div>
     </div>
   `).join('');
@@ -736,7 +759,11 @@ function renderTugas(){
       <td class="cell-name">${t.judul}${t.deskripsi ? `<div class="cell-muted">${t.deskripsi}</div>` : ''}</td>
       <td>
         <div class="assignee-cell">
-          ${assignee ? `<div class="user-avatar">${assignee.nama.charAt(0).toUpperCase()}</div><span>${assignee.nama}</span>` : `<span class="cell-muted">Belum ditugaskan</span>`}
+          ${isAdmin ? `
+          <select class="filter-select" style="font-size:12px;padding:5px 8px;" onchange="ubahAssigneeTugas('${t.id}', this.value)">
+            <option value="">Belum ditugaskan</option>
+            ${DATA.profil.map(p => `<option value="${p.id}" ${p.id===t.ditugaskan_ke?'selected':''}>${p.nama}</option>`).join('')}
+          </select>` : (assignee ? `<div class="user-avatar">${assignee.nama.charAt(0).toUpperCase()}</div><span>${assignee.nama}</span>` : `<span class="cell-muted">Belum ditugaskan</span>`)}
         </div>
       </td>
       <td><span class="badge-prioritas ${t.prioritas || 'normal'}">${(t.prioritas || 'normal').charAt(0).toUpperCase() + (t.prioritas || 'normal').slice(1)}</span></td>
@@ -781,13 +808,10 @@ async function tambahTugas(e){
   if(error){ console.error(error); tampilkanToast('Gagal menambah tugas. Sudahkah migrasi v3 dijalankan?', true); return; }
 
   DATA.tugas.unshift(data);
+  renderTugas();
+  if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
   const namaAssignee = DATA.profil.find(p => p.id === ditugaskan_ke)?.nama;
   await catatAktivitas('tugas', `Tugas baru <b>${judul}</b> dibuat${namaAssignee ? ' untuk ' + namaAssignee : ''}`);
-  DATA.aktivitas.unshift({ tipe:'tugas', teks:`Tugas baru <b>${judul}</b> dibuat${namaAssignee ? ' untuk ' + namaAssignee : ''}`, dibuat_pada: new Date().toISOString() });
-
-  renderTugas();
-  renderAktivitas();
-  if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
   tutupModal('modal-tugas');
   e.target.reset();
   tampilkanToast('Tugas baru ditambahkan');
@@ -803,15 +827,32 @@ async function ubahStatusTugas(id, statusBaru){
   renderTugas();
   renderNotifikasi();
   if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
+  await catatAktivitas('tugas', `Status tugas <b>${t.judul}</b> diubah menjadi ${labelStatusKerja(statusBaru)}`);
   tampilkanToast('Status tugas diperbarui');
 }
 
-async function hapusTugas(id){
-  const { error } = await supabaseClient.from('tugas').delete().eq('id', id);
-  if(error){ console.error(error); tampilkanToast('Gagal menghapus tugas', true); return; }
-  DATA.tugas = DATA.tugas.filter(t => t.id !== id);
+/* Admin menugaskan ulang tugas ke anggota lain */
+async function ubahAssigneeTugas(id, assigneeBaru){
+  const t = DATA.tugas.find(x => x.id === id);
+  if(!t) return;
+  const { error } = await supabaseClient.from('tugas').update({ ditugaskan_ke: assigneeBaru || null }).eq('id', id);
+  if(error){ console.error(error); tampilkanToast('Gagal menugaskan ulang', true); return; }
+  t.ditugaskan_ke = assigneeBaru || null;
   renderTugas();
   if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
+  const namaBaru = DATA.profil.find(p => p.id === assigneeBaru)?.nama;
+  await catatAktivitas('tugas', `Tugas <b>${t.judul}</b> ditugaskan ulang ke ${namaBaru || 'tidak ada (dilepas)'}`);
+  tampilkanToast('Tugas ditugaskan ulang');
+}
+
+async function hapusTugas(id){
+  const t = DATA.tugas.find(x => x.id === id);
+  const { error } = await supabaseClient.from('tugas').delete().eq('id', id);
+  if(error){ console.error(error); tampilkanToast('Gagal menghapus tugas', true); return; }
+  DATA.tugas = DATA.tugas.filter(x => x.id !== id);
+  renderTugas();
+  if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
+  if(t) await catatAktivitas('tugas', `Tugas <b>${t.judul}</b> dihapus`);
   tampilkanToast('Tugas dihapus');
 }
 
@@ -852,6 +893,120 @@ function renderPengawasanTim(){
         <div class="cell-muted">${persen}% tugas selesai</div>
       </div>`;
   }).join('');
+}
+
+/* ---------------------------------------------------------
+   19. KELOLA PENGGUNA (khusus Admin)
+--------------------------------------------------------- */
+function renderPenggunaAdmin(){
+  const tbody = document.getElementById('tbody-pengguna');
+  if(!tbody) return;
+  if(!DATA.profil.length){
+    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><p>Belum ada pengguna terdaftar.</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = DATA.profil.map(p => `
+    <tr>
+      <td class="assignee-cell cell-name"><div class="user-avatar">${p.nama.charAt(0).toUpperCase()}</div>${p.nama}</td>
+      <td class="cell-muted">${p.email}</td>
+      <td>
+        <select class="filter-select" onchange="ubahPeranPengguna('${p.id}', this.value)" ${p.id === CURRENT_USER.id ? 'disabled title="Tidak bisa mengubah peran sendiri"' : ''}>
+          <option value="anggota" ${p.peran==='anggota'?'selected':''}>Anggota Tim</option>
+          <option value="admin" ${p.peran==='admin'?'selected':''}>Admin</option>
+        </select>
+      </td>
+      <td class="cell-muted">${waktuRelatif(p.dibuat_pada)}</td>
+    </tr>`).join('');
+}
+async function ubahPeranPengguna(id, peranBaru){
+  const p = DATA.profil.find(x => x.id === id);
+  if(!p) return;
+  const { error } = await supabaseClient.from('profil').update({ peran: peranBaru }).eq('id', id);
+  if(error){ console.error(error); tampilkanToast('Gagal mengubah peran. Sudahkah migrasi v5 dijalankan?', true); renderPenggunaAdmin(); return; }
+  p.peran = peranBaru;
+  renderPenggunaAdmin();
+  renderPengawasanTim();
+  await catatAktivitas('pengguna', `Peran <b>${p.nama}</b> diubah menjadi ${peranBaru === 'admin' ? 'Admin' : 'Anggota Tim'}`);
+  tampilkanToast('Peran pengguna diperbarui');
+}
+
+/* ---------------------------------------------------------
+   20. NOTIFIKASI DESKTOP (Web Notification API)
+--------------------------------------------------------- */
+function mintaIzinNotifikasi(){
+  if(!('Notification' in window)){
+    tampilkanToast('Browser ini tidak mendukung notifikasi desktop', true);
+    return;
+  }
+  if(Notification.permission === 'granted'){
+    tampilkanToast('Notifikasi desktop sudah aktif');
+    return;
+  }
+  if(Notification.permission === 'denied'){
+    tampilkanToast('Notifikasi diblokir di pengaturan browser Anda', true);
+    return;
+  }
+  Notification.requestPermission().then(izin => {
+    tampilkanToast(izin === 'granted' ? 'Notifikasi desktop diaktifkan' : 'Izin notifikasi ditolak', izin !== 'granted');
+  });
+}
+function kirimNotifikasiBrowser(judul, isi){
+  if(!PENGATURAN.notifAktif) return;
+  if('Notification' in window && Notification.permission === 'granted'){
+    try{ new Notification(judul, { body: isi }); }catch(e){ console.warn('Gagal menampilkan notifikasi', e); }
+  }
+}
+
+/* ---------------------------------------------------------
+   21. REALTIME — LIVE UPDATE ANTAR PENGGUNA (Supabase Realtime)
+--------------------------------------------------------- */
+function upsertKeArray(arr, item){
+  const idx = arr.findIndex(x => x.id === item.id);
+  if(idx === -1) arr.unshift(item); else arr[idx] = item;
+}
+function initRealtime(){
+  if(typeof supabaseClient.channel !== 'function') return; // versi supabase-js lama tanpa Realtime v2
+
+  supabaseClient.channel('dealstack-tugas')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tugas' }, (payload) => {
+      if(payload.eventType === 'DELETE'){
+        DATA.tugas = DATA.tugas.filter(t => t.id !== payload.old.id);
+      } else {
+        const barisSebelumnya = DATA.tugas.find(t => t.id === payload.new.id);
+        const inilahPenugasanBaru = payload.eventType === 'INSERT' && payload.new.ditugaskan_ke === (CURRENT_USER && CURRENT_USER.id) ||
+          (payload.eventType === 'UPDATE' && barisSebelumnya && barisSebelumnya.ditugaskan_ke !== payload.new.ditugaskan_ke && payload.new.ditugaskan_ke === (CURRENT_USER && CURRENT_USER.id));
+        if(inilahPenugasanBaru){
+          kirimNotifikasiBrowser('Tugas baru untuk Anda', payload.new.judul);
+        }
+        upsertKeArray(DATA.tugas, payload.new);
+      }
+      renderTugas();
+      renderNotifikasi();
+      if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
+    })
+    .subscribe();
+
+  supabaseClient.channel('dealstack-aktivitas')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'aktivitas' }, (payload) => {
+      if(!DATA.aktivitas.some(a => a.id === payload.new.id)) DATA.aktivitas.unshift(payload.new);
+      renderAktivitas();
+    })
+    .subscribe();
+
+  supabaseClient.channel('dealstack-catatan')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'catatan_tim' }, (payload) => {
+      if(payload.eventType === 'DELETE'){
+        DATA.catatan = DATA.catatan.filter(c => c.id !== payload.old.id);
+      } else {
+        const sudahAda = DATA.catatan.some(c => c.id === payload.new.id);
+        if(!sudahAda && CURRENT_USER && payload.new.dibuat_oleh !== CURRENT_USER.nama){
+          kirimNotifikasiBrowser('Catatan tim baru', payload.new.dibuat_oleh + ': ' + payload.new.isi);
+        }
+        upsertKeArray(DATA.catatan, payload.new);
+      }
+      renderPesan();
+    })
+    .subscribe();
 }
 
 /* ---------------------------------------------------------
@@ -1282,20 +1437,8 @@ function toggleFAQ(i){
 --------------------------------------------------------- */
 function initNavigasi(){
   document.querySelectorAll('.nav-item[data-view]').forEach(el => {
-    el.addEventListener('click', () => { pindahTampilan(el.dataset.view); tutupSidebarMobile(); });
+    el.addEventListener('click', () => pindahTampilan(el.dataset.view));
   });
-}
-
-/* Drawer sidebar untuk tampilan mobile (<=760px) */
-function bukaSidebarMobile(){
-  document.getElementById('sidebar').classList.add('mobile-open');
-  document.getElementById('sidebar-overlay').classList.add('show');
-  document.body.style.overflow = 'hidden';
-}
-function tutupSidebarMobile(){
-  document.getElementById('sidebar').classList.remove('mobile-open');
-  document.getElementById('sidebar-overlay').classList.remove('show');
-  document.body.style.overflow = '';
 }
 function initEventListener(){
   document.getElementById('cari-pelanggan').addEventListener('input', renderPelanggan);
@@ -1307,6 +1450,9 @@ function initEventListener(){
   document.getElementById('form-proyek').addEventListener('submit', tambahProyek);
 
   document.getElementById('form-tugas').addEventListener('submit', tambahTugas);
+
+  document.getElementById('cari-aktivitas').addEventListener('input', renderAktivitas);
+  document.getElementById('filter-tipe-aktivitas').addEventListener('change', renderAktivitas);
 
   document.querySelectorAll('.range-tab').forEach(tab => {
     tab.addEventListener('click', () => ubahRentangChart(tab.dataset.range));

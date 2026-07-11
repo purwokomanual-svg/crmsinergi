@@ -247,3 +247,43 @@ drop policy if exists "publik dapat menghapus catatan tim" on catatan_tim;
 create policy "pengguna login dapat membaca catatan tim" on catatan_tim for select using (auth.uid() is not null);
 create policy "pengguna login dapat menambah catatan tim" on catatan_tim for insert with check (auth.uid() is not null);
 create policy "pengguna login dapat menghapus catatan tim" on catatan_tim for delete using (auth.uid() is not null);
+
+-- =========================================================
+-- TAMBAHAN v4 — JEJAK AUDIT (siapa melakukan apa)
+-- Jalankan blok ini di SQL Editor setelah v3 aktif.
+-- =========================================================
+alter table aktivitas add column if not exists pelaku_id uuid references profil(id) on delete set null;
+alter table aktivitas add column if not exists pelaku_nama text;
+
+-- =========================================================
+-- TAMBAHAN v5 — REALTIME LIVE UPDATE & KELOLA PENGGUNA
+-- Jalankan blok ini di SQL Editor setelah v3/v4 aktif.
+-- =========================================================
+
+-- Aktifkan replikasi realtime supaya perubahan tugas/aktivitas/catatan
+-- langsung muncul di layar pengguna lain tanpa perlu memuat ulang halaman.
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table tugas;
+  exception when duplicate_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table aktivitas;
+  exception when duplicate_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table catatan_tim;
+  exception when duplicate_object then null;
+  end;
+end $$;
+
+-- Izinkan Admin mengubah peran pengguna lain (menu "Kelola Pengguna")
+drop policy if exists "pengguna dapat memperbarui profil sendiri" on profil;
+create policy "pengguna memperbarui profil sendiri atau admin mengubah siapapun" on profil for update using (
+  auth.uid() = id or exists (select 1 from profil p where p.id = auth.uid() and p.peran = 'admin')
+);
+
+-- Izinkan jenis aktivitas baru "pengguna" (dipakai saat mengubah peran anggota)
+alter table aktivitas drop constraint if exists aktivitas_tipe_check;
+alter table aktivitas add constraint aktivitas_tipe_check check (tipe in ('proyek','pelanggan','tugas','pengguna'));

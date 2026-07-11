@@ -85,6 +85,22 @@ kepadanya (atau yang ia buat sendiri), bisa mengubah status tugasnya
 sendiri (Belum Dikerjakan/Dikerjakan/Review/Selesai), tapi tidak bisa
 menghapus data dan tidak melihat menu Pengawasan Tim.
 
+### 1d. Live update & Kelola Pengguna (v5)
+
+Jalankan blok **`TAMBAHAN v5`** di akhir `schema.sql` untuk mengaktifkan:
+
+- **Live update antar pengguna** — saat Admin menambah/mengubah tugas,
+  atau ada catatan tim baru, semua pengguna yang sedang online melihat
+  perubahan itu seketika tanpa perlu memuat ulang halaman (memakai
+  Supabase Realtime).
+- **Notifikasi Desktop** — klik ikon gear di topbar → "Aktifkan Notifikasi
+  Desktop". Setelah diizinkan browser, Anda akan mendapat notifikasi
+  desktop saat ditugaskan tugas baru atau ada catatan tim baru — bahkan
+  saat tab Dealstack tidak sedang aktif dilihat.
+- **Menu "Kelola Pengguna"** *(khusus Admin)* — mengubah peran anggota
+  (Admin ⇄ Anggota Tim) langsung dari aplikasi, tidak perlu lagi membuka
+  SQL Editor setelah pengaturan Admin pertama.
+
 ## 3. Unggah ke GitHub
 
 ```bash
@@ -132,20 +148,27 @@ Setiap kali Anda `git push` ke branch `main`, Vercel otomatis men-deploy ulang.
   Selesai).
 - **Pengawasan Tim** *(khusus Admin)* — beban kerja & progres tiap
   anggota tim, termasuk jumlah tugas terlambat.
+- **Kelola Pengguna** *(khusus Admin)* — ubah peran anggota langsung dari
+  aplikasi.
 - **Integrasi** — status koneksi database Supabase (bisa diuji langsung),
   serta daftar integrasi pihak ketiga yang direncanakan (Slack, WhatsApp,
   Google Calendar).
 - **Pusat Bantuan** — FAQ penggunaan aplikasi.
 - **Login multi-pengguna** — Admin dan Anggota Tim, lihat langkah 1c di
   bawah untuk aktivasi.
+- **Live update & Notifikasi Desktop** — perubahan tugas/catatan tim
+  langsung tersinkron ke semua pengguna yang online, lihat langkah 1d.
+- **Jejak audit** — menu Aktivitas kini mencatat siapa yang melakukan
+  setiap perubahan (pelanggan, proyek, tugas, dan perubahan peran).
 - **Notifikasi & Pencarian Global** — ikon lonceng menampilkan proyek/tugas
   yang jatuh tempo dalam 3 hari; kolom pencarian di topbar mencari lintas
   pelanggan, proyek, dan tugas sekaligus.
 
 > **Catatan:** Fondasi multi-user (login, peran, penugasan tugas per
-> anggota, dan dashboard pengawasan) sudah aktif di versi ini — lihat
-> langkah 1c. Yang belum ada: notifikasi push/email saat ada tugas baru,
-> dan riwayat log siapa mengubah apa (audit trail) selain di menu Aktivitas.
+> anggota, dashboard pengawasan, live update, dan notifikasi desktop)
+> sudah aktif di versi ini — lihat langkah 1c dan 1d. Notifikasi email
+> (lewat SMTP/Resend dsb.) belum termasuk karena membutuhkan Supabase Edge
+> Function terpisah di luar cakupan frontend statis ini.
 
 ## Menjalankan secara lokal
 

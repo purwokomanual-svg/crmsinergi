@@ -58,8 +58,7 @@
 
 <!-- ===================== APLIKASI UTAMA (tersembunyi sampai login) ===================== -->
 <div id="app-shell" class="hidden">
-<div class="sidebar-overlay" id="sidebar-overlay" onclick="tutupSidebarMobile()"></div>
-<aside class="sidebar" id="sidebar">
+<aside class="sidebar">
   <div class="brand">
     <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v7M12 14v7M5 12h4M15 12h4"/></svg></div>
     Dealstack
@@ -83,6 +82,7 @@
   <div class="sidebar-spacer"></div>
 
   <div class="nav-label">Sistem</div>
+  <button class="nav-item" data-view="pengguna" data-role="admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Kelola Pengguna</button>
   <button class="nav-item" data-view="integrasi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>Integrasi</button>
   <button class="nav-item" data-view="bantuan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 013.9-2.1c1 .7 1.1 2 .3 2.8-.8.8-1.7.9-1.7 2.3"/><path d="M12 17h.01"/></svg>Pusat Bantuan</button>
   <button class="nav-item" onclick="konfirmasiKeluar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>Keluar</button>
@@ -90,9 +90,6 @@
 
 <main class="main">
   <div class="topbar">
-    <button class="hamburger-btn" onclick="bukaSidebarMobile()" title="Menu" aria-label="Buka menu navigasi">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-    </button>
     <div class="search-box dropdown-wrap">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input type="text" id="global-search" placeholder="Cari pelanggan, proyek, atau tugas..." oninput="cariGlobal(this.value)" onfocus="cariGlobal(this.value)" autocomplete="off">
@@ -121,6 +118,7 @@
           <label class="setting-row"><span>Tampilkan notifikasi jatuh tempo</span>
             <input type="checkbox" id="setting-notif-aktif" onchange="simpanPengaturan()">
           </label>
+          <button type="button" class="dropdown-item" id="btn-izin-notifikasi" onclick="mintaIzinNotifikasi()">Aktifkan Notifikasi Desktop</button>
         </div>
       </div>
       <div class="dropdown-wrap">
@@ -320,8 +318,22 @@
       <div class="view-head">
         <div>
           <h2>Aktivitas</h2>
-          <p>Riwayat aktivitas terbaru pada pelanggan dan proyek Anda.</p>
+          <p>Riwayat perubahan pada pelanggan, proyek, dan tugas — lengkap dengan siapa yang melakukannya.</p>
         </div>
+      </div>
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="cari-aktivitas" placeholder="Cari aktivitas atau nama orang...">
+        </div>
+        <select class="filter-select" id="filter-tipe-aktivitas">
+          <option value="semua">Semua Jenis</option>
+          <option value="pelanggan">Pelanggan</option>
+          <option value="proyek">Proyek</option>
+          <option value="tugas">Tugas</option>
+          <option value="pengguna">Pengguna</option>
+        </select>
+        <div class="toolbar-spacer"></div>
       </div>
       <div class="timeline" id="timeline-wrap"></div>
     </section>
@@ -515,6 +527,24 @@
         </div>
       </div>
       <div class="team-grid" id="team-grid"></div>
+    </section>
+
+    <!-- ===================== VIEW: KELOLA PENGGUNA (khusus Admin) ===================== -->
+    <section class="view" id="view-pengguna">
+      <div class="view-head">
+        <div>
+          <h2>Kelola Pengguna</h2>
+          <p>Atur peran setiap anggota yang sudah mendaftar ke aplikasi.</p>
+        </div>
+      </div>
+      <div class="table-card">
+        <table class="data-table">
+          <thead>
+            <tr><th>Nama</th><th>Email</th><th>Peran</th><th>Bergabung</th></tr>
+          </thead>
+          <tbody id="tbody-pengguna"></tbody>
+        </table>
+      </div>
     </section>
 
   </div>
