@@ -287,3 +287,96 @@ create policy "pengguna memperbarui profil sendiri atau admin mengubah siapapun"
 -- Izinkan jenis aktivitas baru "pengguna" (dipakai saat mengubah peran anggota)
 alter table aktivitas drop constraint if exists aktivitas_tipe_check;
 alter table aktivitas add constraint aktivitas_tipe_check check (tipe in ('proyek','pelanggan','tugas','pengguna'));
+
+-- =========================================================
+-- TAMBAHAN v6 — EDIT PROFIL, FOTO PROFIL & IDENTITAS PERUSAHAAN
+-- Jalankan blok ini di SQL Editor setelah v3/v5 aktif untuk
+-- mengaktifkan menu Pengaturan > "Profil Saya" dan
+-- "Profil Perusahaan" (logo + nama perusahaan) di aplikasi.
+-- =========================================================
+
+-- ---- Perluas tabel profil: foto, jabatan, telepon ----
+alter table profil add column if not exists avatar_url text;
+alter table profil add column if not exists jabatan text;
+alter table profil add column if not exists telepon text;
+
+-- ---- Tabel pengaturan_perusahaan (1 baris tunggal, id selalu 1) ----
+create table if not exists pengaturan_perusahaan (
+  id smallint primary key default 1 check (id = 1),
+  nama_perusahaan text not null default 'Dealstack',
+  logo_url text,
+  diperbarui_pada timestamptz default now(),
+  diperbarui_oleh uuid references profil(id) on delete set null
+);
+insert into pengaturan_perusahaan (id, nama_perusahaan)
+  values (1, 'Dealstack') on conflict (id) do nothing;
+
+alter table pengaturan_perusahaan enable row level security;
+drop policy if exists "publik dapat membaca pengaturan perusahaan" on pengaturan_perusahaan;
+create policy "publik dapat membaca pengaturan perusahaan" on pengaturan_perusahaan
+  for select using (true); -- disengaja: logo & nama perusahaan tampil juga di layar masuk (belum login)
+drop policy if exists "hanya admin dapat mengubah pengaturan perusahaan" on pengaturan_perusahaan;
+create policy "hanya admin dapat mengubah pengaturan perusahaan" on pengaturan_perusahaan
+  for update using (exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+drop policy if exists "hanya admin dapat menambah pengaturan perusahaan" on pengaturan_perusahaan;
+create policy "hanya admin dapat menambah pengaturan perusahaan" on pengaturan_perusahaan
+  for insert with check (exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+
+-- Ikutkan di Realtime supaya perubahan logo/nama perusahaan oleh Admin
+-- langsung tersinkron ke semua pengguna yang online.
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table pengaturan_perusahaan;
+  exception when duplicate_object then null;
+  end;
+end $$;
+
+-- ---- Storage bucket "avatars": foto profil tiap pengguna ----
+-- Berkas WAJIB diunggah dengan path "<user_id>/namafile.ext" (aplikasi
+-- Dealstack sudah melakukan ini secara otomatis) supaya kebijakan di
+-- bawah bisa memastikan pengguna hanya bisa mengubah foto miliknya sendiri.
+insert into storage.buckets (id, name, public)
+  values ('avatars','avatars', true) on conflict (id) do nothing;
+
+drop policy if exists "avatar dapat dibaca siapa saja" on storage.objects;
+create policy "avatar dapat dibaca siapa saja" on storage.objects
+  for select using (bucket_id = 'avatars');
+drop policy if exists "pengguna dapat mengunggah avatar sendiri" on storage.objects;
+create policy "pengguna dapat mengunggah avatar sendiri" on storage.objects
+  for insert with check (
+    bucket_id = 'avatars' and auth.uid() is not null
+    and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "pengguna dapat memperbarui avatar sendiri" on storage.objects;
+create policy "pengguna dapat memperbarui avatar sendiri" on storage.objects
+  for update using (
+    bucket_id = 'avatars' and auth.uid() is not null
+    and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "pengguna dapat menghapus avatar sendiri" on storage.objects;
+create policy "pengguna dapat menghapus avatar sendiri" on storage.objects
+  for delete using (
+    bucket_id = 'avatars' and auth.uid() is not null
+    and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ---- Storage bucket "logo-perusahaan": logo perusahaan (khusus Admin) ----
+insert into storage.buckets (id, name, public)
+  values ('logo-perusahaan','logo-perusahaan', true) on conflict (id) do nothing;
+
+drop policy if exists "logo perusahaan dapat dibaca siapa saja" on storage.objects;
+create policy "logo perusahaan dapat dibaca siapa saja" on storage.objects
+  for select using (bucket_id = 'logo-perusahaan');
+drop policy if exists "admin dapat mengunggah logo perusahaan" on storage.objects;
+create policy "admin dapat mengunggah logo perusahaan" on storage.objects
+  for insert with check (
+    bucket_id = 'logo-perusahaan'
+    and exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+drop policy if exists "admin dapat memperbarui logo perusahaan" on storage.objects;
+create policy "admin dapat memperbarui logo perusahaan" on storage.objects
+  for update using (
+    bucket_id = 'logo-perusahaan'
+    and exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+drop policy if exists "admin dapat menghapus logo perusahaan" on storage.objects;
+create policy "admin dapat menghapus logo perusahaan" on storage.objects
+  for delete using (
+    bucket_id = 'logo-perusahaan'
+    and exists (select 1 from profil where id = auth.uid() and peran = 'admin'));

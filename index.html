@@ -18,8 +18,8 @@
 <div class="auth-screen" id="auth-screen">
   <div class="auth-box">
     <div class="brand auth-brand">
-      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v7M12 14v7M5 12h4M15 12h4"/></svg></div>
-      Dealstack
+      <div class="brand-mark" id="brand-mark-auth"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v7M12 14v7M5 12h4M15 12h4"/></svg></div>
+      <span class="brand-name">Dealstack</span>
     </div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="gantiTabAuth('login')">Masuk</button>
@@ -63,8 +63,8 @@
 <div id="app-shell" class="hidden">
 <aside class="sidebar">
   <div class="brand">
-    <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v7M12 14v7M5 12h4M15 12h4"/></svg></div>
-    Dealstack
+    <div class="brand-mark" id="brand-mark-sidebar"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v7M12 14v7M5 12h4M15 12h4"/></svg></div>
+    <span class="brand-name">Dealstack</span>
   </div>
 
   <button class="nav-item active" data-view="ringkasan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/></svg>Ringkasan</button>
@@ -85,6 +85,7 @@
   <div class="sidebar-spacer"></div>
 
   <div class="nav-label">Sistem</div>
+  <button class="nav-item" data-view="pengaturan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1h.1a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>Pengaturan</button>
   <button class="nav-item" data-view="pengguna" data-role="admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Kelola Pengguna</button>
   <button class="nav-item" data-view="integrasi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>Integrasi</button>
   <button class="nav-item" data-view="bantuan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 013.9-2.1c1 .7 1.1 2 .3 2.8-.8.8-1.7.9-1.7 2.3"/><path d="M12 17h.01"/></svg>Pusat Bantuan</button>
@@ -122,6 +123,7 @@
             <input type="checkbox" id="setting-notif-aktif" onchange="simpanPengaturan()">
           </label>
           <button type="button" class="dropdown-item" id="btn-izin-notifikasi" onclick="mintaIzinNotifikasi()">Aktifkan Notifikasi Desktop</button>
+          <button type="button" class="dropdown-item" onclick="tutupSemuaDropdown();pindahTampilan('pengaturan')">Edit Profil &amp; Perusahaan</button>
         </div>
       </div>
       <div class="dropdown-wrap">
@@ -131,6 +133,7 @@
         </div>
         <div class="dropdown-panel hidden" id="panel-akun">
           <div class="dropdown-head"><span id="panel-akun-nama">—</span><div class="dropdown-sub" id="panel-akun-peran">—</div></div>
+          <button class="dropdown-item" onclick="tutupSemuaDropdown();pindahTampilan('pengaturan')">Edit Profil</button>
           <button class="dropdown-item" onclick="tutupSemuaDropdown();pindahTampilan('integrasi')">Integrasi &amp; Status Sistem</button>
           <button class="dropdown-item" onclick="tutupSemuaDropdown();pindahTampilan('bantuan')">Pusat Bantuan</button>
           <button class="dropdown-item danger" onclick="konfirmasiKeluar()">Keluar</button>
@@ -530,6 +533,117 @@
         </div>
       </div>
       <div class="team-grid" id="team-grid"></div>
+    </section>
+
+    <!-- ===================== VIEW: PENGATURAN (Profil & Perusahaan) ===================== -->
+    <section class="view" id="view-pengaturan">
+      <div class="view-head">
+        <div>
+          <h2>Pengaturan</h2>
+          <p>Kelola profil pribadi dan identitas perusahaan Anda.</p>
+        </div>
+      </div>
+
+      <div class="settings-grid">
+
+        <!-- ---- PROFIL SAYA (semua pengguna) ---- -->
+        <div class="settings-card">
+          <h3>Profil Saya</h3>
+          <p class="settings-sub">Nama dan foto ini tampil di seluruh aplikasi — pada penugasan tugas, catatan tim, dan jejak aktivitas.</p>
+
+          <form id="form-profil-saya">
+            <div class="avatar-upload">
+              <div class="avatar-upload-preview" id="avatar-preview">?</div>
+              <div class="avatar-upload-actions">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('input-avatar').click()">Ganti Foto</button>
+                <span class="avatar-upload-hint">JPG/PNG/WebP, rasio 1:1, maks 2MB.</span>
+              </div>
+              <input type="file" id="input-avatar" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="pratinjauFoto(this,'avatar-preview')">
+            </div>
+
+            <div class="settings-form-grid">
+              <div class="form-group">
+                <label>Nama Lengkap</label>
+                <input type="text" id="profil-nama" required maxlength="60">
+              </div>
+              <div class="form-group">
+                <label>Jabatan <span class="opsional-label">(opsional)</span></label>
+                <input type="text" id="profil-jabatan" placeholder="cth. Sales Manager" maxlength="60">
+              </div>
+              <div class="form-group">
+                <label>Telepon <span class="opsional-label">(opsional)</span></label>
+                <input type="text" id="profil-telepon" placeholder="cth. 0812xxxxxxxx" maxlength="20">
+              </div>
+              <div class="form-group">
+                <label>Peran</label>
+                <div class="settings-readonly"><span class="role-pill" id="profil-peran-pill">—</span></div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <div class="settings-readonly" id="profil-email">—</div>
+            </div>
+
+            <div class="modal-actions settings-actions">
+              <button type="submit" class="btn btn-primary">Simpan Profil</button>
+            </div>
+          </form>
+
+          <div class="settings-divider"></div>
+
+          <h3>Ubah Kata Sandi</h3>
+          <p class="settings-sub">Gunakan kata sandi minimal 6 karakter yang mudah Anda ingat namun sulit ditebak orang lain.</p>
+          <form id="form-ubah-sandi">
+            <div class="settings-form-grid">
+              <div class="form-group">
+                <label>Kata Sandi Baru</label>
+                <input type="password" id="sandi-baru" minlength="6" required placeholder="••••••••">
+              </div>
+              <div class="form-group">
+                <label>Ulangi Kata Sandi Baru</label>
+                <input type="password" id="sandi-ulang" minlength="6" required placeholder="••••••••">
+              </div>
+            </div>
+            <div class="modal-actions settings-actions">
+              <button type="submit" class="btn btn-secondary">Perbarui Kata Sandi</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- ---- PROFIL PERUSAHAAN (khusus Admin) ---- -->
+        <div class="settings-card" data-role="admin">
+          <h3>Profil Perusahaan</h3>
+          <p class="settings-sub">Logo dan nama ini tampil di sidebar, layar masuk, dan laporan tercetak untuk seluruh pengguna — hanya Admin yang dapat mengubahnya.</p>
+
+          <form id="form-perusahaan">
+            <div class="avatar-upload">
+              <div class="avatar-upload-preview logo" id="logo-preview">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v7M12 14v7M5 12h4M15 12h4"/></svg>
+              </div>
+              <div class="avatar-upload-actions">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('input-logo').click()">Ganti Logo</button>
+                <span class="avatar-upload-hint">PNG/SVG latar transparan, persegi, maks 2MB.</span>
+              </div>
+              <input type="file" id="input-logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none" onchange="pratinjauFoto(this,'logo-preview')">
+            </div>
+
+            <div class="form-group">
+              <label>Nama Perusahaan</label>
+              <input type="text" id="perusahaan-nama" required maxlength="60" placeholder="cth. Dealstack">
+            </div>
+
+            <div class="settings-tip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+              <span>Rekomendasi profesional: gunakan logo PNG atau SVG dengan latar transparan berukuran persegi (mis. 256×256px) agar tetap tajam di sidebar maupun saat dicetak, dan pilih nama perusahaan yang ringkas agar tidak terpotong di sidebar.</span>
+            </div>
+
+            <div class="modal-actions settings-actions">
+              <button type="submit" class="btn btn-primary">Simpan Perusahaan</button>
+            </div>
+          </form>
+        </div>
+
+      </div>
     </section>
 
     <!-- ===================== VIEW: KELOLA PENGGUNA (khusus Admin) ===================== -->

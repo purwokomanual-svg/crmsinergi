@@ -8,7 +8,7 @@
 
 /* Cache data di memori, diisi dari Supabase saat halaman dimuat
    dan diperbarui lagi setiap ada perubahan (tambah/hapus/ubah) */
-let DATA = { pelanggan: [], proyek: [], tugas: [], aktivitas: [], catatan: [], profil: [] };
+let DATA = { pelanggan: [], proyek: [], tugas: [], aktivitas: [], catatan: [], profil: [], perusahaan: { nama_perusahaan: 'Dealstack', logo_url: null } };
 
 /* Pengguna yang sedang login (diisi setelah autentikasi berhasil) */
 let CURRENT_USER = null; // { id, nama, email, peran }
@@ -35,6 +35,35 @@ function simpanPengaturan(){
   renderKPI(); renderPelanggan(); renderProyek(); renderLaporan();
   renderNotifikasi();
   tampilkanToast('Pengaturan disimpan');
+}
+
+/* ---------------------------------------------------------
+   0a. IDENTITAS PERUSAHAAN (logo & nama, tampil di sidebar +
+   layar masuk untuk semua orang — bisa dibaca tanpa login)
+--------------------------------------------------------- */
+async function muatBrandingPerusahaan(){
+  try{
+    const { data, error } = await supabaseClient.from('pengaturan_perusahaan').select('*').eq('id', 1).single();
+    if(error || !data){
+      console.warn('Tabel pengaturan_perusahaan belum tersedia. Jalankan migrasi v6 di schema.sql.', error);
+      return;
+    }
+    DATA.perusahaan = data;
+    terapkanBrandingPerusahaan();
+  }catch(e){ console.warn('Gagal memuat identitas perusahaan', e); }
+}
+function terapkanBrandingPerusahaan(){
+  const nama = (DATA.perusahaan && DATA.perusahaan.nama_perusahaan) || 'Dealstack';
+  const logo = DATA.perusahaan && DATA.perusahaan.logo_url;
+  document.querySelectorAll('.brand-name').forEach(el => el.textContent = nama);
+  document.title = nama + ' — CRM Monitoring Proyek & Penjualan';
+  ['brand-mark-sidebar','brand-mark-auth'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.innerHTML = logo
+      ? `<img src="${logo}" alt="${nama}" style="width:100%;height:100%;object-fit:contain;border-radius:9px;">`
+      : `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v7M12 14v7M5 12h4M15 12h4"/></svg>`;
+  });
 }
 
 /* ---------------------------------------------------------
@@ -103,7 +132,9 @@ function terapkanPeran(){
     el.style.display = isAdmin ? '' : 'none';
   });
   document.getElementById('user-name').textContent = CURRENT_USER ? CURRENT_USER.nama : '—';
-  document.getElementById('user-avatar').textContent = CURRENT_USER ? CURRENT_USER.nama.charAt(0).toUpperCase() : '?';
+  document.getElementById('user-avatar').outerHTML = CURRENT_USER
+    ? markupAvatar(CURRENT_USER).replace('class="user-avatar"', 'class="user-avatar" id="user-avatar"')
+    : '<div class="user-avatar" id="user-avatar">?</div>';
   document.getElementById('panel-akun-nama').textContent = CURRENT_USER ? CURRENT_USER.nama : '—';
   document.getElementById('panel-akun-peran').textContent = isAdmin ? 'Administrator' : 'Anggota Tim';
 }
@@ -128,6 +159,7 @@ async function masukKeAplikasi(session){
   initNavigasi();
   initEventListener();
   await muatSemuaData();
+  await muatBrandingPerusahaan();
   renderKPI();
   renderTagRingkasan();
   renderPelanggan();
@@ -194,6 +226,12 @@ function tampilkanToast(pesan, error){
 }
 function kodeAcak(prefix){
   return prefix + '-' + Math.floor(Math.random()*9000+1000);
+}
+/* Markup avatar bulat: pakai foto profil jika ada, jika tidak fallback ke inisial nama */
+function markupAvatar(profil){
+  if(!profil) return `<div class="user-avatar">?</div>`;
+  if(profil.avatar_url) return `<div class="user-avatar"><img src="${profil.avatar_url}" alt="${profil.nama || ''}"></div>`;
+  return `<div class="user-avatar">${(profil.nama || '?').charAt(0).toUpperCase()}</div>`;
 }
 
 /* ---------------------------------------------------------
@@ -383,6 +421,7 @@ function pindahTampilan(namaView){
   if(namaView === 'bantuan') renderFAQ();
   if(namaView === 'pengawasan') renderPengawasanTim();
   if(namaView === 'pengguna') renderPenggunaAdmin();
+  if(namaView === 'pengaturan') renderPengaturanAkun();
 }
 
 /* ---------------------------------------------------------
@@ -763,7 +802,7 @@ function renderTugas(){
           <select class="filter-select" style="font-size:12px;padding:5px 8px;" onchange="ubahAssigneeTugas('${t.id}', this.value)">
             <option value="">Belum ditugaskan</option>
             ${DATA.profil.map(p => `<option value="${p.id}" ${p.id===t.ditugaskan_ke?'selected':''}>${p.nama}</option>`).join('')}
-          </select>` : (assignee ? `<div class="user-avatar">${assignee.nama.charAt(0).toUpperCase()}</div><span>${assignee.nama}</span>` : `<span class="cell-muted">Belum ditugaskan</span>`)}
+          </select>` : (assignee ? `${markupAvatar(assignee)}<span>${assignee.nama}</span>` : `<span class="cell-muted">Belum ditugaskan</span>`)}
         </div>
       </td>
       <td><span class="badge-prioritas ${t.prioritas || 'normal'}">${(t.prioritas || 'normal').charAt(0).toUpperCase() + (t.prioritas || 'normal').slice(1)}</span></td>
@@ -881,7 +920,7 @@ function renderPengawasanTim(){
     return `
       <div class="team-card">
         <div class="team-card-head">
-          <div class="user-avatar">${p.nama.charAt(0).toUpperCase()}</div>
+          ${markupAvatar(p)}
           <div><div class="team-card-name">${p.nama}</div><div class="team-card-role">${p.peran === 'admin' ? 'Administrator' : 'Anggota Tim'}</div></div>
         </div>
         <div class="team-stat-row"><span>Total Tugas</span><b>${total}</b></div>
@@ -907,7 +946,7 @@ function renderPenggunaAdmin(){
   }
   tbody.innerHTML = DATA.profil.map(p => `
     <tr>
-      <td class="assignee-cell cell-name"><div class="user-avatar">${p.nama.charAt(0).toUpperCase()}</div>${p.nama}</td>
+      <td class="assignee-cell cell-name">${markupAvatar(p)}${p.nama}</td>
       <td class="cell-muted">${p.email}</td>
       <td>
         <select class="filter-select" onchange="ubahPeranPengguna('${p.id}', this.value)" ${p.id === CURRENT_USER.id ? 'disabled title="Tidak bisa mengubah peran sendiri"' : ''}>
@@ -928,6 +967,144 @@ async function ubahPeranPengguna(id, peranBaru){
   renderPengawasanTim();
   await catatAktivitas('pengguna', `Peran <b>${p.nama}</b> diubah menjadi ${peranBaru === 'admin' ? 'Admin' : 'Anggota Tim'}`);
   tampilkanToast('Peran pengguna diperbarui');
+}
+
+/* ---------------------------------------------------------
+   19b. PENGATURAN: PROFIL SAYA, KATA SANDI & PROFIL PERUSAHAAN
+--------------------------------------------------------- */
+let _fileAvatarTerpilih = null;
+let _fileLogoTerpilih = null;
+
+/* Tampilkan pratinjau gambar begitu file dipilih; simpan file-nya untuk diunggah saat "Simpan" */
+function pratinjauFoto(inputEl, idPreview){
+  const file = inputEl.files && inputEl.files[0];
+  if(!file) return;
+  if(file.size > 2 * 1024 * 1024){
+    tampilkanToast('Ukuran berkas maksimal 2MB', true);
+    inputEl.value = '';
+    return;
+  }
+  if(idPreview === 'avatar-preview') _fileAvatarTerpilih = file; else _fileLogoTerpilih = file;
+  const reader = new FileReader();
+  reader.onload = () => {
+    document.getElementById(idPreview).innerHTML = `<img src="${reader.result}" alt="">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+/* Unggah berkas ke Supabase Storage lalu kembalikan URL publiknya */
+async function unggahKeStorage(bucket, path, file){
+  const { error } = await supabaseClient.storage.from(bucket).upload(path, file, { upsert: true, cacheControl: '3600' });
+  if(error) throw error;
+  const { data } = supabaseClient.storage.from(bucket).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+function renderPengaturanAkun(){
+  if(!CURRENT_USER) return;
+  document.getElementById('profil-nama').value = CURRENT_USER.nama || '';
+  document.getElementById('profil-jabatan').value = CURRENT_USER.jabatan || '';
+  document.getElementById('profil-telepon').value = CURRENT_USER.telepon || '';
+  document.getElementById('profil-email').textContent = CURRENT_USER.email || '—';
+  const pill = document.getElementById('profil-peran-pill');
+  pill.textContent = CURRENT_USER.peran === 'admin' ? 'Administrator' : 'Anggota Tim';
+  const preview = document.getElementById('avatar-preview');
+  preview.innerHTML = CURRENT_USER.avatar_url
+    ? `<img src="${CURRENT_USER.avatar_url}" alt="">`
+    : (CURRENT_USER.nama || '?').charAt(0).toUpperCase();
+  _fileAvatarTerpilih = null;
+
+  if(CURRENT_USER.peran === 'admin') renderPengaturanPerusahaan();
+}
+
+function renderPengaturanPerusahaan(){
+  const inputNama = document.getElementById('perusahaan-nama');
+  if(!inputNama) return;
+  inputNama.value = (DATA.perusahaan && DATA.perusahaan.nama_perusahaan) || 'Dealstack';
+  const preview = document.getElementById('logo-preview');
+  preview.innerHTML = (DATA.perusahaan && DATA.perusahaan.logo_url)
+    ? `<img src="${DATA.perusahaan.logo_url}" alt="">`
+    : `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v7M12 14v7M5 12h4M15 12h4"/></svg>`;
+  _fileLogoTerpilih = null;
+}
+
+async function simpanProfilSaya(e){
+  e.preventDefault();
+  const nama = document.getElementById('profil-nama').value.trim();
+  const jabatan = document.getElementById('profil-jabatan').value.trim() || null;
+  const telepon = document.getElementById('profil-telepon').value.trim() || null;
+  if(!nama){ tampilkanToast('Nama tidak boleh kosong', true); return; }
+
+  const perubahan = { nama, jabatan, telepon };
+
+  try{
+    if(_fileAvatarTerpilih){
+      const ekstensi = (_fileAvatarTerpilih.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = `${CURRENT_USER.id}/avatar-${Date.now()}.${ekstensi}`;
+      perubahan.avatar_url = await unggahKeStorage('avatars', path, _fileAvatarTerpilih);
+    }
+  }catch(err){
+    console.error(err);
+    tampilkanToast('Gagal mengunggah foto. Sudahkah migrasi v6 & bucket "avatars" dibuat?', true);
+    return;
+  }
+
+  const { error } = await supabaseClient.from('profil').update(perubahan).eq('id', CURRENT_USER.id);
+  if(error){ console.error(error); tampilkanToast('Gagal menyimpan profil. Sudahkah migrasi v6 dijalankan?', true); return; }
+
+  Object.assign(CURRENT_USER, perubahan);
+  const idxProfil = DATA.profil.findIndex(p => p.id === CURRENT_USER.id);
+  if(idxProfil > -1) Object.assign(DATA.profil[idxProfil], perubahan);
+  _fileAvatarTerpilih = null;
+
+  terapkanPeran();
+  renderTugas();
+  if(CURRENT_USER.peran === 'admin'){ renderPengawasanTim(); renderPenggunaAdmin(); }
+  tampilkanToast('Profil berhasil disimpan');
+}
+
+async function simpanUbahSandi(e){
+  e.preventDefault();
+  const baru = document.getElementById('sandi-baru').value;
+  const ulang = document.getElementById('sandi-ulang').value;
+  if(baru.length < 6){ tampilkanToast('Kata sandi minimal 6 karakter', true); return; }
+  if(baru !== ulang){ tampilkanToast('Kata sandi baru tidak cocok', true); return; }
+
+  const { error } = await supabaseClient.auth.updateUser({ password: baru });
+  if(error){ console.error(error); tampilkanToast('Gagal mengubah kata sandi: ' + error.message, true); return; }
+
+  e.target.reset();
+  tampilkanToast('Kata sandi berhasil diperbarui');
+}
+
+async function simpanPerusahaan(e){
+  e.preventDefault();
+  if(!CURRENT_USER || CURRENT_USER.peran !== 'admin') return;
+  const nama_perusahaan = document.getElementById('perusahaan-nama').value.trim();
+  if(!nama_perusahaan){ tampilkanToast('Nama perusahaan tidak boleh kosong', true); return; }
+
+  const perubahan = { nama_perusahaan, diperbarui_oleh: CURRENT_USER.id, diperbarui_pada: new Date().toISOString() };
+
+  try{
+    if(_fileLogoTerpilih){
+      const ekstensi = (_fileLogoTerpilih.name.split('.').pop() || 'png').toLowerCase();
+      const path = `logo-${Date.now()}.${ekstensi}`;
+      perubahan.logo_url = await unggahKeStorage('logo-perusahaan', path, _fileLogoTerpilih);
+    }
+  }catch(err){
+    console.error(err);
+    tampilkanToast('Gagal mengunggah logo. Sudahkah migrasi v6 & bucket "logo-perusahaan" dibuat?', true);
+    return;
+  }
+
+  const { error } = await supabaseClient.from('pengaturan_perusahaan').upsert({ id: 1, ...perubahan }).eq('id', 1);
+  if(error){ console.error(error); tampilkanToast('Gagal menyimpan profil perusahaan. Sudahkah migrasi v6 dijalankan?', true); return; }
+
+  DATA.perusahaan = Object.assign({}, DATA.perusahaan, perubahan);
+  _fileLogoTerpilih = null;
+  terapkanBrandingPerusahaan();
+  await catatAktivitas('pengguna', `Profil perusahaan diperbarui oleh <b>${CURRENT_USER.nama}</b>`);
+  tampilkanToast('Profil perusahaan berhasil disimpan');
 }
 
 /* ---------------------------------------------------------
@@ -1005,6 +1182,13 @@ function initRealtime(){
         upsertKeArray(DATA.catatan, payload.new);
       }
       renderPesan();
+    })
+    .subscribe();
+
+  supabaseClient.channel('dealstack-perusahaan')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pengaturan_perusahaan' }, (payload) => {
+      DATA.perusahaan = payload.new;
+      terapkanBrandingPerusahaan();
     })
     .subscribe();
 }
@@ -1416,6 +1600,8 @@ const DAFTAR_FAQ = [
   { q: 'Apakah bisa memberi tugas ke anggota tim tertentu dan memantau progresnya?', a: 'Fitur ini sedang direncanakan sebagai tahap berikutnya (memerlukan sistem login multi-pengguna). Untuk saat ini, gunakan menu Tugas untuk daftar tugas bersama dan menu Pesan untuk koordinasi tim.' },
   { q: 'Bagaimana cara mengunduh laporan?', a: 'Buka menu Laporan, lalu klik tombol "Unduh CSV" di kanan atas untuk mengunduh data proyek, atau "Cetak" untuk mencetak/menyimpan sebagai PDF.' },
   { q: 'Apa itu Row Level Security (RLS) dan apakah data saya aman?', a: 'RLS adalah aturan akses tingkat baris di database Supabase. Saat ini kebijakan mengizinkan akses baca/tulis publik lewat anon key — cocok untuk tim internal. Untuk keamanan lebih ketat per-pengguna, aktifkan Supabase Auth.' },
+  { q: 'Bagaimana cara mengganti foto profil atau kata sandi saya?', a: 'Buka menu Pengaturan di sidebar (atau ikon gear di topbar → "Edit Profil & Perusahaan"). Di kartu "Profil Saya" Anda bisa mengganti foto, nama, jabatan, dan telepon; di bawahnya ada form untuk memperbarui kata sandi.' },
+  { q: 'Bagaimana cara mengganti logo dan nama perusahaan yang tampil di sidebar?', a: 'Hanya Admin yang bisa mengubahnya, lewat menu Pengaturan → kartu "Profil Perusahaan". Unggah logo (disarankan PNG/SVG transparan, persegi) dan ubah nama perusahaan, lalu klik Simpan — perubahan langsung tampil di sidebar dan layar masuk semua pengguna.' },
 ];
 function renderFAQ(){
   const wrap = document.getElementById('faq-list');
@@ -1451,6 +1637,11 @@ function initEventListener(){
 
   document.getElementById('form-tugas').addEventListener('submit', tambahTugas);
 
+  document.getElementById('form-profil-saya').addEventListener('submit', simpanProfilSaya);
+  document.getElementById('form-ubah-sandi').addEventListener('submit', simpanUbahSandi);
+  const formPerusahaan = document.getElementById('form-perusahaan');
+  if(formPerusahaan) formPerusahaan.addEventListener('submit', simpanPerusahaan);
+
   document.getElementById('cari-aktivitas').addEventListener('input', renderAktivitas);
   document.getElementById('filter-tipe-aktivitas').addEventListener('change', renderAktivitas);
 
@@ -1465,6 +1656,7 @@ function mulai(){
     console.error('supabaseClient tidak ditemukan — pastikan config.js sudah diisi dan dimuat sebelum script.js');
     return;
   }
+  muatBrandingPerusahaan(); // tidak perlu ditunggu — sidebar/layar masuk pakai fallback "Dealstack" dulu
   initAuthUI();
 }
 

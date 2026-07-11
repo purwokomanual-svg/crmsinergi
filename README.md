@@ -101,6 +101,26 @@ Jalankan blok **`TAMBAHAN v5`** di akhir `schema.sql` untuk mengaktifkan:
   (Admin ⇄ Anggota Tim) langsung dari aplikasi, tidak perlu lagi membuka
   SQL Editor setelah pengaturan Admin pertama.
 
+### 1e. Edit Profil, Foto Profil & Logo Perusahaan (v6)
+
+Jalankan blok **`TAMBAHAN v6`** di akhir `schema.sql` untuk mengaktifkan
+menu **Pengaturan** (ikon gear di topbar → "Edit Profil & Perusahaan",
+atau menu **Pengaturan** di sidebar):
+
+- **Profil Saya** *(semua pengguna)* — ganti foto profil, nama, jabatan,
+  telepon, dan kata sandi. Email & peran ditampilkan (tidak bisa diubah
+  sendiri).
+- **Profil Perusahaan** *(khusus Admin)* — ganti logo dan nama perusahaan
+  yang tampil di sidebar, layar masuk, dan laporan tercetak untuk seluruh
+  pengguna.
+
+Blok ini juga membuat dua **Storage bucket publik** di Supabase secara
+otomatis: `avatars` (foto profil) dan `logo-perusahaan` (logo perusahaan).
+Tidak perlu membuatnya manual lewat dashboard — cukup jalankan SQL-nya.
+Jika Anda belum pernah mengaktifkan fitur Storage di project Supabase,
+buka menu **Storage** di dashboard sekali saja agar layanan Storage aktif,
+baru jalankan migrasi v6.
+
 ## 3. Unggah ke GitHub
 
 ```bash
@@ -163,6 +183,10 @@ Setiap kali Anda `git push` ke branch `main`, Vercel otomatis men-deploy ulang.
 - **Notifikasi & Pencarian Global** — ikon lonceng menampilkan proyek/tugas
   yang jatuh tempo dalam 3 hari; kolom pencarian di topbar mencari lintas
   pelanggan, proyek, dan tugas sekaligus.
+- **Pengaturan: Profil Saya & Profil Perusahaan** — setiap pengguna dapat
+  mengganti foto profil, nama, jabatan, telepon, dan kata sandi sendiri;
+  Admin juga dapat mengganti logo dan nama perusahaan yang tampil di
+  sidebar, layar masuk, dan laporan tercetak, lihat langkah 1e.
 
 > **Catatan:** Fondasi multi-user (login, peran, penugasan tugas per
 > anggota, dashboard pengawasan, live update, dan notifikasi desktop)
