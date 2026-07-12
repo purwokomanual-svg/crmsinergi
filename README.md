@@ -186,6 +186,26 @@ dipakai sudah ada sejak awal). Perubahannya ada di formulir:
 - ID Pelanggan dan No PO harus **unik** — jika sudah dipakai baris
   lain, aplikasi akan menampilkan pesan agar Anda memakai nilai lain.
 
+## 1i. Monitoring Proyek dipindah ke halaman Detail Pelanggan
+
+Tidak perlu migrasi SQL untuk perubahan ini. Menu **Proyek** yang berdiri
+sendiri di sidebar sudah **dihapus**. Sebagai gantinya:
+
+- Di menu **Pelanggan**, klik **nama pelanggan** mana pun untuk membuka
+  halaman **Detail Pelanggan** — berisi info kontak pelanggan tersebut
+  beserta **seluruh PO/proyek miliknya** dalam satu tabel (No PO, tanggal,
+  tenggat, dibuat oleh, Sub Total, Tax, Dana Lainnya, Grand Total, Total
+  Budget, Budget Terpakai, % Budget).
+- Tombol **Tambah Proyek** di halaman ini otomatis menautkan proyek baru
+  ke pelanggan yang sedang dibuka (kolom Nama Pelanggan terkunci).
+- Edit/hapus proyek, pencarian, dan filter status tetap tersedia — hanya
+  lingkupnya kini per pelanggan, bukan tabel global.
+- Hasil pencarian global untuk proyek dan tombol **Edit** di kolom Aksi
+  akan langsung membuka halaman Detail Pelanggan yang bersangkutan.
+- Perubahan ini murni pada `index.html`, `style.css`, dan `script.js` —
+  tidak menghapus data proyek apa pun, hanya mengubah cara menampilkannya
+  agar monitoring pelanggan ⇄ proyek lebih efisien dalam satu tempat.
+
 ## Perbaikan Tata Letak (Audit UI/UX)
 
 Tidak perlu migrasi database untuk perubahan ini — murni perbaikan
@@ -239,12 +259,14 @@ Setiap kali Anda `git push` ke branch `main`, Vercel otomatis men-deploy ulang.
 - **Pelanggan** — tambah, edit, cari, dan hapus pelanggan, lengkap
   dengan data kontak (alamat, no. telepon, no. WhatsApp, nama PIC) dan
   Total Nilai Proyek otomatis yang bisa disaring per status proyek,
-  lihat langkah 1f.
-- **Proyek** — dikelola sebagai PO (Purchase Order): No PO, pelanggan
-  (tersinkron dropdown), tanggal, tenggat, dibuat oleh, rincian Sub
+  lihat langkah 1f. Klik nama pelanggan untuk membuka **Detail
+  Pelanggan** berisi seluruh proyek (PO) miliknya, lihat langkah 1i.
+- **Proyek (di halaman Detail Pelanggan)** — dikelola sebagai PO
+  (Purchase Order): No PO, tanggal, tenggat, dibuat oleh, rincian Sub
   Total/Tax/Dana Lainnya/Grand Total, serta Total Budget, Budget
   Terpakai, dan % Budget — semua dihitung otomatis. Tambah, edit, dan
-  hapus PO, lihat langkah 1g.
+  hapus PO langsung dari halaman pelanggan terkait, lihat langkah 1g
+  dan 1i.
 - **Pesan** — papan catatan/pengumuman internal tim (memerlukan migrasi
   tabel `catatan_tim`, lihat langkah 1b di bawah).
 - **Kalender** — tenggat proyek & tugas otomatis ditampilkan per bulan,

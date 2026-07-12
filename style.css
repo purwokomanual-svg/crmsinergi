@@ -325,6 +325,12 @@ button{font-family:inherit;}
 .progress-mini-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--accent-bright),var(--accent));}
 .progress-mini-label{font-size:11.5px;color:var(--muted);margin-top:5px;}
 
+.cell-link{color:var(--ink);cursor:pointer;text-decoration:none;border-bottom:1px dashed transparent;transition:.15s;}
+.cell-link:hover{color:var(--accent-bright);border-bottom-color:var(--accent-bright);}
+.table-hint{margin:0;padding:12px 18px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--edge);}
+.btn-kembali{display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;}
+.btn-kembali svg{width:16px;height:16px;}
+
 .empty-state{padding:52px 20px;text-align:center;color:var(--muted);}
 .empty-state svg{width:38px;height:38px;color:var(--muted-2);margin-bottom:12px;}
 .empty-state p{margin:0;font-size:13.5px;}

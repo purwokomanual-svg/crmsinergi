@@ -69,7 +69,6 @@
 
   <button class="nav-item active" data-view="ringkasan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/></svg>Ringkasan</button>
   <button class="nav-item" data-view="pelanggan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><circle cx="18" cy="9" r="2.5"/><path d="M15.5 20a5 5 0 018.5-3.2"/></svg>Pelanggan</button>
-  <button class="nav-item" data-view="proyek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>Proyek</button>
   <button class="nav-item" data-view="pesan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v13H8l-4 4V4z"/></svg>Pesan<span class="nav-badge" id="badge-pesan" style="display:none;"></span></button>
 
   <div class="nav-label">Penjualan &amp; Operasional</div>
@@ -278,17 +277,45 @@
           </thead>
           <tbody id="tbody-pelanggan"></tbody>
         </table>
+        <p class="table-hint">Klik nama pelanggan untuk membuka seluruh proyek (PO) milik pelanggan tersebut.</p>
       </div>
     </section>
 
-    <!-- ===================== VIEW: PROYEK ===================== -->
-    <section class="view" id="view-proyek">
+    <!-- ===================== VIEW: DETAIL PELANGGAN (proyek per pelanggan) ===================== -->
+    <section class="view" id="view-pelanggan-detail">
+      <button class="btn btn-secondary btn-kembali" onclick="pindahTampilan('pelanggan')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
+        Kembali ke Pelanggan
+      </button>
+
+      <div class="cust-header">
+        <div class="cust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><circle cx="18" cy="9" r="2.5"/><path d="M15.5 20a5 5 0 018.5-3.2"/></svg></div>
+        <div class="cust-titles">
+          <h1 id="detail-pelanggan-nama">—</h1>
+          <div class="cust-tags">
+            <span class="tag" id="detail-pelanggan-industri">—</span>
+            <span class="tag" id="detail-pelanggan-pic">PIC: —</span>
+            <span class="tag" id="detail-pelanggan-telepon">Telp: —</span>
+            <span class="tag" id="detail-pelanggan-whatsapp">WA: —</span>
+          </div>
+          <div class="cust-tags" style="margin-top:8px;">
+            <span class="tag status"><span class="dot"></span><span id="detail-pelanggan-jumlah-proyek">0 Proyek</span></span>
+            <span class="tag" id="detail-pelanggan-total-nilai">Total Nilai: Rp0</span>
+          </div>
+        </div>
+        <div class="cust-actions">
+          <div class="icon-btn" title="Edit Data Pelanggan" onclick="editPelangganDariDetail()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </div>
+        </div>
+      </div>
+
       <div class="view-head">
         <div>
-          <h2>Proyek</h2>
-          <p>Pantau PO, anggaran, dan realisasi budget setiap proyek.</p>
+          <h2>Proyek Pelanggan Ini</h2>
+          <p>Pantau seluruh PO, anggaran, dan realisasi budget khusus pelanggan ini.</p>
         </div>
-        <button class="btn btn-primary" onclick="bukaModalTambahProyek()">
+        <button class="btn btn-primary" onclick="bukaModalTambahProyekUntukPelangganAktif()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
           Tambah Proyek
         </button>
@@ -297,9 +324,9 @@
       <div class="toolbar">
         <div class="search-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          <input type="text" id="cari-proyek" placeholder="Cari No PO, nama proyek, atau pelanggan...">
+          <input type="text" id="cari-proyek-detail" placeholder="Cari No PO atau nama proyek...">
         </div>
-        <select class="filter-select" id="filter-status-proyek">
+        <select class="filter-select" id="filter-status-proyek-detail">
           <option value="semua">Semua Status</option>
           <option value="berjalan">Berjalan</option>
           <option value="tertunda">Tertunda</option>
@@ -314,7 +341,6 @@
           <thead>
             <tr>
               <th>No PO</th>
-              <th>Nama Pelanggan</th>
               <th>Tanggal</th>
               <th>Tenggat</th>
               <th>Dibuat Oleh</th>
@@ -328,7 +354,7 @@
               <th></th>
             </tr>
           </thead>
-          <tbody id="tbody-proyek"></tbody>
+          <tbody id="tbody-proyek-detail"></tbody>
         </table>
       </div>
     </section>
@@ -799,7 +825,7 @@
         <label>% Budget Terpakai</label>
         <input type="text" id="tampil-persen-budget-proyek" readonly disabled placeholder="Otomatis dihitung">
       </div>
-      <p class="modal-note">Grand Total dan % Budget dihitung otomatis. No PO & Dibuat Oleh diisi otomatis oleh sistem.</p>
+      <p class="modal-note">Grand Total dan % Budget dihitung otomatis. No PO & Dibuat Oleh diisi otomatis oleh sistem. Saat menambah proyek dari halaman detail pelanggan, kolom Nama Pelanggan otomatis terkunci ke pelanggan tersebut.</p>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" onclick="tutupModal('modal-proyek')">Batal</button>

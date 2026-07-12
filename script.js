@@ -32,7 +32,7 @@ function simpanPengaturan(){
   PENGATURAN.rupiahRingkas = document.getElementById('setting-rupiah-ringkas').checked;
   PENGATURAN.notifAktif = document.getElementById('setting-notif-aktif').checked;
   localStorage.setItem('dealstack_pengaturan', JSON.stringify(PENGATURAN));
-  renderKPI(); renderPelanggan(); renderProyek(); renderLaporan();
+  renderKPI(); renderPelanggan(); segarkanDetailPelangganJikaAktif(); renderLaporan();
   renderNotifikasi();
   tampilkanToast('Pengaturan disimpan');
 }
@@ -164,7 +164,6 @@ async function masukKeAplikasi(session){
   renderTagRingkasan();
   renderPelanggan();
   isiDropdownPelangganProyek();
-  renderProyek();
   renderFunnel();
   renderAktivitas();
   renderTugas();
@@ -295,9 +294,12 @@ function bukaHasilPencarian(jenis, id){
     document.getElementById('cari-pelanggan').value = DATA.pelanggan.find(p=>p.id===id)?.nama || '';
     renderPelanggan();
   } else if(jenis === 'proyek'){
-    pindahTampilan('proyek');
-    document.getElementById('cari-proyek').value = DATA.proyek.find(p=>p.id===id)?.nama || '';
-    renderProyek();
+    const proyek = DATA.proyek.find(p=>p.id===id);
+    if(proyek){
+      bukaDetailPelanggan(proyek.pelanggan_id);
+      document.getElementById('cari-proyek-detail').value = proyek.nama;
+      renderProyekDetail();
+    }
   } else if(jenis === 'tugas'){
     pindahTampilan('tugas');
   }
@@ -411,11 +413,15 @@ async function catatAktivitas(tipe, teks){
 function pindahTampilan(namaView){
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + namaView).classList.add('active');
+  // Halaman detail pelanggan adalah sub-halaman dari menu "Pelanggan" di sidebar —
+  // jadi nav item Pelanggan tetap ditandai aktif saat berada di sana.
+  const namaViewNav = namaView === 'pelanggan-detail' ? 'pelanggan' : namaView;
   document.querySelectorAll('.nav-item[data-view]').forEach(el => {
-    el.classList.toggle('active', el.dataset.view === namaView);
+    el.classList.toggle('active', el.dataset.view === namaViewNav);
   });
   tutupSidebarMobile();
   if(namaView === 'ringkasan'){ renderChart(); renderTagRingkasan(); }
+  if(namaView === 'pelanggan-detail') renderDetailPelanggan();
   if(namaView === 'kalender') renderKalender();
   if(namaView === 'laporan') renderLaporan();
   if(namaView === 'pesan') renderPesan();
@@ -533,7 +539,7 @@ function renderPelanggan(){
   tbody.innerHTML = data.map(p => `
     <tr>
       <td class="cell-muted">${p.kode}</td>
-      <td class="cell-name">${p.nama}</td>
+      <td class="cell-name"><span class="cell-link" title="Lihat proyek pelanggan ini" onclick="bukaDetailPelanggan('${p.id}')">${p.nama}</span></td>
       <td>${p.industri || '—'}</td>
       <td>${p.alamat || '—'}</td>
       <td>${p.no_telepon || '—'}</td>
@@ -653,20 +659,69 @@ function hitungPersenBudget(budgetTerpakai, totalBudget){
   return Math.round(((budgetTerpakai || 0) / totalBudget) * 1000) / 10; // 1 desimal
 }
 
-function renderProyek(){
-  const tbody = document.getElementById('tbody-proyek');
-  const q = (document.getElementById('cari-proyek').value || '').toLowerCase();
-  const filterStatus = document.getElementById('filter-status-proyek').value;
+/* ---------------------------------------------------------
+   6a. NAVIGASI & RENDER: DETAIL PELANGGAN (proyek per pelanggan)
+   Menggantikan menu Proyek terpisah — proyek kini dipantau
+   langsung dari halaman detail pelanggan terkait (lebih efisien,
+   satu menu untuk data pelanggan + seluruh PO miliknya).
+--------------------------------------------------------- */
+let PELANGGAN_AKTIF_ID = null; // id pelanggan yang sedang dibuka di halaman detail
+
+function bukaDetailPelanggan(id){
+  PELANGGAN_AKTIF_ID = id;
+  const cari = document.getElementById('cari-proyek-detail');
+  const filter = document.getElementById('filter-status-proyek-detail');
+  if(cari) cari.value = '';
+  if(filter) filter.value = 'semua';
+  pindahTampilan('pelanggan-detail');
+}
+
+function editPelangganDariDetail(){
+  if(PELANGGAN_AKTIF_ID) editPelanggan(PELANGGAN_AKTIF_ID);
+}
+
+function renderDetailPelanggan(){
+  const p = DATA.pelanggan.find(x => x.id === PELANGGAN_AKTIF_ID);
+  if(!p){
+    // Pelanggan sudah dihapus/tidak ditemukan — kembali ke daftar pelanggan
+    pindahTampilan('pelanggan');
+    return;
+  }
+  document.getElementById('detail-pelanggan-nama').textContent = p.nama;
+  document.getElementById('detail-pelanggan-industri').textContent = p.industri || 'Umum';
+  document.getElementById('detail-pelanggan-pic').textContent = 'PIC: ' + (p.nama_pic || '—');
+  document.getElementById('detail-pelanggan-telepon').textContent = 'Telp: ' + (p.no_telepon || '—');
+  document.getElementById('detail-pelanggan-whatsapp').textContent = 'WA: ' + (p.no_whatsapp || '—');
+
+  const proyekPelanggan = DATA.proyek.filter(pr => pr.pelanggan_id === PELANGGAN_AKTIF_ID);
+  document.getElementById('detail-pelanggan-jumlah-proyek').textContent = proyekPelanggan.length + ' Proyek';
+  document.getElementById('detail-pelanggan-total-nilai').textContent = 'Total Nilai: ' + formatRupiah(hitungTotalNilaiProyek(PELANGGAN_AKTIF_ID, 'semua'));
+
+  renderProyekDetail();
+}
+
+/* Panggil setelah data proyek berubah (tambah/edit/hapus) supaya header
+   & tabel di halaman detail ikut ter-update, hanya jika sedang dibuka */
+function segarkanDetailPelangganJikaAktif(){
+  if(PELANGGAN_AKTIF_ID) renderDetailPelanggan();
+}
+
+function renderProyekDetail(){
+  const tbody = document.getElementById('tbody-proyek-detail');
+  if(!tbody || !PELANGGAN_AKTIF_ID) return;
+  const q = (document.getElementById('cari-proyek-detail').value || '').toLowerCase();
+  const filterStatus = document.getElementById('filter-status-proyek-detail').value;
 
   const data = DATA.proyek.filter(p => {
-    const cocokCari = p.nama.toLowerCase().includes(q) || p.pelanggan_nama.toLowerCase().includes(q) || (p.kode||'').toLowerCase().includes(q);
+    if(p.pelanggan_id !== PELANGGAN_AKTIF_ID) return false;
+    const cocokCari = p.nama.toLowerCase().includes(q) || (p.kode||'').toLowerCase().includes(q);
     const cocokStatus = filterStatus === 'semua' || p.status === filterStatus;
     return cocokCari && cocokStatus;
   });
 
   if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="13"><div class="empty-state">
-      <p>Tidak ada proyek yang cocok dengan pencarian.</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state">
+      <p>Belum ada proyek untuk pelanggan ini.</p></div></td></tr>`;
     return;
   }
 
@@ -675,7 +730,6 @@ function renderProyek(){
     return `
     <tr>
       <td class="cell-name">${p.kode}<div class="cell-muted">${p.nama}</div></td>
-      <td>${p.pelanggan_nama}</td>
       <td class="cell-muted">${formatTanggal(p.tanggal)}</td>
       <td class="cell-muted">${formatTanggal(p.tenggat)}</td>
       <td class="cell-muted">${p.dibuat_oleh_nama || '—'}</td>
@@ -707,7 +761,7 @@ async function hapusProyek(id){
   const { error } = await supabaseClient.from('proyek').delete().eq('id', id);
   if(error){ console.error(error); tampilkanToast('Gagal menghapus proyek', true); return; }
   DATA.proyek = DATA.proyek.filter(x => x.id !== id);
-  renderProyek();
+  segarkanDetailPelangganJikaAktif();
   renderKPI();
   renderFunnel();
   renderPelanggan();
@@ -719,6 +773,7 @@ function isiDropdownPelangganProyek(){
   const select = document.getElementById('input-pelanggan-proyek');
   if(!select) return;
   const nilaiSebelumnya = select.value;
+  select.disabled = false;
   select.innerHTML = `<option value="" disabled ${!nilaiSebelumnya ? 'selected' : ''}>Pilih pelanggan...</option>` +
     DATA.pelanggan.map(p => `<option value="${p.id}">${p.nama}</option>`).join('');
   if(DATA.pelanggan.some(p => p.id === nilaiSebelumnya)) select.value = nilaiSebelumnya;
@@ -745,6 +800,17 @@ function bukaModalTambahProyek(){
   isiDropdownPelangganProyek();
   perbaruiKalkulasiFormProyek();
   bukaModal('modal-proyek');
+}
+
+/* Dipanggil dari tombol "Tambah Proyek" di halaman detail pelanggan —
+   sama seperti bukaModalTambahProyek(), tapi field Nama Pelanggan
+   otomatis diisi & dikunci ke pelanggan yang sedang dibuka. */
+function bukaModalTambahProyekUntukPelangganAktif(){
+  if(!PELANGGAN_AKTIF_ID) return;
+  bukaModalTambahProyek();
+  const select = document.getElementById('input-pelanggan-proyek');
+  select.value = PELANGGAN_AKTIF_ID;
+  select.disabled = true;
 }
 
 function editProyek(id){
@@ -800,7 +866,7 @@ async function simpanProyek(e){
 
     const idx = DATA.proyek.findIndex(x => x.id === id);
     if(idx > -1) DATA.proyek[idx] = data;
-    renderProyek(); renderKPI(); renderFunnel(); renderPelanggan();
+    segarkanDetailPelangganJikaAktif(); renderKPI(); renderFunnel(); renderPelanggan();
     await catatAktivitas('proyek', `Proyek <b>${nama}</b> (${data.kode}) diperbarui`);
     tutupModal('modal-proyek');
     tampilkanToast('Perubahan proyek disimpan');
@@ -818,7 +884,7 @@ async function simpanProyek(e){
     if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'No PO') || 'Gagal menambah proyek', true); return; }
 
     DATA.proyek.unshift(data);
-    renderProyek(); renderKPI(); renderFunnel(); renderPelanggan();
+    segarkanDetailPelangganJikaAktif(); renderKPI(); renderFunnel(); renderPelanggan();
     await catatAktivitas('proyek', `Proyek baru <b>${nama}</b> (${data.kode}) dibuat untuk ${pelanggan.nama}`);
     tutupModal('modal-proyek');
     tampilkanToast('Proyek baru ditambahkan');
@@ -1761,9 +1827,9 @@ async function tesKoneksiSupabase(){
    16. PUSAT BANTUAN (FAQ)
 --------------------------------------------------------- */
 const DAFTAR_FAQ = [
-  { q: 'Bagaimana cara menambah pelanggan atau proyek baru?', a: 'Buka menu Pelanggan atau Proyek di sidebar, lalu klik tombol "Tambah" di kanan atas. Isi form dan klik Simpan — data langsung tersimpan ke database Supabase.' },
+  { q: 'Bagaimana cara menambah pelanggan atau proyek baru?', a: 'Untuk pelanggan: buka menu Pelanggan, klik tombol "Tambah Pelanggan". Untuk proyek: klik nama pelanggan yang dituju untuk membuka halaman detailnya, lalu klik "Tambah Proyek" — proyek baru otomatis tertaut ke pelanggan tersebut.' },
   { q: 'Kenapa data tidak muncul saat pertama kali membuka aplikasi?', a: 'Pastikan config.js sudah diisi dengan SUPABASE_URL dan SUPABASE_ANON_KEY yang benar, dan skema tabel di supabase/schema.sql sudah dijalankan di SQL Editor Supabase Anda.' },
-  { q: 'Bagaimana cara mengubah status sebuah proyek?', a: 'Di tabel Proyek, gunakan dropdown status pada baris proyek yang bersangkutan. Perubahan otomatis tercatat di menu Aktivitas.' },
+  { q: 'Bagaimana cara mengubah status sebuah proyek?', a: 'Buka halaman detail pelanggan terkait, lalu klik tombol Edit pada baris proyek yang bersangkutan dan ubah Status di form. Perubahan otomatis tercatat di menu Aktivitas.' },
   { q: 'Apakah bisa memberi tugas ke anggota tim tertentu dan memantau progresnya?', a: 'Fitur ini sedang direncanakan sebagai tahap berikutnya (memerlukan sistem login multi-pengguna). Untuk saat ini, gunakan menu Tugas untuk daftar tugas bersama dan menu Pesan untuk koordinasi tim.' },
   { q: 'Bagaimana cara mengunduh laporan?', a: 'Buka menu Laporan, lalu klik tombol "Unduh CSV" di kanan atas untuk mengunduh data proyek, atau "Cetak" untuk mencetak/menyimpan sebagai PDF.' },
   { q: 'Apa itu Row Level Security (RLS) dan apakah data saya aman?', a: 'RLS adalah aturan akses tingkat baris di database Supabase. Saat ini kebijakan mengizinkan akses baca/tulis publik lewat anon key — cocok untuk tim internal. Untuk keamanan lebih ketat per-pengguna, aktifkan Supabase Auth.' },
@@ -1798,8 +1864,8 @@ function initEventListener(){
   document.getElementById('filter-nilai-proyek-pelanggan').addEventListener('change', renderPelanggan);
   document.getElementById('form-pelanggan').addEventListener('submit', simpanPelanggan);
 
-  document.getElementById('cari-proyek').addEventListener('input', renderProyek);
-  document.getElementById('filter-status-proyek').addEventListener('change', renderProyek);
+  document.getElementById('cari-proyek-detail').addEventListener('input', renderProyekDetail);
+  document.getElementById('filter-status-proyek-detail').addEventListener('change', renderProyekDetail);
   document.getElementById('form-proyek').addEventListener('submit', simpanProyek);
   ['input-subtotal-proyek','input-tax-proyek','input-dana-lain-proyek','input-total-budget-proyek','input-budget-terpakai-proyek']
     .forEach(id => document.getElementById(id).addEventListener('input', perbaruiKalkulasiFormProyek));
