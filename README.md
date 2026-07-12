@@ -220,11 +220,12 @@ Aksi (Tambah Stok/Edit/Hapus)`
   Gudang Surabaya vs Gudang Jakarta). Gunakan tombol **Kelola Gudang**
   untuk menambah/menghapus lokasi gudang.
 - **Stok Masuk & Stok Keluar bersifat akumulatif dan tidak diedit
-  langsung** — Stok Masuk bertambah lewat tombol **Tambah Stok** di
-  setiap baris; Stok Keluar dicatat lewat halaman **Detail Stok
-  Keluar** (klik angkanya, lihat langkah 1k). Ini menjaga angka Sisa
-  Stok selalu konsisten dan setiap pergerakan tercatat sebagai riwayat
-  (tabel `riwayat_stok`), bukan angka yang bisa ditimpa sembarangan.
+  langsung** — Stok Masuk dicatat lewat halaman **Detail Stok Masuk**
+  (klik angkanya, lihat langkah 1l); Stok Keluar dicatat lewat halaman
+  **Detail Stok Keluar** (klik angkanya, lihat langkah 1k). Ini menjaga
+  angka Sisa Stok selalu konsisten dan setiap pergerakan tercatat
+  sebagai riwayat (tabel `riwayat_stok`), bukan angka yang bisa ditimpa
+  sembarangan.
 - **Status otomatis** — dihitung sistem dari Sisa Stok dibanding "Stok
   Minimum" yang diisi saat menambah/edit item: **Tersedia**, **Stok
   Menipis**, atau **Stok Habis**. Admin juga bisa menandai item
@@ -271,6 +272,41 @@ Satuan · Catatan · Aksi (Edit/Hapus)`
 - Modal **Tambah Stok** cepat di tabel utama sekarang khusus untuk
   **Stok Masuk** — mencatat pengiriman keluar selalu lewat halaman
   detail ini supaya No DO/Pelanggan/No PO/Proyek selalu terisi.
+
+## 1l. Detail Stok Masuk per produk (v12)
+
+Jalankan blok **`TAMBAHAN v12`** di akhir `schema.sql` untuk mengaktifkan
+halaman detail yang terbuka saat mengklik angka **Stok Masuk** pada
+sebuah baris di menu **Stock & Gudang**:
+
+`Tanggal Masuk · No DO · Nama Vendor · No PO · Qty · Satuan ·
+Status (Baru, Bekas, Rusak) · Catatan · Aksi (Edit/Hapus)`
+
+- **Satu sumber kebenaran** — sama seperti Detail Stok Keluar (v11),
+  detail ini disimpan di tabel `riwayat_stok` yang sama dipakai untuk
+  menghitung akumulasi Stok Masuk, jadi angka di tabel utama
+  Stock & Gudang selalu sinkron dengan riwayat di halaman detail
+  (tambah/edit/hapus di sini otomatis menyesuaikan Stok Masuk & Sisa
+  Stok pada kartu produk).
+- **Nama Vendor** diisi bebas (teks), tapi form menyarankan nama
+  vendor yang sudah pernah dipakai lewat autocomplete — jadi
+  penulisan tetap konsisten tanpa perlu mengelola daftar vendor
+  terpisah.
+- **Status kondisi barang** — setiap penerimaan wajib ditandai
+  **Baru**, **Bekas**, atau **Rusak** (default Baru), berguna untuk
+  melacak retur/barang bekas pakai dan barang cacat saat diterima.
+- **Validasi otomatis** — sistem menolak edit/hapus riwayat stok
+  masuk jika perubahan tersebut membuat Sisa Stok menjadi negatif
+  (karena stok keluar yang sudah tercatat lebih besar dari stok
+  masuk yang tersisa).
+- Tombol **Tambah Stok Masuk** di halaman ini menggantikan modal
+  cepat sebelumnya (yang hanya mencatat jumlah) — sekarang setiap
+  penerimaan barang selalu lengkap dengan No DO/Vendor/No PO/Status.
+  Kolom pencarian (No DO/Vendor/No PO/Catatan), filter Status, dan
+  unduh CSV khusus riwayat produk tersebut tersedia di toolbar.
+- Menghapus baris riwayat khusus Admin (sesuai kebijakan RLS), Edit
+  dapat dilakukan oleh siapa pun yang login — sama seperti Detail
+  Stok Keluar.
 
 ## Perbaikan Tata Letak (Audit UI/UX)
 
@@ -337,8 +373,10 @@ Setiap kali Anda `git push` ke branch `main`, Vercel otomatis men-deploy ulang.
   tabel `catatan_tim`, lihat langkah 1b di bawah).
 - **Stock & Gudang** — kartu stok per SKU di setiap gudang (Sisa Stok,
   status Tersedia/Menipis/Habis otomatis, riwayat pergerakan stok
-  masuk/keluar), lihat langkah 1j. Klik angka **Stok Keluar** untuk
-  membuka detail pengiriman per transaksi (No DO, Pelanggan, No PO,
+  masuk/keluar), lihat langkah 1j. Klik angka **Stok Masuk** untuk
+  membuka detail penerimaan barang per transaksi (No DO, Vendor, No PO,
+  Status Baru/Bekas/Rusak), lihat langkah 1l. Klik angka **Stok Keluar**
+  untuk membuka detail pengiriman per transaksi (No DO, Pelanggan, No PO,
   Proyek), lihat langkah 1k.
 - **Kalender** — tenggat proyek & tugas otomatis ditampilkan per bulan,
   lengkap dengan agenda harian.

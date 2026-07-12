@@ -585,3 +585,39 @@ create policy "pengguna login dapat mengubah riwayat stok" on riwayat_stok for u
 drop policy if exists "hanya admin dapat menghapus riwayat stok" on riwayat_stok;
 create policy "hanya admin dapat menghapus riwayat stok" on riwayat_stok for delete using (
   exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+
+-- =========================================================
+-- TAMBAHAN v12 — DETAIL STOK MASUK (per transaksi masuk)
+-- Jalankan blok ini di SQL Editor untuk mengaktifkan halaman
+-- detail "Stok Masuk" yang terbuka saat mengklik angka Stok
+-- Masuk pada sebuah item di menu Stock & Gudang:
+-- Tanggal Masuk, No DO, Nama Vendor, No PO, Qty, Satuan,
+-- Status (Baru/Bekas/Rusak), Catatan, Aksi (Edit/Hapus).
+-- Aman dijalankan berulang / di database yang sudah berisi data.
+--
+-- Desain: sama seperti v11 (Detail Stok Keluar), kolom-kolom
+-- transaksi masuk ditambahkan ke tabel riwayat_stok yang sama
+-- (bukan tabel baru) supaya satu baris riwayat tetap jadi
+-- satu-satunya sumber kebenaran (single source of truth) untuk
+-- angka Stok Masuk di stok_item. Kolom tanggal/no_do/no_po/satuan/
+-- catatan dipakai bersama dengan riwayat stok keluar (sudah ada
+-- sejak v11); yang benar-benar baru di sini hanya vendor_nama dan
+-- kondisi_barang, karena keduanya spesifik untuk barang masuk.
+--
+-- Nama Vendor sengaja dibuat sebagai teks bebas (bukan tabel
+-- vendor terpisah + dropdown) supaya pencatatan tetap cepat untuk
+-- vendor baru/insidental — aplikasi tetap menyarankan nama vendor
+-- yang pernah dipakai lewat autocomplete di sisi klien, jadi
+-- konsistensi penulisan tetap terjaga tanpa menambah tabel master
+-- baru. Kondisi Barang dibatasi ke 3 nilai baku (Baru/Bekas/Rusak)
+-- lewat CHECK constraint supaya datanya konsisten dan bisa
+-- difilter/dilaporkan.
+-- =========================================================
+
+alter table riwayat_stok add column if not exists vendor_nama text;
+alter table riwayat_stok add column if not exists kondisi_barang text check (kondisi_barang in ('baru','bekas','rusak'));
+
+create index if not exists idx_riwayat_stok_kondisi on riwayat_stok (kondisi_barang);
+
+-- ---- Tandai riwayat stok masuk lama (sebelum v12) sebagai "Baru" secara default ----
+update riwayat_stok set kondisi_barang = 'baru' where tipe = 'masuk' and kondisi_barang is null;
