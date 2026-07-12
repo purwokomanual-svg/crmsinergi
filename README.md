@@ -186,6 +186,25 @@ dipakai sudah ada sejak awal). Perubahannya ada di formulir:
 - ID Pelanggan dan No PO harus **unik** — jika sudah dipakai baris
   lain, aplikasi akan menampilkan pesan agar Anda memakai nilai lain.
 
+## Perbaikan Tata Letak (Audit UI/UX)
+
+Tidak perlu migrasi database untuk perubahan ini — murni perbaikan
+`index.html`, `style.css`, dan `script.js`:
+
+- **Modal Proyek (dan modal panjang lainnya)** — tombol **Simpan**
+  sekarang selalu terlihat dan tidak ikut ter-scroll. Hanya area
+  kolom input yang bisa di-scroll di dalam modal; judul dan tombol
+  Simpan/Batal tetap pada tempatnya.
+- **Dropdown/filter (mis. filter status, filter urutan)** — opsi
+  pilihan sekarang dipaksa memakai warna latar gelap sesuai tema
+  aplikasi, supaya tulisan opsi tidak lagi putih-di-atas-putih atau
+  tidak terbaca saat dropdown dibuka.
+- **Tampilan mobile** — sebelumnya menu sidebar benar-benar
+  hilang tanpa cara membukanya di layar sempit. Sekarang ada tombol
+  ikon garis tiga (☰) di pojok kiri atas yang membuka sidebar sebagai
+  panel geser (drawer) dengan latar gelap di belakangnya; sidebar
+  otomatis tertutup lagi setelah memilih menu.
+
 ## 3. Unggah ke GitHub
 
 ```bash

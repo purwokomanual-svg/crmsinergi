@@ -414,6 +414,7 @@ function pindahTampilan(namaView){
   document.querySelectorAll('.nav-item[data-view]').forEach(el => {
     el.classList.toggle('active', el.dataset.view === namaView);
   });
+  tutupSidebarMobile();
   if(namaView === 'ringkasan'){ renderChart(); renderTagRingkasan(); }
   if(namaView === 'kalender') renderKalender();
   if(namaView === 'laporan') renderLaporan();
@@ -1355,6 +1356,15 @@ function initRealtime(){
 --------------------------------------------------------- */
 function bukaModal(id){ document.getElementById(id).classList.remove('hidden'); }
 function tutupModal(id){ document.getElementById(id).classList.add('hidden'); }
+
+function toggleSidebarMobile(){
+  document.querySelector('.sidebar').classList.toggle('sidebar-open');
+  document.getElementById('sidebar-backdrop').classList.toggle('sidebar-open');
+}
+function tutupSidebarMobile(){
+  document.querySelector('.sidebar').classList.remove('sidebar-open');
+  document.getElementById('sidebar-backdrop').classList.remove('sidebar-open');
+}
 
 /* ---------------------------------------------------------
    10. CHART PENDAPATAN (tampilan Ringkasan)

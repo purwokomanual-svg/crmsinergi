@@ -93,9 +93,12 @@
 </aside>
 
 <main class="main">
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="tutupSidebarMobile()"></div>
   <div class="topbar">
-    <div class="search-box dropdown-wrap">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <button class="icon-btn btn-menu-mobile" id="btn-menu-mobile" onclick="toggleSidebarMobile()" title="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <div class="search-box dropdown-wrap">      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input type="text" id="global-search" placeholder="Cari pelanggan, proyek, atau tugas..." oninput="cariGlobal(this.value)" onfocus="cariGlobal(this.value)" autocomplete="off">
       <div class="dropdown-panel search-dropdown hidden" id="search-dropdown"></div>
     </div>
@@ -685,6 +688,7 @@
     <h3 id="judul-modal-pelanggan">Tambah Pelanggan Baru</h3>
     <form id="form-pelanggan">
       <input type="hidden" id="input-id-pelanggan">
+      <div class="modal-fields">
       <div class="form-group">
         <label>ID Pelanggan</label>
         <input type="text" id="input-kode-pelanggan" placeholder="Contoh: CL-2049" required>
@@ -714,6 +718,7 @@
         <input type="text" id="input-pic-pelanggan" placeholder="Contoh: Budi Santoso">
       </div>
       <p class="modal-note">Total Nilai Proyek dihitung otomatis dari data proyek pelanggan ini dan tidak diisi manual di sini.</p>
+      </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" onclick="tutupModal('modal-pelanggan')">Batal</button>
         <button type="submit" class="btn btn-primary" id="btn-simpan-pelanggan">Simpan Pelanggan</button>
@@ -724,10 +729,11 @@
 
 <!-- ===================== MODAL: TAMBAH / EDIT PROYEK ===================== -->
 <div class="modal-overlay hidden" id="modal-proyek">
-  <div class="modal-box">
+  <div class="modal-box modal-box-lebar">
     <h3 id="judul-modal-proyek">Tambah Proyek Baru</h3>
     <form id="form-proyek">
       <input type="hidden" id="input-id-proyek">
+      <div class="modal-fields">
       <div class="form-group">
         <label>No PO</label>
         <input type="text" id="input-kode-proyek" placeholder="Contoh: PO-2026-0001" required>
@@ -794,6 +800,7 @@
         <input type="text" id="tampil-persen-budget-proyek" readonly disabled placeholder="Otomatis dihitung">
       </div>
       <p class="modal-note">Grand Total dan % Budget dihitung otomatis. No PO & Dibuat Oleh diisi otomatis oleh sistem.</p>
+      </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" onclick="tutupModal('modal-proyek')">Batal</button>
         <button type="submit" class="btn btn-primary" id="btn-simpan-proyek">Simpan Proyek</button>
@@ -807,6 +814,7 @@
   <div class="modal-box">
     <h3>Tambah Tugas Baru</h3>
     <form id="form-tugas">
+      <div class="modal-fields">
       <div class="form-group">
         <label>Judul Tugas</label>
         <input type="text" id="input-judul-tugas" placeholder="Contoh: Kirim proposal ke klien" required>
@@ -832,6 +840,7 @@
       <div class="form-group">
         <label>Tenggat Waktu</label>
         <input type="date" id="input-tenggat-tugas">
+      </div>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" onclick="tutupModal('modal-tugas')">Batal</button>
