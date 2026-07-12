@@ -539,3 +539,49 @@ join (values
 ) as v(gudang_nama, sku, nama_produk, variant, kategori, stok_masuk, stok_keluar, stok_minimum)
   on v.gudang_nama = g.nama
 on conflict (gudang_id, sku) do nothing;
+
+-- =========================================================
+-- TAMBAHAN v11 — DETAIL STOK KELUAR (per transaksi keluar)
+-- Jalankan blok ini di SQL Editor untuk mengaktifkan halaman
+-- detail "Stok Keluar" yang terbuka saat mengklik angka Stok
+-- Keluar pada sebuah item di menu Stock & Gudang:
+-- Tanggal Keluar, No DO, Nama Pelanggan, No PO, Nama Proyek,
+-- Qty, Satuan, Catatan, Aksi (Edit/Hapus).
+-- Aman dijalankan berulang / di database yang sudah berisi data.
+--
+-- Desain: kolom-kolom detail transaksi (No DO, Pelanggan, No PO,
+-- Proyek, Satuan) ditambahkan ke tabel riwayat_stok yang sudah
+-- ada, bukan tabel baru — supaya satu baris riwayat tetap jadi
+-- satu-satunya sumber kebenaran (single source of truth) untuk
+-- angka Stok Keluar di stok_item. Kolom ini nullable karena hanya
+-- relevan untuk tipe = 'keluar'; baris stok masuk tidak memakainya.
+-- Pelanggan & Proyek tertaut ke data pelanggan/proyek yang sudah
+-- terdaftar lewat dropdown di aplikasi (agar konsisten & mudah
+-- ditelusuri), tapi tetap boleh diisi manual (pelanggan_id /
+-- proyek_id kosong) untuk transaksi yang belum punya PO/proyek
+-- resmi di sistem.
+-- =========================================================
+
+alter table riwayat_stok add column if not exists tanggal date not null default current_date;
+alter table riwayat_stok add column if not exists no_do text;
+alter table riwayat_stok add column if not exists pelanggan_id uuid references pelanggan(id) on delete set null;
+alter table riwayat_stok add column if not exists pelanggan_nama text;
+alter table riwayat_stok add column if not exists no_po text;
+alter table riwayat_stok add column if not exists proyek_id uuid references proyek(id) on delete set null;
+alter table riwayat_stok add column if not exists proyek_nama text;
+alter table riwayat_stok add column if not exists satuan text;
+
+create index if not exists idx_riwayat_stok_tipe on riwayat_stok (tipe);
+create index if not exists idx_riwayat_stok_tanggal on riwayat_stok (tanggal);
+
+-- ---- Satuan default per produk (prefill otomatis saat mencatat stok keluar) ----
+alter table stok_item add column if not exists satuan text not null default 'Pcs';
+
+-- ---- Lengkapi kebijakan RLS riwayat_stok — sebelumnya hanya ada select & insert,
+--      padahal halaman detail Stok Keluar butuh Edit & Hapus per baris. ----
+drop policy if exists "pengguna login dapat mengubah riwayat stok" on riwayat_stok;
+create policy "pengguna login dapat mengubah riwayat stok" on riwayat_stok for update using (auth.uid() is not null);
+
+drop policy if exists "hanya admin dapat menghapus riwayat stok" on riwayat_stok;
+create policy "hanya admin dapat menghapus riwayat stok" on riwayat_stok for delete using (
+  exists (select 1 from profil where id = auth.uid() and peran = 'admin'));

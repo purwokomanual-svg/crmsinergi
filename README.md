@@ -220,15 +220,18 @@ Aksi (Tambah Stok/Edit/Hapus)`
   Gudang Surabaya vs Gudang Jakarta). Gunakan tombol **Kelola Gudang**
   untuk menambah/menghapus lokasi gudang.
 - **Stok Masuk & Stok Keluar bersifat akumulatif dan tidak diedit
-  langsung** — keduanya hanya bisa bertambah lewat tombol **Tambah
-  Stok** di setiap baris (pilih Masuk/Keluar + jumlah + catatan
-  opsional). Ini menjaga angka Sisa Stok selalu konsisten dan setiap
-  pergerakan tercatat sebagai riwayat (tabel `riwayat_stok`), bukan
-  angka yang bisa ditimpa sembarangan.
+  langsung** — Stok Masuk bertambah lewat tombol **Tambah Stok** di
+  setiap baris; Stok Keluar dicatat lewat halaman **Detail Stok
+  Keluar** (klik angkanya, lihat langkah 1k). Ini menjaga angka Sisa
+  Stok selalu konsisten dan setiap pergerakan tercatat sebagai riwayat
+  (tabel `riwayat_stok`), bukan angka yang bisa ditimpa sembarangan.
 - **Status otomatis** — dihitung sistem dari Sisa Stok dibanding "Stok
   Minimum" yang diisi saat menambah/edit item: **Tersedia**, **Stok
   Menipis**, atau **Stok Habis**. Admin juga bisa menandai item
   **Nonaktif** (produk dihentikan) lewat form Edit.
+- **Satuan** — setiap item punya satuan default (mis. Pcs/Meter/Box),
+  diisi lewat form Tambah/Edit Item, dipakai sebagai isian awal saat
+  mencatat stok keluar.
 - **Notifikasi otomatis** — item yang stoknya menipis/habis muncul di
   ikon lonceng topbar dan badge merah di menu sidebar, serta memicu
   Notifikasi Desktop (jika diaktifkan) saat stok baru saja habis.
@@ -238,6 +241,36 @@ Aksi (Tambah Stok/Edit/Hapus)`
 - Menghapus item atau gudang memakai tombol **Hapus** (khusus Admin
   sesuai kebijakan RLS) — gudang yang masih memiliki item stok tidak
   bisa dihapus sampai item di dalamnya dipindahkan/dihapus dulu.
+
+## 1k. Detail Stok Keluar per produk (v11)
+
+Jalankan blok **`TAMBAHAN v11`** di akhir `schema.sql` untuk mengaktifkan
+halaman detail yang terbuka saat mengklik angka **Stok Keluar** pada
+sebuah baris di menu **Stock & Gudang**:
+
+`Tanggal Keluar · No DO · Nama Pelanggan · No PO · Nama Proyek · Qty ·
+Satuan · Catatan · Aksi (Edit/Hapus)`
+
+- **Satu sumber kebenaran** — detail ini disimpan di tabel `riwayat_stok`
+  yang sama dipakai untuk menghitung akumulasi Stok Keluar, jadi
+  angka di tabel utama Stock & Gudang selalu sinkron dengan riwayat
+  di halaman detail (tambah/edit/hapus di sini otomatis menyesuaikan
+  Stok Keluar & Sisa Stok pada kartu produk).
+- **Nama Pelanggan & Nama Proyek** dipilih lewat dropdown (tersinkron
+  dengan menu Pelanggan & Proyek) — memilih proyek otomatis mengisi
+  **No PO** dari kode proyek tersebut. Jika transaksi belum punya
+  pelanggan/proyek terdaftar di sistem, pilih opsi "Ketik nama lain..."
+  untuk mengisi manual.
+- **Validasi otomatis** — sistem menolak penyimpanan jika Qty yang
+  diisi membuat Sisa Stok menjadi negatif.
+- Tombol **Tambah Stok Keluar** di halaman ini, kolom pencarian
+  (No DO/Pelanggan/No PO/Proyek), dan unduh CSV khusus riwayat produk
+  tersebut tersedia di toolbar.
+- Menghapus baris riwayat khusus Admin (sesuai kebijakan RLS), Edit
+  dapat dilakukan oleh siapa pun yang login.
+- Modal **Tambah Stok** cepat di tabel utama sekarang khusus untuk
+  **Stok Masuk** — mencatat pengiriman keluar selalu lewat halaman
+  detail ini supaya No DO/Pelanggan/No PO/Proyek selalu terisi.
 
 ## Perbaikan Tata Letak (Audit UI/UX)
 
@@ -304,7 +337,9 @@ Setiap kali Anda `git push` ke branch `main`, Vercel otomatis men-deploy ulang.
   tabel `catatan_tim`, lihat langkah 1b di bawah).
 - **Stock & Gudang** — kartu stok per SKU di setiap gudang (Sisa Stok,
   status Tersedia/Menipis/Habis otomatis, riwayat pergerakan stok
-  masuk/keluar), lihat langkah 1j.
+  masuk/keluar), lihat langkah 1j. Klik angka **Stok Keluar** untuk
+  membuka detail pengiriman per transaksi (No DO, Pelanggan, No PO,
+  Proyek), lihat langkah 1k.
 - **Kalender** — tenggat proyek & tugas otomatis ditampilkan per bulan,
   lengkap dengan agenda harian.
 - **Analitik** — corong penjualan berdasarkan nilai & jumlah proyek per tahap.

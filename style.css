@@ -366,6 +366,7 @@ button{font-family:inherit;}
 .cell-link{color:var(--ink);cursor:pointer;text-decoration:none;border-bottom:1px dashed transparent;transition:.15s;}
 .cell-link:hover{color:var(--accent-bright);border-bottom-color:var(--accent-bright);}
 .table-hint{margin:0;padding:12px 18px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--edge);}
+.form-group.hidden{display:none;}
 .btn-kembali{display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;}
 .btn-kembali svg{width:16px;height:16px;}
 

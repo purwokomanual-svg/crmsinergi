@@ -494,7 +494,73 @@
           </thead>
           <tbody id="tbody-gudang"></tbody>
         </table>
-        <p class="table-hint">Klik <b>Tambah Stok</b> untuk mencatat stok masuk/keluar — Sisa Stok &amp; Update Terakhir akan diperbarui otomatis.</p>
+        <p class="table-hint">Klik ikon <b>Tambah Stok</b> untuk mencatat stok masuk, atau klik angka pada kolom <b>Stok Keluar</b> untuk melihat & mencatat detail pengiriman (No DO, Pelanggan, No PO, Proyek) — Sisa Stok &amp; Update Terakhir akan diperbarui otomatis.</p>
+      </div>
+    </section>
+
+    <!-- ===================== VIEW: DETAIL STOK KELUAR (per item, per gudang) ===================== -->
+    <section class="view" id="view-stok-keluar-detail">
+      <button class="btn btn-secondary btn-kembali" onclick="pindahTampilan('gudang')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
+        Kembali ke Stock &amp; Gudang
+      </button>
+
+      <div class="cust-header">
+        <div class="cust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/></svg></div>
+        <div class="cust-titles">
+          <h1 id="detail-stok-nama-produk">—</h1>
+          <div class="cust-tags">
+            <span class="tag" id="detail-stok-sku">SKU: —</span>
+            <span class="tag" id="detail-stok-variant">—</span>
+            <span class="tag" id="detail-stok-gudang">Gudang: —</span>
+          </div>
+          <div class="cust-tags" style="margin-top:8px;">
+            <span class="tag status"><span class="dot"></span><span id="detail-stok-sisa">Sisa Stok: 0</span></span>
+            <span class="tag" id="detail-stok-status">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="view-head">
+        <div>
+          <h2>Detail Stok Keluar</h2>
+          <p>Riwayat pengiriman produk ini keluar dari gudang, lengkap dengan No DO, pelanggan, No PO, dan proyek terkait.</p>
+        </div>
+        <button class="btn btn-primary" onclick="bukaModalTambahStokKeluar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+          Tambah Stok Keluar
+        </button>
+      </div>
+
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="cari-stok-keluar-detail" placeholder="Cari No DO, pelanggan, No PO, atau proyek...">
+        </div>
+        <div class="toolbar-spacer"></div>
+        <button class="btn btn-secondary" onclick="unduhStokKeluarDetailCSV()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
+          Unduh CSV
+        </button>
+      </div>
+
+      <div class="table-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Tanggal Keluar</th>
+              <th>No DO</th>
+              <th>Nama Pelanggan</th>
+              <th>No PO</th>
+              <th>Nama Proyek</th>
+              <th>Qty</th>
+              <th>Satuan</th>
+              <th>Catatan</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-stok-keluar-detail"></tbody>
+        </table>
       </div>
     </section>
 
@@ -990,6 +1056,10 @@
         </div>
       </div>
       <div class="form-group">
+        <label>Satuan</label>
+        <input type="text" id="input-satuan-item-stok" placeholder="Contoh: Pcs / Meter / Box" value="Pcs">
+      </div>
+      <div class="form-group">
         <label>Status</label>
         <select id="input-status-item-stok">
           <option value="aktif">Aktif</option>
@@ -1006,33 +1076,97 @@
   </div>
 </div>
 
-<!-- ===================== MODAL: TAMBAH STOK (masuk/keluar) ===================== -->
+<!-- ===================== MODAL: TAMBAH STOK MASUK ===================== -->
 <div class="modal-overlay hidden" id="modal-tambah-stok">
   <div class="modal-box">
-    <h3>Tambah Pergerakan Stok</h3>
+    <h3>Tambah Stok Masuk</h3>
     <p class="modal-note" id="info-item-tambah-stok">—</p>
+    <input type="hidden" id="input-tipe-tambah-stok" value="masuk">
     <form id="form-tambah-stok">
       <input type="hidden" id="input-id-item-tambah-stok">
       <div class="modal-fields">
       <div class="form-group">
-        <label>Tipe Pergerakan</label>
-        <select id="input-tipe-tambah-stok">
-          <option value="masuk">Stok Masuk</option>
-          <option value="keluar">Stok Keluar</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Jumlah</label>
+        <label>Jumlah Masuk</label>
         <input type="number" id="input-jumlah-tambah-stok" placeholder="Contoh: 50" min="1" required>
       </div>
       <div class="form-group">
         <label>Catatan (opsional)</label>
-        <input type="text" id="input-catatan-tambah-stok" placeholder="Contoh: Pembelian dari supplier / pengiriman ke pelanggan">
+        <input type="text" id="input-catatan-tambah-stok" placeholder="Contoh: Pembelian dari supplier / retur pelanggan">
       </div>
+      <p class="modal-note">Untuk mencatat <b>Stok Keluar</b> (pengiriman ke pelanggan lengkap dengan No DO/PO/Proyek), klik angka <b>Stok Keluar</b> item ini pada tabel untuk membuka halaman detailnya.</p>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" onclick="tutupModal('modal-tambah-stok')">Batal</button>
-        <button type="submit" class="btn btn-primary">Simpan Pergerakan</button>
+        <button type="submit" class="btn btn-primary">Simpan Stok Masuk</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: TAMBAH / EDIT STOK KELUAR (detail) ===================== -->
+<div class="modal-overlay hidden" id="modal-stok-keluar">
+  <div class="modal-box">
+    <h3 id="judul-modal-stok-keluar">Tambah Stok Keluar</h3>
+    <p class="modal-note" id="info-item-stok-keluar">—</p>
+    <form id="form-stok-keluar">
+      <input type="hidden" id="input-id-riwayat-stok-keluar">
+      <div class="modal-fields">
+        <div class="settings-form-grid">
+          <div class="form-group">
+            <label>Tanggal Keluar</label>
+            <input type="date" id="input-tanggal-stok-keluar" required>
+          </div>
+          <div class="form-group">
+            <label>No DO</label>
+            <input type="text" id="input-no-do-stok-keluar" placeholder="Contoh: DO-2026-0417">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Nama Pelanggan</label>
+          <select id="input-pelanggan-stok-keluar">
+            <option value="">— Tanpa pelanggan terdaftar —</option>
+            <option value="__manual__">✏️ Ketik nama pelanggan lain...</option>
+          </select>
+        </div>
+        <div class="form-group hidden" id="wrap-pelanggan-manual-stok-keluar">
+          <label>Nama Pelanggan (manual)</label>
+          <input type="text" id="input-pelanggan-manual-stok-keluar" placeholder="Ketik nama pelanggan">
+        </div>
+        <div class="settings-form-grid">
+          <div class="form-group">
+            <label>Nama Proyek</label>
+            <select id="input-proyek-stok-keluar">
+              <option value="">— Tanpa proyek/PO —</option>
+              <option value="__manual__">✏️ Ketik proyek lain...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>No PO</label>
+            <input type="text" id="input-no-po-stok-keluar" placeholder="Terisi otomatis jika pilih proyek">
+          </div>
+        </div>
+        <div class="form-group hidden" id="wrap-proyek-manual-stok-keluar">
+          <label>Nama Proyek (manual)</label>
+          <input type="text" id="input-proyek-manual-stok-keluar" placeholder="Ketik nama proyek">
+        </div>
+        <div class="settings-form-grid">
+          <div class="form-group">
+            <label>Qty</label>
+            <input type="number" id="input-qty-stok-keluar" placeholder="Contoh: 10" min="1" required>
+          </div>
+          <div class="form-group">
+            <label>Satuan</label>
+            <input type="text" id="input-satuan-stok-keluar" placeholder="Contoh: Pcs">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <input type="text" id="input-catatan-stok-keluar" placeholder="Contoh: Pengiriman tahap 1">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="tutupModal('modal-stok-keluar')">Batal</button>
+        <button type="submit" class="btn btn-primary" id="btn-simpan-stok-keluar">Simpan Stok Keluar</button>
       </div>
     </form>
   </div>

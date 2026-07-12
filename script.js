@@ -8,7 +8,7 @@
 
 /* Cache data di memori, diisi dari Supabase saat halaman dimuat
    dan diperbarui lagi setiap ada perubahan (tambah/hapus/ubah) */
-let DATA = { pelanggan: [], proyek: [], tugas: [], aktivitas: [], catatan: [], profil: [], gudang: [], stokItem: [], perusahaan: { nama_perusahaan: 'Dealstack', logo_url: null } };
+let DATA = { pelanggan: [], proyek: [], tugas: [], aktivitas: [], catatan: [], profil: [], gudang: [], stokItem: [], riwayatStok: [], perusahaan: { nama_perusahaan: 'Dealstack', logo_url: null } };
 
 /* Pengguna yang sedang login (diisi setelah autentikasi berhasil) */
 let CURRENT_USER = null; // { id, nama, email, peran }
@@ -385,7 +385,7 @@ function renderNotifikasi(){
    Semua fungsi di bawah ini melakukan query ke database.
 --------------------------------------------------------- */
 async function muatSemuaData(){
-  const [pelanggan, proyek, tugas, aktivitas, catatan, profil, gudang, stokItem] = await Promise.all([
+  const [pelanggan, proyek, tugas, aktivitas, catatan, profil, gudang, stokItem, riwayatStok] = await Promise.all([
     supabaseClient.from('pelanggan').select('*').order('dibuat_pada', { ascending: false }),
     supabaseClient.from('proyek').select('*').order('dibuat_pada', { ascending: false }),
     supabaseClient.from('tugas').select('*').order('dibuat_pada', { ascending: false }),
@@ -394,6 +394,7 @@ async function muatSemuaData(){
     supabaseClient.from('profil').select('*').order('nama', { ascending: true }),
     supabaseClient.from('gudang').select('*').order('nama', { ascending: true }),
     supabaseClient.from('stok_item').select('*').order('nama_produk', { ascending: true }),
+    supabaseClient.from('riwayat_stok').select('*').order('dibuat_pada', { ascending: false }),
   ]);
 
   if(pelanggan.error || proyek.error || tugas.error || aktivitas.error){
@@ -413,6 +414,8 @@ async function muatSemuaData(){
   // Tabel gudang / stok_item mungkin belum ada jika migrasi v10 belum dijalankan.
   DATA.gudang = gudang.error ? (console.warn('Tabel gudang belum tersedia. Jalankan migrasi v10 di schema.sql.', gudang.error), []) : (gudang.data || []);
   DATA.stokItem = stokItem.error ? (console.warn('Tabel stok_item belum tersedia. Jalankan migrasi v10 di schema.sql.', stokItem.error), []) : (stokItem.data || []);
+  // Kolom detail (No DO/Pelanggan/No PO/Proyek/Satuan) mungkin belum ada jika migrasi v11 belum dijalankan.
+  DATA.riwayatStok = riwayatStok.error ? (console.warn('Tabel riwayat_stok belum lengkap. Jalankan migrasi v11 di schema.sql.', riwayatStok.error), []) : (riwayatStok.data || []);
 }
 
 async function catatAktivitas(tipe, teks){
@@ -437,9 +440,12 @@ async function catatAktivitas(tipe, teks){
 function pindahTampilan(namaView){
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + namaView).classList.add('active');
-  // Halaman detail pelanggan adalah sub-halaman dari menu "Pelanggan" di sidebar —
-  // jadi nav item Pelanggan tetap ditandai aktif saat berada di sana.
-  const namaViewNav = namaView === 'pelanggan-detail' ? 'pelanggan' : namaView;
+  // Halaman detail pelanggan & detail stok keluar adalah sub-halaman dari menu
+  // "Pelanggan" / "Stock & Gudang" di sidebar — jadi nav item induknya tetap
+  // ditandai aktif saat berada di sana.
+  const namaViewNav = namaView === 'pelanggan-detail' ? 'pelanggan'
+    : namaView === 'stok-keluar-detail' ? 'gudang'
+    : namaView;
   document.querySelectorAll('.nav-item[data-view]').forEach(el => {
     el.classList.toggle('active', el.dataset.view === namaViewNav);
   });
@@ -448,6 +454,7 @@ function pindahTampilan(namaView){
   if(namaView === 'pelanggan-detail') renderDetailPelanggan();
   if(namaView === 'kalender') renderKalender();
   if(namaView === 'gudang') renderGudang();
+  if(namaView === 'stok-keluar-detail') renderDetailStokKeluar();
   if(namaView === 'laporan') renderLaporan();
   if(namaView === 'pesan') renderPesan();
   if(namaView === 'integrasi') tesKoneksiSupabase();
@@ -620,7 +627,7 @@ function editPelanggan(id){
 }
 
 function pesanErrorKode(error, label){
-  if(error && error.code === '23505') return `${label} sudah dipakai. Gunakan ${label.toLowerCase()} yang berbeda.`;
+  if(error && error.code === '23505') return `${label ? label + ' sudah dipakai. Gunakan ' + label.toLowerCase() + ' yang berbeda.' : 'Data ini sudah dipakai. Gunakan nilai yang berbeda.'}`;
   return null;
 }
 
@@ -1262,7 +1269,7 @@ function renderGudang(){
       <td>${i.kategori || 'Umum'}</td>
       <td>${namaGudang(i.gudang_id)}</td>
       <td>${(i.stok_masuk || 0).toLocaleString('id-ID')}</td>
-      <td>${(i.stok_keluar || 0).toLocaleString('id-ID')}</td>
+      <td><span class="cell-link" title="Lihat detail stok keluar produk ini" onclick="bukaDetailStokKeluar('${i.id}')">${(i.stok_keluar || 0).toLocaleString('id-ID')}</span></td>
       <td><b>${sisaStok(i).toLocaleString('id-ID')}</b></td>
       <td class="cell-muted">${i.diupdate_pada ? waktuRelatif(i.diupdate_pada) : '—'}</td>
       <td class="cell-muted">${i.diupdate_oleh_nama || '—'}</td>
@@ -1290,6 +1297,7 @@ function bukaModalTambahItemStok(){
   document.getElementById('form-item-stok').reset();
   document.getElementById('input-id-item-stok').value = '';
   document.getElementById('input-status-item-stok').value = 'aktif';
+  document.getElementById('input-satuan-item-stok').value = 'Pcs';
   document.getElementById('wrap-stok-awal-item-stok').style.display = '';
   document.getElementById('input-stok-awal-item-stok').disabled = false;
   document.getElementById('catatan-modal-item-stok').innerHTML = 'Stok Minimum dipakai sistem untuk otomatis menandai status "Stok Menipis". Setelah item dibuat, ubah jumlah stok lewat tombol <b>Tambah Stok</b> di tabel agar riwayat pergerakan stok tetap tercatat.';
@@ -1310,6 +1318,7 @@ function editItemStok(id){
   document.getElementById('input-nama-item-stok').value = i.nama_produk || '';
   document.getElementById('input-variant-item-stok').value = i.variant || '';
   document.getElementById('input-stok-minimum-item-stok').value = i.stok_minimum || 0;
+  document.getElementById('input-satuan-item-stok').value = i.satuan || 'Pcs';
   document.getElementById('input-status-item-stok').value = i.status || 'aktif';
   // Stok Masuk/Keluar hanya bisa diubah lewat "Tambah Stok" (menjaga riwayat tetap akurat)
   document.getElementById('wrap-stok-awal-item-stok').style.display = 'none';
@@ -1328,6 +1337,7 @@ async function simpanItemStok(e){
   const variant = document.getElementById('input-variant-item-stok').value.trim() || null;
   const kategori = document.getElementById('input-kategori-item-stok').value.trim() || 'Umum';
   const stok_minimum = Number(document.getElementById('input-stok-minimum-item-stok').value) || 0;
+  const satuan = document.getElementById('input-satuan-item-stok').value.trim() || 'Pcs';
   const status = document.getElementById('input-status-item-stok').value;
   if(!gudang_id || !sku || !nama_produk) return;
 
@@ -1336,7 +1346,7 @@ async function simpanItemStok(e){
 
   if(id){
     // --- mode edit: hanya metadata, jumlah stok tidak diubah dari sini ---
-    const baris = { gudang_id, sku, nama_produk, variant, kategori, stok_minimum, status, diupdate_oleh_id, diupdate_oleh_nama, diupdate_pada: new Date().toISOString() };
+    const baris = { gudang_id, sku, nama_produk, variant, kategori, stok_minimum, satuan, status, diupdate_oleh_id, diupdate_oleh_nama, diupdate_pada: new Date().toISOString() };
     const { data, error } = await supabaseClient.from('stok_item').update(baris).eq('id', id).select().single();
     if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'SKU pada gudang ini') || 'Gagal menyimpan perubahan item', true); return; }
     const idx = DATA.stokItem.findIndex(x => x.id === id);
@@ -1348,7 +1358,7 @@ async function simpanItemStok(e){
   } else {
     // --- mode tambah ---
     const stokAwal = Number(document.getElementById('input-stok-awal-item-stok').value) || 0;
-    const baris = { gudang_id, sku, nama_produk, variant, kategori, stok_minimum, status, stok_masuk: stokAwal, stok_keluar: 0, diupdate_oleh_id, diupdate_oleh_nama };
+    const baris = { gudang_id, sku, nama_produk, variant, kategori, stok_minimum, satuan, status, stok_masuk: stokAwal, stok_keluar: 0, diupdate_oleh_id, diupdate_oleh_nama };
     const { data, error } = await supabaseClient.from('stok_item').insert(baris).select().single();
     if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'SKU pada gudang ini') || 'Gagal menambah item stok', true); return; }
     DATA.stokItem.unshift(data);
@@ -1379,43 +1389,314 @@ function bukaModalTambahStok(id){
   if(!i) return;
   document.getElementById('form-tambah-stok').reset();
   document.getElementById('input-id-item-tambah-stok').value = id;
-  document.getElementById('input-tipe-tambah-stok').value = 'masuk';
   document.getElementById('info-item-tambah-stok').innerHTML = `<b>${i.nama_produk}</b> (${i.sku}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')}</b>`;
   bukaModal('modal-tambah-stok');
 }
 
+/* Modal ini sekarang khusus mencatat Stok Masuk (mis. pembelian/retur).
+   Stok Keluar dicatat lewat halaman detail (lihat bagian 17c di bawah)
+   supaya setiap pengiriman selalu punya No DO/Pelanggan/No PO/Proyek. */
 async function simpanTambahStok(e){
   e.preventDefault();
   const id = document.getElementById('input-id-item-tambah-stok').value;
   const i = DATA.stokItem.find(x => x.id === id);
   if(!i) return;
-  const tipe = document.getElementById('input-tipe-tambah-stok').value;
   const jumlah = Number(document.getElementById('input-jumlah-tambah-stok').value);
   const catatan = document.getElementById('input-catatan-tambah-stok').value.trim() || null;
   if(!jumlah || jumlah <= 0) return;
-  if(tipe === 'keluar' && jumlah > sisaStok(i)){
-    tampilkanToast('Jumlah stok keluar melebihi sisa stok yang tersedia', true);
-    return;
-  }
 
   const diupdate_oleh_id = CURRENT_USER ? CURRENT_USER.id : null;
   const diupdate_oleh_nama = CURRENT_USER ? CURRENT_USER.nama : null;
-  const baris = tipe === 'masuk'
-    ? { stok_masuk: (i.stok_masuk || 0) + jumlah, diupdate_oleh_id, diupdate_oleh_nama, diupdate_pada: new Date().toISOString() }
-    : { stok_keluar: (i.stok_keluar || 0) + jumlah, diupdate_oleh_id, diupdate_oleh_nama, diupdate_pada: new Date().toISOString() };
+  const baris = { stok_masuk: (i.stok_masuk || 0) + jumlah, diupdate_oleh_id, diupdate_oleh_nama, diupdate_pada: new Date().toISOString() };
 
   const { data, error } = await supabaseClient.from('stok_item').update(baris).eq('id', id).select().single();
-  if(error){ console.error(error); tampilkanToast('Gagal mencatat pergerakan stok', true); return; }
+  if(error){ console.error(error); tampilkanToast('Gagal mencatat stok masuk', true); return; }
 
-  await supabaseClient.from('riwayat_stok').insert({ item_id: id, tipe, jumlah, catatan, dibuat_oleh_id: diupdate_oleh_id, dibuat_oleh_nama: diupdate_oleh_nama });
+  const { data: riwayat, error: errRiwayat } = await supabaseClient.from('riwayat_stok')
+    .insert({ item_id: id, tipe: 'masuk', tanggal: new Date().toISOString().slice(0,10), jumlah, catatan, satuan: i.satuan || 'Pcs', dibuat_oleh_id: diupdate_oleh_id, dibuat_oleh_nama: diupdate_oleh_nama })
+    .select().single();
+  if(!errRiwayat && riwayat) DATA.riwayatStok.unshift(riwayat);
 
   const idx = DATA.stokItem.findIndex(x => x.id === id);
   if(idx > -1) DATA.stokItem[idx] = data;
   renderGudang();
-  await catatAktivitas('gudang', `Stok ${tipe === 'masuk' ? 'masuk' : 'keluar'} <b>${jumlah.toLocaleString('id-ID')}</b> dicatat untuk <b>${i.nama_produk}</b> (${i.sku})`);
+  await catatAktivitas('gudang', `Stok masuk <b>${jumlah.toLocaleString('id-ID')}</b> dicatat untuk <b>${i.nama_produk}</b> (${i.sku})`);
   tutupModal('modal-tambah-stok');
-  tampilkanToast('Pergerakan stok dicatat');
+  tampilkanToast('Stok masuk dicatat');
   e.target.reset();
+}
+
+/* ---------------------------------------------------------
+   17c. DETAIL STOK KELUAR (per item, dibuka dari klik angka
+   Stok Keluar pada tabel Stock & Gudang). Setiap baris riwayat
+   di sini adalah satu pengiriman keluar, lengkap dengan No DO,
+   Pelanggan, No PO, Proyek, Qty, Satuan, dan Catatan.
+--------------------------------------------------------- */
+let STOK_ITEM_AKTIF_ID = null; // id item stok yang sedang dibuka di halaman detail
+
+function bukaDetailStokKeluar(itemId){
+  STOK_ITEM_AKTIF_ID = itemId;
+  const cari = document.getElementById('cari-stok-keluar-detail');
+  if(cari) cari.value = '';
+  pindahTampilan('stok-keluar-detail');
+}
+
+function renderDetailStokKeluar(){
+  const i = DATA.stokItem.find(x => x.id === STOK_ITEM_AKTIF_ID);
+  if(!i){
+    // Item sudah dihapus/tidak ditemukan — kembali ke daftar Stock & Gudang
+    pindahTampilan('gudang');
+    return;
+  }
+  const status = hitungStatusStok(i);
+  document.getElementById('detail-stok-nama-produk').textContent = i.nama_produk;
+  document.getElementById('detail-stok-sku').textContent = 'SKU: ' + i.sku;
+  document.getElementById('detail-stok-variant').textContent = i.variant || 'Tanpa Variant';
+  document.getElementById('detail-stok-gudang').textContent = 'Gudang: ' + namaGudang(i.gudang_id);
+  document.getElementById('detail-stok-sisa').textContent = 'Sisa Stok: ' + sisaStok(i).toLocaleString('id-ID') + ' ' + (i.satuan || 'Pcs');
+  document.getElementById('detail-stok-status').innerHTML = `<span class="stok-status stok-status--${status}">${labelStatusStok(status)}</span>`;
+
+  renderTabelStokKeluarDetail();
+}
+
+function renderTabelStokKeluarDetail(){
+  const tbody = document.getElementById('tbody-stok-keluar-detail');
+  if(!tbody || !STOK_ITEM_AKTIF_ID) return;
+  const isAdmin = CURRENT_USER && CURRENT_USER.peran === 'admin';
+  const q = (document.getElementById('cari-stok-keluar-detail').value || '').toLowerCase();
+
+  const data = DATA.riwayatStok.filter(r => {
+    if(r.item_id !== STOK_ITEM_AKTIF_ID || r.tipe !== 'keluar') return false;
+    if(!q) return true;
+    const gabungan = [r.no_do, r.pelanggan_nama, r.no_po, r.proyek_nama, r.catatan].filter(Boolean).join(' ').toLowerCase();
+    return gabungan.includes(q);
+  }).sort((a,b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.dibuat_pada || '').localeCompare(a.dibuat_pada || ''));
+
+  if(!data.length){
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
+      <p>Belum ada riwayat stok keluar untuk produk ini.</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map(r => `
+    <tr>
+      <td class="cell-muted">${formatTanggal(r.tanggal)}</td>
+      <td>${r.no_do || '—'}</td>
+      <td>${r.pelanggan_nama || '—'}</td>
+      <td>${r.no_po || '—'}</td>
+      <td>${r.proyek_nama || '—'}</td>
+      <td><b>${Number(r.jumlah || 0).toLocaleString('id-ID')}</b></td>
+      <td>${r.satuan || '—'}</td>
+      <td class="cell-muted">${r.catatan || '—'}</td>
+      <td class="cell-actions">
+        <div class="icon-btn" title="Edit" onclick="editStokKeluar('${r.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </div>
+        ${isAdmin ? `<div class="icon-btn" title="Hapus" onclick="hapusStokKeluar('${r.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
+        </div>` : ''}
+      </td>
+    </tr>
+  `).join('');
+}
+
+/* Isi dropdown Nama Pelanggan di form Tambah/Edit Stok Keluar */
+function isiDropdownPelangganStokKeluar(pelangganIdTerpilih){
+  const select = document.getElementById('input-pelanggan-stok-keluar');
+  if(!select) return;
+  select.innerHTML = `<option value="">— Tanpa pelanggan terdaftar —</option>` +
+    DATA.pelanggan.map(p => `<option value="${p.id}">${p.nama}</option>`).join('') +
+    `<option value="__manual__">✏️ Ketik nama pelanggan lain...</option>`;
+  select.value = pelangganIdTerpilih || '';
+}
+
+/* Isi dropdown Nama Proyek, difilter per pelanggan yang sedang dipilih (jika ada) */
+function isiDropdownProyekStokKeluar(pelangganId, proyekIdTerpilih){
+  const select = document.getElementById('input-proyek-stok-keluar');
+  if(!select) return;
+  const daftar = pelangganId ? DATA.proyek.filter(p => p.pelanggan_id === pelangganId) : DATA.proyek;
+  select.innerHTML = `<option value="">— Tanpa proyek/PO —</option>` +
+    daftar.map(p => `<option value="${p.id}">${p.nama} (${p.kode})</option>`).join('') +
+    `<option value="__manual__">✏️ Ketik proyek lain...</option>`;
+  select.value = daftar.some(p => p.id === proyekIdTerpilih) ? proyekIdTerpilih : '';
+}
+
+/* Saat Nama Pelanggan diganti: filter ulang dropdown Proyek & tampilkan/sembunyikan input manual */
+function saatPelangganStokKeluarBerubah(){
+  const val = document.getElementById('input-pelanggan-stok-keluar').value;
+  document.getElementById('wrap-pelanggan-manual-stok-keluar').classList.toggle('hidden', val !== '__manual__');
+  isiDropdownProyekStokKeluar(val && val !== '__manual__' ? val : null);
+  saatProyekStokKeluarBerubah();
+}
+
+/* Saat Nama Proyek diganti: auto-isi No PO (readonly) jika proyek terdaftar dipilih */
+function saatProyekStokKeluarBerubah(){
+  const val = document.getElementById('input-proyek-stok-keluar').value;
+  document.getElementById('wrap-proyek-manual-stok-keluar').classList.toggle('hidden', val !== '__manual__');
+  const inputNoPo = document.getElementById('input-no-po-stok-keluar');
+  const proyek = DATA.proyek.find(p => p.id === val);
+  if(proyek){
+    inputNoPo.value = proyek.kode;
+    inputNoPo.readOnly = true;
+  } else {
+    inputNoPo.readOnly = false;
+  }
+}
+
+function bukaModalTambahStokKeluar(){
+  const i = DATA.stokItem.find(x => x.id === STOK_ITEM_AKTIF_ID);
+  if(!i) return;
+  document.getElementById('form-stok-keluar').reset();
+  document.getElementById('input-id-riwayat-stok-keluar').value = '';
+  document.getElementById('input-tanggal-stok-keluar').value = new Date().toISOString().slice(0,10);
+  document.getElementById('input-satuan-stok-keluar').value = i.satuan || 'Pcs';
+  document.getElementById('input-no-po-stok-keluar').readOnly = false;
+  document.getElementById('wrap-pelanggan-manual-stok-keluar').classList.add('hidden');
+  document.getElementById('wrap-proyek-manual-stok-keluar').classList.add('hidden');
+  isiDropdownPelangganStokKeluar('');
+  isiDropdownProyekStokKeluar(null);
+  document.getElementById('info-item-stok-keluar').innerHTML = `<b>${i.nama_produk}</b> (${i.sku}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')} ${i.satuan || 'Pcs'}</b>`;
+  document.getElementById('judul-modal-stok-keluar').textContent = 'Tambah Stok Keluar';
+  document.getElementById('btn-simpan-stok-keluar').textContent = 'Simpan Stok Keluar';
+  bukaModal('modal-stok-keluar');
+}
+
+function editStokKeluar(riwayatId){
+  const r = DATA.riwayatStok.find(x => x.id === riwayatId);
+  const i = DATA.stokItem.find(x => x.id === STOK_ITEM_AKTIF_ID);
+  if(!r || !i) return;
+  document.getElementById('form-stok-keluar').reset();
+  document.getElementById('input-id-riwayat-stok-keluar').value = r.id;
+  document.getElementById('input-tanggal-stok-keluar').value = r.tanggal || new Date().toISOString().slice(0,10);
+  document.getElementById('input-no-do-stok-keluar').value = r.no_do || '';
+  document.getElementById('input-qty-stok-keluar').value = r.jumlah || '';
+  document.getElementById('input-satuan-stok-keluar').value = r.satuan || i.satuan || 'Pcs';
+  document.getElementById('input-catatan-stok-keluar').value = r.catatan || '';
+
+  // Pelanggan: jika tertaut ke data terdaftar pakai dropdown, kalau tidak tapi ada nama -> mode manual
+  const pakaiPelangganManual = !r.pelanggan_id && !!r.pelanggan_nama;
+  isiDropdownPelangganStokKeluar(pakaiPelangganManual ? '__manual__' : (r.pelanggan_id || ''));
+  document.getElementById('wrap-pelanggan-manual-stok-keluar').classList.toggle('hidden', !pakaiPelangganManual);
+  document.getElementById('input-pelanggan-manual-stok-keluar').value = pakaiPelangganManual ? r.pelanggan_nama : '';
+
+  // Proyek: sama polanya seperti pelanggan
+  const pakaiProyekManual = !r.proyek_id && !!r.proyek_nama;
+  isiDropdownProyekStokKeluar(r.pelanggan_id || null, pakaiProyekManual ? '__manual__' : (r.proyek_id || ''));
+  document.getElementById('wrap-proyek-manual-stok-keluar').classList.toggle('hidden', !pakaiProyekManual);
+  document.getElementById('input-proyek-manual-stok-keluar').value = pakaiProyekManual ? r.proyek_nama : '';
+
+  document.getElementById('input-no-po-stok-keluar').value = r.no_po || '';
+  document.getElementById('input-no-po-stok-keluar').readOnly = !!r.proyek_id;
+
+  document.getElementById('info-item-stok-keluar').innerHTML = `<b>${i.nama_produk}</b> (${i.sku}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')} ${i.satuan || 'Pcs'}</b>`;
+  document.getElementById('judul-modal-stok-keluar').textContent = 'Edit Stok Keluar';
+  document.getElementById('btn-simpan-stok-keluar').textContent = 'Simpan Perubahan';
+  bukaModal('modal-stok-keluar');
+}
+
+async function simpanStokKeluar(e){
+  e.preventDefault();
+  const i = DATA.stokItem.find(x => x.id === STOK_ITEM_AKTIF_ID);
+  if(!i) return;
+  const idRiwayat = document.getElementById('input-id-riwayat-stok-keluar').value;
+  const tanggal = document.getElementById('input-tanggal-stok-keluar').value || new Date().toISOString().slice(0,10);
+  const no_do = document.getElementById('input-no-do-stok-keluar').value.trim() || null;
+  const qty = Number(document.getElementById('input-qty-stok-keluar').value);
+  const satuan = document.getElementById('input-satuan-stok-keluar').value.trim() || i.satuan || 'Pcs';
+  const catatan = document.getElementById('input-catatan-stok-keluar').value.trim() || null;
+  if(!qty || qty <= 0) return;
+
+  // --- Nama Pelanggan: dropdown pelanggan terdaftar ATAU ketik manual ---
+  const pelangganVal = document.getElementById('input-pelanggan-stok-keluar').value;
+  let pelanggan_id = null, pelanggan_nama = null;
+  if(pelangganVal === '__manual__'){
+    pelanggan_nama = document.getElementById('input-pelanggan-manual-stok-keluar').value.trim() || null;
+  } else if(pelangganVal){
+    const p = DATA.pelanggan.find(x => x.id === pelangganVal);
+    if(p){ pelanggan_id = p.id; pelanggan_nama = p.nama; }
+  }
+
+  // --- Nama Proyek: dropdown proyek terdaftar (auto isi No PO) ATAU ketik manual ---
+  const proyekVal = document.getElementById('input-proyek-stok-keluar').value;
+  let proyek_id = null, proyek_nama = null, no_po = document.getElementById('input-no-po-stok-keluar').value.trim() || null;
+  if(proyekVal === '__manual__'){
+    proyek_nama = document.getElementById('input-proyek-manual-stok-keluar').value.trim() || null;
+  } else if(proyekVal){
+    const p = DATA.proyek.find(x => x.id === proyekVal);
+    if(p){ proyek_id = p.id; proyek_nama = p.nama; no_po = p.kode; }
+  }
+
+  // --- Validasi sisa stok: hitung ulang total stok keluar seandainya perubahan ini disimpan ---
+  const entriLama = idRiwayat ? DATA.riwayatStok.find(x => x.id === idRiwayat) : null;
+  const qtyLama = entriLama ? Number(entriLama.jumlah || 0) : 0;
+  const totalKeluarBaru = (i.stok_keluar || 0) - qtyLama + qty;
+  const sisaBaru = (i.stok_masuk || 0) - totalKeluarBaru;
+  if(sisaBaru < 0){
+    tampilkanToast('Qty melebihi sisa stok yang tersedia', true);
+    return;
+  }
+
+  const pelaku_id = CURRENT_USER ? CURRENT_USER.id : null;
+  const pelaku_nama = CURRENT_USER ? CURRENT_USER.nama : null;
+  const barisRiwayat = { tanggal, no_do, pelanggan_id, pelanggan_nama, no_po, proyek_id, proyek_nama, jumlah: qty, satuan, catatan };
+
+  if(idRiwayat){
+    // --- mode edit ---
+    const { data, error } = await supabaseClient.from('riwayat_stok').update(barisRiwayat).eq('id', idRiwayat).select().single();
+    if(error){ console.error(error); tampilkanToast(pesanErrorKode(error) || 'Gagal menyimpan perubahan stok keluar. Pastikan migrasi v11 di schema.sql sudah dijalankan.', true); return; }
+    const idx = DATA.riwayatStok.findIndex(x => x.id === idRiwayat);
+    if(idx > -1) DATA.riwayatStok[idx] = data;
+  } else {
+    // --- mode tambah ---
+    const { data, error } = await supabaseClient.from('riwayat_stok')
+      .insert({ item_id: i.id, tipe: 'keluar', dibuat_oleh_id: pelaku_id, dibuat_oleh_nama: pelaku_nama, ...barisRiwayat })
+      .select().single();
+    if(error){ console.error(error); tampilkanToast(pesanErrorKode(error) || 'Gagal menambah stok keluar. Pastikan migrasi v11 di schema.sql sudah dijalankan.', true); return; }
+    DATA.riwayatStok.unshift(data);
+  }
+
+  // --- Perbarui akumulasi Stok Keluar & Update Terakhir pada kartu stok ---
+  const barisItem = { stok_keluar: totalKeluarBaru, diupdate_oleh_id: pelaku_id, diupdate_oleh_nama: pelaku_nama, diupdate_pada: new Date().toISOString() };
+  const { data: itemBaru, error: errItem } = await supabaseClient.from('stok_item').update(barisItem).eq('id', i.id).select().single();
+  if(errItem){ console.error(errItem); tampilkanToast('Stok keluar tersimpan, tapi gagal memperbarui akumulasi Stok Keluar pada kartu stok', true); }
+  else {
+    const idxItem = DATA.stokItem.findIndex(x => x.id === i.id);
+    if(idxItem > -1) DATA.stokItem[idxItem] = itemBaru;
+  }
+
+  renderDetailStokKeluar();
+  renderGudang();
+  await catatAktivitas('gudang', `Stok keluar <b>${qty.toLocaleString('id-ID')} ${satuan}</b> ${idRiwayat ? 'diperbarui' : 'dicatat'} untuk <b>${i.nama_produk}</b> (${i.sku})${pelanggan_nama ? ' ke ' + pelanggan_nama : ''}`);
+  tutupModal('modal-stok-keluar');
+  tampilkanToast(idRiwayat ? 'Perubahan stok keluar disimpan' : 'Stok keluar dicatat');
+  e.target.reset();
+}
+
+async function hapusStokKeluar(riwayatId){
+  const r = DATA.riwayatStok.find(x => x.id === riwayatId);
+  const i = DATA.stokItem.find(x => x.id === STOK_ITEM_AKTIF_ID);
+  if(!r || !i) return;
+
+  const { error } = await supabaseClient.from('riwayat_stok').delete().eq('id', riwayatId);
+  if(error){ console.error(error); tampilkanToast('Gagal menghapus riwayat stok keluar', true); return; }
+  DATA.riwayatStok = DATA.riwayatStok.filter(x => x.id !== riwayatId);
+
+  // --- Kurangi akumulasi Stok Keluar pada kartu stok sesuai qty yang dihapus ---
+  const totalKeluarBaru = Math.max(0, (i.stok_keluar || 0) - Number(r.jumlah || 0));
+  const pelaku_id = CURRENT_USER ? CURRENT_USER.id : null;
+  const pelaku_nama = CURRENT_USER ? CURRENT_USER.nama : null;
+  const { data: itemBaru, error: errItem } = await supabaseClient.from('stok_item')
+    .update({ stok_keluar: totalKeluarBaru, diupdate_oleh_id: pelaku_id, diupdate_oleh_nama: pelaku_nama, diupdate_pada: new Date().toISOString() })
+    .eq('id', i.id).select().single();
+  if(!errItem && itemBaru){
+    const idxItem = DATA.stokItem.findIndex(x => x.id === i.id);
+    if(idxItem > -1) DATA.stokItem[idxItem] = itemBaru;
+  }
+
+  renderDetailStokKeluar();
+  renderGudang();
+  await catatAktivitas('gudang', `Riwayat stok keluar <b>${Number(r.jumlah||0).toLocaleString('id-ID')}</b> untuk <b>${i.nama_produk}</b> (${i.sku}) dihapus`);
+  tampilkanToast('Riwayat stok keluar dihapus');
 }
 
 /* ---- Kelola Gudang (daftar lokasi/cabang) ---- */
@@ -1478,9 +1759,19 @@ async function hapusGudang(id){
 
 function unduhStokCSV(){
   unduhCSV('stock-gudang-dealstack.csv',
-    ['SKU','Nama Produk','Variant','Kategori','Gudang','Stok Masuk','Stok Keluar','Sisa Stok','Update Terakhir','Diupdate Oleh','Status'],
-    DATA.stokItem.map(i => [i.sku, i.nama_produk, i.variant || '', i.kategori || 'Umum', namaGudang(i.gudang_id), i.stok_masuk || 0, i.stok_keluar || 0, sisaStok(i), i.diupdate_pada || '', i.diupdate_oleh_nama || '', labelStatusStok(hitungStatusStok(i))]));
+    ['SKU','Nama Produk','Variant','Kategori','Gudang','Satuan','Stok Masuk','Stok Keluar','Sisa Stok','Update Terakhir','Diupdate Oleh','Status'],
+    DATA.stokItem.map(i => [i.sku, i.nama_produk, i.variant || '', i.kategori || 'Umum', namaGudang(i.gudang_id), i.satuan || 'Pcs', i.stok_masuk || 0, i.stok_keluar || 0, sisaStok(i), i.diupdate_pada || '', i.diupdate_oleh_nama || '', labelStatusStok(hitungStatusStok(i))]));
   tampilkanToast('Data stok diunduh');
+}
+
+function unduhStokKeluarDetailCSV(){
+  if(!STOK_ITEM_AKTIF_ID) return;
+  const i = DATA.stokItem.find(x => x.id === STOK_ITEM_AKTIF_ID);
+  const data = DATA.riwayatStok.filter(r => r.item_id === STOK_ITEM_AKTIF_ID && r.tipe === 'keluar');
+  unduhCSV(`stok-keluar-${i ? i.sku : 'item'}.csv`,
+    ['Tanggal Keluar','No DO','Nama Pelanggan','No PO','Nama Proyek','Qty','Satuan','Catatan'],
+    data.map(r => [formatTanggal(r.tanggal), r.no_do || '', r.pelanggan_nama || '', r.no_po || '', r.proyek_nama || '', r.jumlah || 0, r.satuan || '', r.catatan || '']));
+  tampilkanToast('Riwayat stok keluar diunduh');
 }
 
 /* ---------------------------------------------------------
@@ -1792,6 +2083,17 @@ function initRealtime(){
       }
       renderGudang();
       renderNotifikasi();
+    })
+    .subscribe();
+
+  supabaseClient.channel('dealstack-riwayat-stok')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'riwayat_stok' }, (payload) => {
+      if(payload.eventType === 'DELETE'){
+        DATA.riwayatStok = DATA.riwayatStok.filter(r => r.id !== payload.old.id);
+      } else {
+        upsertKeArray(DATA.riwayatStok, payload.new);
+      }
+      if(STOK_ITEM_AKTIF_ID) renderTabelStokKeluarDetail();
     })
     .subscribe();
 }
@@ -2266,6 +2568,11 @@ function initEventListener(){
   document.getElementById('form-item-stok').addEventListener('submit', simpanItemStok);
   document.getElementById('form-tambah-stok').addEventListener('submit', simpanTambahStok);
   document.getElementById('form-gudang').addEventListener('submit', tambahGudang);
+
+  document.getElementById('cari-stok-keluar-detail').addEventListener('input', renderTabelStokKeluarDetail);
+  document.getElementById('form-stok-keluar').addEventListener('submit', simpanStokKeluar);
+  document.getElementById('input-pelanggan-stok-keluar').addEventListener('change', saatPelangganStokKeluarBerubah);
+  document.getElementById('input-proyek-stok-keluar').addEventListener('change', saatProyekStokKeluarBerubah);
 
   document.querySelectorAll('.range-tab').forEach(tab => {
     tab.addEventListener('click', () => ubahRentangChart(tab.dataset.range));
