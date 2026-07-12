@@ -67,6 +67,7 @@
     <span class="brand-name">Dealstack</span>
   </div>
 
+  <div class="sidebar-nav">
   <button class="nav-item active" data-view="ringkasan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/></svg>Ringkasan</button>
   <button class="nav-item" data-view="pelanggan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><circle cx="18" cy="9" r="2.5"/><path d="M15.5 20a5 5 0 018.5-3.2"/></svg>Pelanggan</button>
   <button class="nav-item" data-view="pesan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v13H8l-4 4V4z"/></svg>Pesan<span class="nav-badge" id="badge-pesan" style="display:none;"></span></button>
@@ -90,6 +91,7 @@
   <button class="nav-item" data-view="integrasi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>Integrasi</button>
   <button class="nav-item" data-view="bantuan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 013.9-2.1c1 .7 1.1 2 .3 2.8-.8.8-1.7.9-1.7 2.3"/><path d="M12 17h.01"/></svg>Pusat Bantuan</button>
   <button class="nav-item" onclick="konfirmasiKeluar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>Keluar</button>
+  </div>
 </aside>
 
 <main class="main">
@@ -661,7 +663,6 @@
       <div class="message-composer">
         <textarea id="input-catatan" placeholder="Tulis pengumuman atau catatan untuk tim..." rows="2"></textarea>
         <div class="message-composer-row">
-          <input type="text" id="input-catatan-nama" placeholder="Nama Anda" value="Lawrence Austin">
           <button class="btn btn-primary" onclick="tambahCatatan()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
             Kirim

@@ -100,9 +100,17 @@ button{font-family:inherit;}
 /* ============ SIDEBAR ============ */
 .sidebar{
   width:264px;flex-shrink:0;background:var(--sidebar);border-right:1px solid var(--edge);
-  padding:22px 16px;display:flex;flex-direction:column;min-height:100vh;position:sticky;top:0;
+  padding:22px 16px 0;display:flex;flex-direction:column;
+  /* BUGFIX (audit): sebelumnya min-height:100vh tanpa batas atas —
+     begitu jumlah menu bertambah (mis. saat "Pengawasan Tim" & "Kelola
+     Pengguna" muncul untuk Admin), tinggi sidebar melebihi layar dan
+     ikut men-scroll bersama seluruh halaman, bukan sebagai panel
+     mandiri. Sekarang tingginya DIKUNCI ke tinggi layar (height:100vh)
+     dan hanya bagian daftar menu (.sidebar-nav) yang scroll sendiri —
+     logo di atas & sidebar tetap diam, halaman lain tidak terpengaruh. */
+  height:100vh;position:sticky;top:0;overflow:hidden;
 }
-.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 26px;font-weight:700;font-size:17px;letter-spacing:-.01em;}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 26px;font-weight:700;font-size:17px;letter-spacing:-.01em;flex-shrink:0;}
 .brand-mark{
   width:30px;height:30px;border-radius:9px;flex-shrink:0;
   background:linear-gradient(150deg,#ff6b74,#d92d3b 60%,#7a1620);
@@ -111,11 +119,24 @@ button{font-family:inherit;}
 }
 .brand-mark svg{width:16px;height:16px;}
 
+/* Daftar menu: satu-satunya bagian sidebar yang scroll, terpisah dari
+   scroll halaman utama (.main). Scrollbar tipis & senada tema dark. */
+.sidebar-nav{
+  flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
+  display:flex;flex-direction:column;
+  padding-bottom:18px;margin-right:-10px;padding-right:10px;
+  scrollbar-width:thin;scrollbar-color:var(--edge-strong) transparent;
+}
+.sidebar-nav::-webkit-scrollbar{width:6px;}
+.sidebar-nav::-webkit-scrollbar-track{background:transparent;}
+.sidebar-nav::-webkit-scrollbar-thumb{background:var(--edge-strong);border-radius:999px;}
+.sidebar-nav::-webkit-scrollbar-thumb:hover{background:var(--muted-2);}
+
 .nav-item{
   display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;
   color:var(--muted);font-size:14px;font-weight:500;cursor:pointer;margin-bottom:2px;
   transition:background .15s,color .15s;position:relative;
-  border:none;background:none;width:100%;text-align:left;
+  border:none;background:none;width:100%;text-align:left;flex-shrink:0;
 }
 .nav-item svg{width:18px;height:18px;flex-shrink:0;opacity:.85;}
 .nav-item:hover{background:rgba(255,255,255,.035);color:var(--ink);}
@@ -130,9 +151,9 @@ button{font-family:inherit;}
 }
 .nav-label{
   font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);
-  font-weight:700;padding:18px 12px 6px;
+  font-weight:700;padding:18px 12px 6px;flex-shrink:0;
 }
-.sidebar-spacer{flex:1;}
+.sidebar-spacer{flex:1;min-height:12px;}
 
 .btn-menu-mobile{display:none;flex-shrink:0;}
 .sidebar-backdrop{

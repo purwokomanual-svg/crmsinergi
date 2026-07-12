@@ -10,6 +10,32 @@
    dan diperbarui lagi setiap ada perubahan (tambah/hapus/ubah) */
 let DATA = { pelanggan: [], proyek: [], tugas: [], aktivitas: [], catatan: [], profil: [], gudang: [], stokItem: [], riwayatStok: [], perusahaan: { nama_perusahaan: 'Dealstack', logo_url: null } };
 
+/* BUGFIX (audit): escape teks sebelum disisipkan lewat innerHTML.
+   Sebelumnya banyak field isian pengguna (nama pelanggan, catatan tim,
+   deskripsi tugas, dll) ditulis langsung ke innerHTML tanpa disaring,
+   sehingga teks seperti <img src=x onerror=...> akan DIEKSEKUSI sebagai
+   HTML/JS sungguhan di browser pengguna lain (stored XSS). Semua tempat
+   yang menampilkan teks bebas dari pengguna WAJIB dibungkus esc(...). */
+function esc(nilai){
+  if(nilai === null || nilai === undefined) return '';
+  return String(nilai)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+/* BUGFIX (audit): log Aktivitas menyimpan teks dengan tag <b>...</b> bawaan
+   (mis. "Pelanggan <b>Acme</b> dihapus") supaya nama tampil tebal. esc()
+   biasa akan membuat tag ini tampil sebagai teks "<b>" mentah. escB()
+   meng-escape semuanya seperti esc(), lalu HANYA mengembalikan tag <b> dan
+   </b> polos (tanpa atribut) ke bentuk aslinya — variasi apa pun dengan
+   atribut (mis. <b onmouseover=...>) tetap ter-escape sebagai teks biasa,
+   jadi ini tidak membuka kembali celah XSS. */
+function escB(nilai){
+  return esc(nilai).replace(/&lt;b&gt;/g, '<b>').replace(/&lt;\/b&gt;/g, '</b>');
+}
+
 /* Pengguna yang sedang login (diisi setelah autentikasi berhasil) */
 let CURRENT_USER = null; // { id, nama, email, peran }
 let APLIKASI_SUDAH_DIMUAT = false;
@@ -149,7 +175,13 @@ async function masukKeAplikasi(session){
   const { data: profil, error } = await supabaseClient.from('profil').select('*').eq('id', session.user.id).single();
   if(error || !profil){
     console.warn('Profil belum ditemukan (migrasi v3 mungkin belum dijalankan). Menggunakan data dasar dari akun.', error);
-    CURRENT_USER = { id: session.user.id, nama: session.user.email.split('@')[0], email: session.user.email, peran: 'admin' };
+    // BUGFIX (audit): sebelumnya jika profil GAGAL dimuat (migrasi belum
+    // jalan, koneksi terputus, dll), pengguna otomatis diperlakukan sebagai
+    // 'admin' di sisi klien — menampilkan menu/tombol khusus Admin
+    // (Kelola Pengguna, Hapus, Pengawasan Tim) ke pengguna biasa. Default
+    // yang aman untuk kondisi gagal/tidak diketahui adalah hak paling
+    // rendah ('anggota'), bukan hak tertinggi.
+    CURRENT_USER = { id: session.user.id, nama: session.user.email.split('@')[0], email: session.user.email, peran: 'anggota' };
   } else {
     CURRENT_USER = profil;
   }
@@ -231,7 +263,7 @@ function kodeAcak(prefix){
 /* Markup avatar bulat: pakai foto profil jika ada, jika tidak fallback ke inisial nama */
 function markupAvatar(profil){
   if(!profil) return `<div class="user-avatar">?</div>`;
-  if(profil.avatar_url) return `<div class="user-avatar"><img src="${profil.avatar_url}" alt="${profil.nama || ''}"></div>`;
+  if(profil.avatar_url) return `<div class="user-avatar"><img src="${esc(profil.avatar_url)}" alt="${esc(profil.nama) || ''}"></div>`;
   return `<div class="user-avatar">${(profil.nama || '?').charAt(0).toUpperCase()}</div>`;
 }
 
@@ -275,19 +307,19 @@ function cariGlobal(q){
   let html = '';
   if(pelanggan.length){
     html += `<div class="search-result-group">Pelanggan</div>`;
-    html += pelanggan.map(p => `<div class="search-result-item" onclick="bukaHasilPencarian('pelanggan','${p.id}')"><b>${p.nama}</b><span>${p.industri || 'Umum'} · ${labelStatusPelanggan(p.status)}</span></div>`).join('');
+    html += pelanggan.map(p => `<div class="search-result-item" onclick="bukaHasilPencarian('pelanggan','${p.id}')"><b>${esc(p.nama)}</b><span>${esc(p.industri) || 'Umum'} · ${labelStatusPelanggan(p.status)}</span></div>`).join('');
   }
   if(proyek.length){
     html += `<div class="search-result-group">Proyek</div>`;
-    html += proyek.map(p => `<div class="search-result-item" onclick="bukaHasilPencarian('proyek','${p.id}')"><b>${p.nama}</b><span>${p.pelanggan_nama} · ${labelStatusProyek(p.status)}</span></div>`).join('');
+    html += proyek.map(p => `<div class="search-result-item" onclick="bukaHasilPencarian('proyek','${p.id}')"><b>${esc(p.nama)}</b><span>${esc(p.pelanggan_nama)} · ${labelStatusProyek(p.status)}</span></div>`).join('');
   }
   if(tugas.length){
     html += `<div class="search-result-group">Tugas</div>`;
-    html += tugas.map(t => `<div class="search-result-item" onclick="bukaHasilPencarian('tugas','${t.id}')"><b>${t.judul}</b><span>${labelStatusKerja(statusKerjaTugas(t))}</span></div>`).join('');
+    html += tugas.map(t => `<div class="search-result-item" onclick="bukaHasilPencarian('tugas','${t.id}')"><b>${esc(t.judul)}</b><span>${labelStatusKerja(statusKerjaTugas(t))}</span></div>`).join('');
   }
   if(stok.length){
     html += `<div class="search-result-group">Stock &amp; Gudang</div>`;
-    html += stok.map(i => `<div class="search-result-item" onclick="bukaHasilPencarian('stok','${i.id}')"><b>${i.nama_produk} (${i.sku})</b><span>${namaGudang(i.gudang_id)} · ${labelStatusStok(hitungStatusStok(i))}</span></div>`).join('');
+    html += stok.map(i => `<div class="search-result-item" onclick="bukaHasilPencarian('stok','${i.id}')"><b>${esc(i.nama_produk)} (${esc(i.sku)})</b><span>${namaGudang(i.gudang_id)} · ${labelStatusStok(hitungStatusStok(i))}</span></div>`).join('');
   }
   panel.innerHTML = html;
   panel.classList.remove('hidden');
@@ -332,7 +364,7 @@ function hitungNotifikasi(){
     const sisa = hariMenujuTenggat(p.tenggat);
     if(sisa !== null && sisa <= 3){
       hasil.push({
-        judul: sisa < 0 ? `Proyek "${p.nama}" telah lewat tenggat` : `Proyek "${p.nama}" jatuh tempo ${sisa === 0 ? 'hari ini' : 'dalam ' + sisa + ' hari'}`,
+        judul: sisa < 0 ? `Proyek "${esc(p.nama)}" telah lewat tenggat` : `Proyek "${esc(p.nama)}" jatuh tempo ${sisa === 0 ? 'hari ini' : 'dalam ' + sisa + ' hari'}`,
         meta: p.pelanggan_nama, urgent: sisa <= 0, urutan: sisa
       });
     }
@@ -342,16 +374,16 @@ function hitungNotifikasi(){
     if(d){
       const sisa = hariMenujuTenggat(d.toISOString().slice(0,10));
       if(sisa !== null && sisa <= 3){
-        hasil.push({ judul: `Tugas "${t.judul}" ${sisa < 0 ? 'terlambat' : (sisa===0?'jatuh tempo hari ini':'jatuh tempo dalam '+sisa+' hari')}`, meta: 'Tugas', urgent: sisa <= 0, urutan: sisa });
+        hasil.push({ judul: `Tugas "${esc(t.judul)}" ${sisa < 0 ? 'terlambat' : (sisa===0?'jatuh tempo hari ini':'jatuh tempo dalam '+sisa+' hari')}`, meta: 'Tugas', urgent: sisa <= 0, urutan: sisa });
       }
     }
   });
   DATA.stokItem.filter(i => i.status !== 'nonaktif').forEach(i => {
     const status = hitungStatusStok(i);
     if(status === 'habis'){
-      hasil.push({ judul: `Stok "${i.nama_produk}" (${i.sku}) di ${namaGudang(i.gudang_id)} habis`, meta: 'Stock & Gudang', urgent: true, urutan: -1 });
+      hasil.push({ judul: `Stok "${esc(i.nama_produk)}" (${esc(i.sku)}) di ${namaGudang(i.gudang_id)} habis`, meta: 'Stock & Gudang', urgent: true, urutan: -1 });
     } else if(status === 'menipis'){
-      hasil.push({ judul: `Stok "${i.nama_produk}" (${i.sku}) di ${namaGudang(i.gudang_id)} menipis (sisa ${sisaStok(i)})`, meta: 'Stock & Gudang', urgent: false, urutan: 2 });
+      hasil.push({ judul: `Stok "${esc(i.nama_produk)}" (${esc(i.sku)}) di ${namaGudang(i.gudang_id)} menipis (sisa ${sisaStok(i)})`, meta: 'Stock & Gudang', urgent: false, urutan: 2 });
     }
   });
   hasil.sort((a,b) => a.urutan - b.urutan);
@@ -373,7 +405,7 @@ function renderNotifikasi(){
     daftar.innerHTML = notif.map(n => `
       <div class="notif-item">
         <div class="notif-dot ${n.urgent ? 'red' : ''}"></div>
-        <div><div class="notif-title">${n.judul}</div><div class="notif-meta">${n.meta}</div></div>
+        <div><div class="notif-title">${n.judul}</div><div class="notif-meta">${esc(n.meta)}</div></div>
       </div>`).join('');
     badge.textContent = notif.length;
     badge.classList.remove('hidden');
@@ -571,13 +603,13 @@ function renderPelanggan(){
 
   tbody.innerHTML = data.map(p => `
     <tr>
-      <td class="cell-muted">${p.kode}</td>
-      <td class="cell-name"><span class="cell-link" title="Lihat proyek pelanggan ini" onclick="bukaDetailPelanggan('${p.id}')">${p.nama}</span></td>
-      <td>${p.industri || '—'}</td>
-      <td>${p.alamat || '—'}</td>
-      <td>${p.no_telepon || '—'}</td>
-      <td>${p.no_whatsapp || '—'}</td>
-      <td>${p.nama_pic || '—'}</td>
+      <td class="cell-muted">${esc(p.kode)}</td>
+      <td class="cell-name"><span class="cell-link" title="Lihat proyek pelanggan ini" onclick="bukaDetailPelanggan('${p.id}')">${esc(p.nama)}</span></td>
+      <td>${esc(p.industri) || '—'}</td>
+      <td>${esc(p.alamat) || '—'}</td>
+      <td>${esc(p.no_telepon) || '—'}</td>
+      <td>${esc(p.no_whatsapp) || '—'}</td>
+      <td>${esc(p.nama_pic) || '—'}</td>
       <td>${formatRupiah(hitungTotalNilaiProyek(p.id, filterNilaiProyek))}</td>
       <td class="cell-actions">
         <div class="icon-btn" title="Edit" onclick="editPelanggan('${p.id}')">
@@ -598,7 +630,7 @@ async function hapusPelanggan(id){
   DATA.pelanggan = DATA.pelanggan.filter(x => x.id !== id);
   renderPelanggan();
   isiDropdownPelangganProyek();
-  if(p) await catatAktivitas('pelanggan', `Pelanggan <b>${p.nama}</b> dihapus`);
+  if(p) await catatAktivitas('pelanggan', `Pelanggan <b>${esc(p.nama)}</b> dihapus`);
   tampilkanToast('Pelanggan dihapus');
 }
 
@@ -762,10 +794,10 @@ function renderProyekDetail(){
     const persenBudget = hitungPersenBudget(p.budget_terpakai, p.total_budget);
     return `
     <tr>
-      <td class="cell-name">${p.kode}<div class="cell-muted">${p.nama}</div></td>
+      <td class="cell-name">${esc(p.kode)}<div class="cell-muted">${esc(p.nama)}</div></td>
       <td class="cell-muted">${formatTanggal(p.tanggal)}</td>
       <td class="cell-muted">${formatTanggal(p.tenggat)}</td>
-      <td class="cell-muted">${p.dibuat_oleh_nama || '—'}</td>
+      <td class="cell-muted">${esc(p.dibuat_oleh_nama) || '—'}</td>
       <td>${formatRupiah(p.sub_total)}</td>
       <td>${formatRupiah(hitungPajakNominal(p.sub_total, p.tax_persen))}<div class="cell-muted">${p.tax_persen || 0}%</div></td>
       <td>${formatRupiah(p.dana_lainnya)}</td>
@@ -798,7 +830,7 @@ async function hapusProyek(id){
   renderKPI();
   renderFunnel();
   renderPelanggan();
-  if(p) await catatAktivitas('proyek', `Proyek <b>${p.nama}</b> dihapus`);
+  if(p) await catatAktivitas('proyek', `Proyek <b>${esc(p.nama)}</b> dihapus`);
   tampilkanToast('Proyek dihapus');
 }
 
@@ -808,7 +840,7 @@ function isiDropdownPelangganProyek(){
   const nilaiSebelumnya = select.value;
   select.disabled = false;
   select.innerHTML = `<option value="" disabled ${!nilaiSebelumnya ? 'selected' : ''}>Pilih pelanggan...</option>` +
-    DATA.pelanggan.map(p => `<option value="${p.id}">${p.nama}</option>`).join('');
+    DATA.pelanggan.map(p => `<option value="${p.id}">${esc(p.nama)}</option>`).join('');
   if(DATA.pelanggan.some(p => p.id === nilaiSebelumnya)) select.value = nilaiSebelumnya;
 }
 
@@ -900,7 +932,7 @@ async function simpanProyek(e){
     const idx = DATA.proyek.findIndex(x => x.id === id);
     if(idx > -1) DATA.proyek[idx] = data;
     segarkanDetailPelangganJikaAktif(); renderKPI(); renderFunnel(); renderPelanggan();
-    await catatAktivitas('proyek', `Proyek <b>${nama}</b> (${data.kode}) diperbarui`);
+    await catatAktivitas('proyek', `Proyek <b>${nama}</b> (${esc(data.kode)}) diperbarui`);
     tutupModal('modal-proyek');
     tampilkanToast('Perubahan proyek disimpan');
   } else {
@@ -918,7 +950,7 @@ async function simpanProyek(e){
 
     DATA.proyek.unshift(data);
     segarkanDetailPelangganJikaAktif(); renderKPI(); renderFunnel(); renderPelanggan();
-    await catatAktivitas('proyek', `Proyek baru <b>${nama}</b> (${data.kode}) dibuat untuk ${pelanggan.nama}`);
+    await catatAktivitas('proyek', `Proyek baru <b>${nama}</b> (${esc(data.kode)}) dibuat untuk ${esc(pelanggan.nama)}`);
     tutupModal('modal-proyek');
     tampilkanToast('Proyek baru ditambahkan');
   }
@@ -945,7 +977,7 @@ function renderFunnel(){
     const pct = Math.max(6, Math.round((nilai/totalNilaiSemua)*100));
     return `
       <div class="funnel-row">
-        <div class="funnel-name">${t.nama}</div>
+        <div class="funnel-name">${esc(t.nama)}</div>
         <div class="funnel-track">
           <div class="funnel-fill" style="width:${pct}%"><span>${proyekTahap.length} proyek</span></div>
         </div>
@@ -990,8 +1022,8 @@ function renderAktivitas(){
     <div class="timeline-item">
       <div class="timeline-dot">${ikonAktivitas[a.tipe] || ikonAktivitas.proyek}</div>
       <div class="timeline-body">
-        <div class="timeline-title">${a.teks}</div>
-        <div class="timeline-meta">${waktuRelatif(a.dibuat_pada)}${a.pelaku_nama ? ' · oleh ' + a.pelaku_nama : ''}</div>
+        <div class="timeline-title">${escB(a.teks)}</div>
+        <div class="timeline-meta">${esc(waktuRelatif(a.dibuat_pada))}${a.pelaku_nama ? ' · oleh ' + esc(a.pelaku_nama) : ''}</div>
       </div>
     </div>
   `).join('');
@@ -1028,7 +1060,7 @@ function renderTugas(){
   // Isi ulang opsi filter anggota berdasarkan profil yang tersedia
   const opsiSaatIni = filterAssignee.value;
   filterAssignee.innerHTML = '<option value="semua">Semua Anggota</option>' +
-    DATA.profil.map(p => `<option value="${p.id}">${p.nama}</option>`).join('') +
+    DATA.profil.map(p => `<option value="${p.id}">${esc(p.nama)}</option>`).join('') +
     '<option value="kosong">Belum Ditugaskan</option>';
   filterAssignee.value = opsiSaatIni || 'semua';
 
@@ -1053,14 +1085,14 @@ function renderTugas(){
     const bolehUbah = isAdmin || !CURRENT_USER || t.ditugaskan_ke === CURRENT_USER.id;
     return `
     <tr>
-      <td class="cell-name">${t.judul}${t.deskripsi ? `<div class="cell-muted">${t.deskripsi}</div>` : ''}</td>
+      <td class="cell-name">${esc(t.judul)}${t.deskripsi ? `<div class="cell-muted">${esc(t.deskripsi)}</div>` : ''}</td>
       <td>
         <div class="assignee-cell">
           ${isAdmin ? `
           <select class="filter-select" style="font-size:12px;padding:5px 8px;" onchange="ubahAssigneeTugas('${t.id}', this.value)">
             <option value="">Belum ditugaskan</option>
-            ${DATA.profil.map(p => `<option value="${p.id}" ${p.id===t.ditugaskan_ke?'selected':''}>${p.nama}</option>`).join('')}
-          </select>` : (assignee ? `${markupAvatar(assignee)}<span>${assignee.nama}</span>` : `<span class="cell-muted">Belum ditugaskan</span>`)}
+            ${DATA.profil.map(p => `<option value="${p.id}" ${p.id===t.ditugaskan_ke?'selected':''}>${esc(p.nama)}</option>`).join('')}
+          </select>` : (assignee ? `${markupAvatar(assignee)}<span>${esc(assignee.nama)}</span>` : `<span class="cell-muted">Belum ditugaskan</span>`)}
         </div>
       </td>
       <td><span class="badge-prioritas ${t.prioritas || 'normal'}">${(t.prioritas || 'normal').charAt(0).toUpperCase() + (t.prioritas || 'normal').slice(1)}</span></td>
@@ -1083,7 +1115,7 @@ function renderTugas(){
 function bukaModalTugas(){
   const select = document.getElementById('input-assignee-tugas');
   select.innerHTML = '<option value="">Belum ditugaskan</option>' +
-    DATA.profil.map(p => `<option value="${p.id}">${p.nama}</option>`).join('');
+    DATA.profil.map(p => `<option value="${p.id}">${esc(p.nama)}</option>`).join('');
   bukaModal('modal-tugas');
 }
 
@@ -1124,7 +1156,7 @@ async function ubahStatusTugas(id, statusBaru){
   renderTugas();
   renderNotifikasi();
   if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
-  await catatAktivitas('tugas', `Status tugas <b>${t.judul}</b> diubah menjadi ${labelStatusKerja(statusBaru)}`);
+  await catatAktivitas('tugas', `Status tugas <b>${esc(t.judul)}</b> diubah menjadi ${labelStatusKerja(statusBaru)}`);
   tampilkanToast('Status tugas diperbarui');
 }
 
@@ -1138,7 +1170,7 @@ async function ubahAssigneeTugas(id, assigneeBaru){
   renderTugas();
   if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
   const namaBaru = DATA.profil.find(p => p.id === assigneeBaru)?.nama;
-  await catatAktivitas('tugas', `Tugas <b>${t.judul}</b> ditugaskan ulang ke ${namaBaru || 'tidak ada (dilepas)'}`);
+  await catatAktivitas('tugas', `Tugas <b>${esc(t.judul)}</b> ditugaskan ulang ke ${namaBaru || 'tidak ada (dilepas)'}`);
   tampilkanToast('Tugas ditugaskan ulang');
 }
 
@@ -1149,7 +1181,7 @@ async function hapusTugas(id){
   DATA.tugas = DATA.tugas.filter(x => x.id !== id);
   renderTugas();
   if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
-  if(t) await catatAktivitas('tugas', `Tugas <b>${t.judul}</b> dihapus`);
+  if(t) await catatAktivitas('tugas', `Tugas <b>${esc(t.judul)}</b> dihapus`);
   tampilkanToast('Tugas dihapus');
 }
 
@@ -1181,7 +1213,7 @@ function isiDropdownGudang(){
   if(selForm){
     const nilaiSaatIni = selForm.value;
     selForm.innerHTML = '<option value="" disabled>Pilih gudang...</option>' +
-      DATA.gudang.map(g => `<option value="${g.id}">${g.nama}</option>`).join('');
+      DATA.gudang.map(g => `<option value="${g.id}">${esc(g.nama)}</option>`).join('');
     if(nilaiSaatIni) selForm.value = nilaiSaatIni;
   }
   // Filter gudang di toolbar menu Stock & Gudang
@@ -1189,7 +1221,7 @@ function isiDropdownGudang(){
   if(selFilter){
     const nilaiSaatIni = selFilter.value || 'semua';
     selFilter.innerHTML = '<option value="semua">Semua Gudang</option>' +
-      DATA.gudang.map(g => `<option value="${g.id}">${g.nama}</option>`).join('');
+      DATA.gudang.map(g => `<option value="${g.id}">${esc(g.nama)}</option>`).join('');
     selFilter.value = nilaiSaatIni;
   }
 }
@@ -1264,16 +1296,16 @@ function renderGudang(){
     const status = hitungStatusStok(i);
     return `
     <tr>
-      <td class="cell-muted">${i.sku}</td>
-      <td class="cell-name">${i.nama_produk}</td>
-      <td>${i.variant || '—'}</td>
-      <td>${i.kategori || 'Umum'}</td>
+      <td class="cell-muted">${esc(i.sku)}</td>
+      <td class="cell-name">${esc(i.nama_produk)}</td>
+      <td>${esc(i.variant) || '—'}</td>
+      <td>${esc(i.kategori) || 'Umum'}</td>
       <td>${namaGudang(i.gudang_id)}</td>
       <td><span class="cell-link" title="Lihat detail stok masuk produk ini" onclick="bukaDetailStokMasuk('${i.id}')">${(i.stok_masuk || 0).toLocaleString('id-ID')}</span></td>
       <td><span class="cell-link" title="Lihat detail stok keluar produk ini" onclick="bukaDetailStokKeluar('${i.id}')">${(i.stok_keluar || 0).toLocaleString('id-ID')}</span></td>
       <td><b>${sisaStok(i).toLocaleString('id-ID')}</b></td>
       <td class="cell-muted">${i.diupdate_pada ? waktuRelatif(i.diupdate_pada) : '—'}</td>
-      <td class="cell-muted">${i.diupdate_oleh_nama || '—'}</td>
+      <td class="cell-muted">${esc(i.diupdate_oleh_nama) || '—'}</td>
       <td><span class="stok-status stok-status--${status}">${labelStatusStok(status)}</span></td>
       <td class="cell-actions">
         <div class="icon-btn" title="Edit" onclick="editItemStok('${i.id}')">
@@ -1378,7 +1410,7 @@ async function hapusItemStok(id){
   if(error){ console.error(error); tampilkanToast('Gagal menghapus item stok', true); return; }
   DATA.stokItem = DATA.stokItem.filter(x => x.id !== id);
   renderGudang();
-  if(i) await catatAktivitas('gudang', `Item stok <b>${i.nama_produk}</b> (${i.sku}) dihapus`);
+  if(i) await catatAktivitas('gudang', `Item stok <b>${esc(i.nama_produk)}</b> (${esc(i.sku)}) dihapus`);
   tampilkanToast('Item stok dihapus');
 }
 
@@ -1449,13 +1481,13 @@ function renderTabelStokMasukDetail(){
     return `
     <tr>
       <td class="cell-muted">${formatTanggal(r.tanggal)}</td>
-      <td>${r.no_do || '—'}</td>
-      <td>${r.vendor_nama || '—'}</td>
-      <td>${r.no_po || '—'}</td>
+      <td>${esc(r.no_do) || '—'}</td>
+      <td>${esc(r.vendor_nama) || '—'}</td>
+      <td>${esc(r.no_po) || '—'}</td>
       <td><b>${Number(r.jumlah || 0).toLocaleString('id-ID')}</b></td>
-      <td>${r.satuan || '—'}</td>
+      <td>${esc(r.satuan) || '—'}</td>
       <td><span class="stok-status stok-status--${kondisi}">${labelKondisiBarang(kondisi)}</span></td>
-      <td class="cell-muted">${r.catatan || '—'}</td>
+      <td class="cell-muted">${esc(r.catatan) || '—'}</td>
       <td class="cell-actions">
         <div class="icon-btn" title="Edit" onclick="editStokMasuk('${r.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -1486,7 +1518,7 @@ function bukaModalTambahStokMasuk(){
   document.getElementById('input-tanggal-stok-masuk').value = new Date().toISOString().slice(0,10);
   document.getElementById('input-satuan-stok-masuk').value = i.satuan || 'Pcs';
   document.getElementById('input-kondisi-stok-masuk').value = 'baru';
-  document.getElementById('info-item-stok-masuk').innerHTML = `<b>${i.nama_produk}</b> (${i.sku}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')} ${i.satuan || 'Pcs'}</b>`;
+  document.getElementById('info-item-stok-masuk').innerHTML = `<b>${esc(i.nama_produk)}</b> (${esc(i.sku)}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')} ${esc(i.satuan) || 'Pcs'}</b>`;
   document.getElementById('judul-modal-stok-masuk').textContent = 'Tambah Stok Masuk';
   document.getElementById('btn-simpan-stok-masuk').textContent = 'Simpan Stok Masuk';
   bukaModal('modal-stok-masuk');
@@ -1507,7 +1539,7 @@ function editStokMasuk(riwayatId){
   document.getElementById('input-satuan-stok-masuk').value = r.satuan || i.satuan || 'Pcs';
   document.getElementById('input-kondisi-stok-masuk').value = r.kondisi_barang || 'baru';
   document.getElementById('input-catatan-stok-masuk').value = r.catatan || '';
-  document.getElementById('info-item-stok-masuk').innerHTML = `<b>${i.nama_produk}</b> (${i.sku}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')} ${i.satuan || 'Pcs'}</b>`;
+  document.getElementById('info-item-stok-masuk').innerHTML = `<b>${esc(i.nama_produk)}</b> (${esc(i.sku)}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')} ${esc(i.satuan) || 'Pcs'}</b>`;
   document.getElementById('judul-modal-stok-masuk').textContent = 'Edit Stok Masuk';
   document.getElementById('btn-simpan-stok-masuk').textContent = 'Simpan Perubahan';
   bukaModal('modal-stok-masuk');
@@ -1568,7 +1600,7 @@ async function simpanStokMasuk(e){
 
   renderDetailStokMasuk();
   renderGudang();
-  await catatAktivitas('gudang', `Stok masuk <b>${qty.toLocaleString('id-ID')} ${satuan}</b> ${idRiwayat ? 'diperbarui' : 'dicatat'} untuk <b>${i.nama_produk}</b> (${i.sku})${vendor_nama ? ' dari ' + vendor_nama : ''}`);
+  await catatAktivitas('gudang', `Stok masuk <b>${qty.toLocaleString('id-ID')} ${satuan}</b> ${idRiwayat ? 'diperbarui' : 'dicatat'} untuk <b>${esc(i.nama_produk)}</b> (${esc(i.sku)})${vendor_nama ? ' dari ' + vendor_nama : ''}`);
   tutupModal('modal-stok-masuk');
   tampilkanToast(idRiwayat ? 'Perubahan stok masuk disimpan' : 'Stok masuk dicatat');
   e.target.reset();
@@ -1602,7 +1634,7 @@ async function hapusStokMasuk(riwayatId){
 
   renderDetailStokMasuk();
   renderGudang();
-  await catatAktivitas('gudang', `Riwayat stok masuk <b>${Number(r.jumlah||0).toLocaleString('id-ID')}</b> untuk <b>${i.nama_produk}</b> (${i.sku}) dihapus`);
+  await catatAktivitas('gudang', `Riwayat stok masuk <b>${Number(r.jumlah||0).toLocaleString('id-ID')}</b> untuk <b>${esc(i.nama_produk)}</b> (${esc(i.sku)}) dihapus`);
   tampilkanToast('Riwayat stok masuk dihapus');
 }
 
@@ -1670,13 +1702,13 @@ function renderTabelStokKeluarDetail(){
   tbody.innerHTML = data.map(r => `
     <tr>
       <td class="cell-muted">${formatTanggal(r.tanggal)}</td>
-      <td>${r.no_do || '—'}</td>
-      <td>${r.pelanggan_nama || '—'}</td>
-      <td>${r.no_po || '—'}</td>
+      <td>${esc(r.no_do) || '—'}</td>
+      <td>${esc(r.pelanggan_nama) || '—'}</td>
+      <td>${esc(r.no_po) || '—'}</td>
       <td>${r.proyek_nama || '—'}</td>
       <td><b>${Number(r.jumlah || 0).toLocaleString('id-ID')}</b></td>
-      <td>${r.satuan || '—'}</td>
-      <td class="cell-muted">${r.catatan || '—'}</td>
+      <td>${esc(r.satuan) || '—'}</td>
+      <td class="cell-muted">${esc(r.catatan) || '—'}</td>
       <td class="cell-actions">
         <div class="icon-btn" title="Edit" onclick="editStokKeluar('${r.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -1694,7 +1726,7 @@ function isiDropdownPelangganStokKeluar(pelangganIdTerpilih){
   const select = document.getElementById('input-pelanggan-stok-keluar');
   if(!select) return;
   select.innerHTML = `<option value="">— Tanpa pelanggan terdaftar —</option>` +
-    DATA.pelanggan.map(p => `<option value="${p.id}">${p.nama}</option>`).join('') +
+    DATA.pelanggan.map(p => `<option value="${p.id}">${esc(p.nama)}</option>`).join('') +
     `<option value="__manual__">✏️ Ketik nama pelanggan lain...</option>`;
   select.value = pelangganIdTerpilih || '';
 }
@@ -1705,7 +1737,7 @@ function isiDropdownProyekStokKeluar(pelangganId, proyekIdTerpilih){
   if(!select) return;
   const daftar = pelangganId ? DATA.proyek.filter(p => p.pelanggan_id === pelangganId) : DATA.proyek;
   select.innerHTML = `<option value="">— Tanpa proyek/PO —</option>` +
-    daftar.map(p => `<option value="${p.id}">${p.nama} (${p.kode})</option>`).join('') +
+    daftar.map(p => `<option value="${p.id}">${esc(p.nama)} (${esc(p.kode)})</option>`).join('') +
     `<option value="__manual__">✏️ Ketik proyek lain...</option>`;
   select.value = daftar.some(p => p.id === proyekIdTerpilih) ? proyekIdTerpilih : '';
 }
@@ -1744,7 +1776,7 @@ function bukaModalTambahStokKeluar(){
   document.getElementById('wrap-proyek-manual-stok-keluar').classList.add('hidden');
   isiDropdownPelangganStokKeluar('');
   isiDropdownProyekStokKeluar(null);
-  document.getElementById('info-item-stok-keluar').innerHTML = `<b>${i.nama_produk}</b> (${i.sku}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')} ${i.satuan || 'Pcs'}</b>`;
+  document.getElementById('info-item-stok-keluar').innerHTML = `<b>${esc(i.nama_produk)}</b> (${esc(i.sku)}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')} ${esc(i.satuan) || 'Pcs'}</b>`;
   document.getElementById('judul-modal-stok-keluar').textContent = 'Tambah Stok Keluar';
   document.getElementById('btn-simpan-stok-keluar').textContent = 'Simpan Stok Keluar';
   bukaModal('modal-stok-keluar');
@@ -1777,7 +1809,7 @@ function editStokKeluar(riwayatId){
   document.getElementById('input-no-po-stok-keluar').value = r.no_po || '';
   document.getElementById('input-no-po-stok-keluar').readOnly = !!r.proyek_id;
 
-  document.getElementById('info-item-stok-keluar').innerHTML = `<b>${i.nama_produk}</b> (${i.sku}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')} ${i.satuan || 'Pcs'}</b>`;
+  document.getElementById('info-item-stok-keluar').innerHTML = `<b>${esc(i.nama_produk)}</b> (${esc(i.sku)}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')} ${esc(i.satuan) || 'Pcs'}</b>`;
   document.getElementById('judul-modal-stok-keluar').textContent = 'Edit Stok Keluar';
   document.getElementById('btn-simpan-stok-keluar').textContent = 'Simpan Perubahan';
   bukaModal('modal-stok-keluar');
@@ -1855,7 +1887,7 @@ async function simpanStokKeluar(e){
 
   renderDetailStokKeluar();
   renderGudang();
-  await catatAktivitas('gudang', `Stok keluar <b>${qty.toLocaleString('id-ID')} ${satuan}</b> ${idRiwayat ? 'diperbarui' : 'dicatat'} untuk <b>${i.nama_produk}</b> (${i.sku})${pelanggan_nama ? ' ke ' + pelanggan_nama : ''}`);
+  await catatAktivitas('gudang', `Stok keluar <b>${qty.toLocaleString('id-ID')} ${satuan}</b> ${idRiwayat ? 'diperbarui' : 'dicatat'} untuk <b>${esc(i.nama_produk)}</b> (${esc(i.sku)})${pelanggan_nama ? ' ke ' + pelanggan_nama : ''}`);
   tutupModal('modal-stok-keluar');
   tampilkanToast(idRiwayat ? 'Perubahan stok keluar disimpan' : 'Stok keluar dicatat');
   e.target.reset();
@@ -1884,7 +1916,7 @@ async function hapusStokKeluar(riwayatId){
 
   renderDetailStokKeluar();
   renderGudang();
-  await catatAktivitas('gudang', `Riwayat stok keluar <b>${Number(r.jumlah||0).toLocaleString('id-ID')}</b> untuk <b>${i.nama_produk}</b> (${i.sku}) dihapus`);
+  await catatAktivitas('gudang', `Riwayat stok keluar <b>${Number(r.jumlah||0).toLocaleString('id-ID')}</b> untuk <b>${esc(i.nama_produk)}</b> (${esc(i.sku)}) dihapus`);
   tampilkanToast('Riwayat stok keluar dihapus');
 }
 
@@ -1906,8 +1938,8 @@ function renderListGudangKelola(){
     return `
     <div class="gudang-row">
       <div>
-        <div class="gudang-row-name">${g.nama}</div>
-        <div class="gudang-row-loc">${g.lokasi || 'Lokasi belum diisi'} · ${jumlahItem} item stok</div>
+        <div class="gudang-row-name">${esc(g.nama)}</div>
+        <div class="gudang-row-loc">${esc(g.lokasi) || 'Lokasi belum diisi'} · ${jumlahItem} item stok</div>
       </div>
       ${isAdmin ? `<div class="icon-btn" title="Hapus Gudang" onclick="hapusGudang('${g.id}')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
@@ -1942,7 +1974,7 @@ async function hapusGudang(id){
   renderListGudangKelola();
   isiDropdownGudang();
   renderGudang();
-  if(g) await catatAktivitas('gudang', `Gudang <b>${g.nama}</b> dihapus`);
+  if(g) await catatAktivitas('gudang', `Gudang <b>${esc(g.nama)}</b> dihapus`);
   tampilkanToast('Gudang dihapus');
 }
 
@@ -1989,7 +2021,7 @@ function renderPengawasanTim(){
       <div class="team-card">
         <div class="team-card-head">
           ${markupAvatar(p)}
-          <div><div class="team-card-name">${p.nama}</div><div class="team-card-role">${p.peran === 'admin' ? 'Administrator' : 'Anggota Tim'}</div></div>
+          <div><div class="team-card-name">${esc(p.nama)}</div><div class="team-card-role">${p.peran === 'admin' ? 'Administrator' : 'Anggota Tim'}</div></div>
         </div>
         <div class="team-stat-row"><span>Total Tugas</span><b>${total}</b></div>
         <div class="team-stat-row"><span>Sedang Dikerjakan</span><b>${dikerjakan}</b></div>
@@ -2014,8 +2046,8 @@ function renderPenggunaAdmin(){
   }
   tbody.innerHTML = DATA.profil.map(p => `
     <tr>
-      <td class="assignee-cell cell-name">${markupAvatar(p)}${p.nama}</td>
-      <td class="cell-muted">${p.email}</td>
+      <td class="assignee-cell cell-name">${markupAvatar(p)}${esc(p.nama)}</td>
+      <td class="cell-muted">${esc(p.email)}</td>
       <td>
         <select class="filter-select" onchange="ubahPeranPengguna('${p.id}', this.value)" ${p.id === CURRENT_USER.id ? 'disabled title="Tidak bisa mengubah peran sendiri"' : ''}>
           <option value="anggota" ${p.peran==='anggota'?'selected':''}>Anggota Tim</option>
@@ -2033,7 +2065,7 @@ async function ubahPeranPengguna(id, peranBaru){
   p.peran = peranBaru;
   renderPenggunaAdmin();
   renderPengawasanTim();
-  await catatAktivitas('pengguna', `Peran <b>${p.nama}</b> diubah menjadi ${peranBaru === 'admin' ? 'Admin' : 'Anggota Tim'}`);
+  await catatAktivitas('pengguna', `Peran <b>${esc(p.nama)}</b> diubah menjadi ${peranBaru === 'admin' ? 'Admin' : 'Anggota Tim'}`);
   tampilkanToast('Peran pengguna diperbarui');
 }
 
@@ -2078,7 +2110,7 @@ function renderPengaturanAkun(){
   pill.textContent = CURRENT_USER.peran === 'admin' ? 'Administrator' : 'Anggota Tim';
   const preview = document.getElementById('avatar-preview');
   preview.innerHTML = CURRENT_USER.avatar_url
-    ? `<img src="${CURRENT_USER.avatar_url}" alt="">`
+    ? `<img src="${esc(CURRENT_USER.avatar_url)}" alt="">`
     : (CURRENT_USER.nama || '?').charAt(0).toUpperCase();
   _fileAvatarTerpilih = null;
 
@@ -2171,7 +2203,7 @@ async function simpanPerusahaan(e){
   DATA.perusahaan = Object.assign({}, DATA.perusahaan, perubahan);
   _fileLogoTerpilih = null;
   terapkanBrandingPerusahaan();
-  await catatAktivitas('pengguna', `Profil perusahaan diperbarui oleh <b>${CURRENT_USER.nama}</b>`);
+  await catatAktivitas('pengguna', `Profil perusahaan diperbarui oleh <b>${esc(CURRENT_USER.nama)}</b>`);
   tampilkanToast('Profil perusahaan berhasil disimpan');
 }
 
@@ -2553,7 +2585,7 @@ function renderKalender(){
     html += `<div class="cal-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" onclick="pilihHariKalender(${hari})">
       <div class="cal-daynum">${hari}</div>
       <div class="cal-dot-row">
-        ${tampil.map(it => `<div class="cal-tag ${it.tipe}">${it.teks}</div>`).join('')}
+        ${tampil.map(it => `<div class="cal-tag ${it.tipe}">${esc(it.teks)}</div>`).join('')}
         ${sisa > 0 ? `<div class="cal-more">+${sisa} lagi</div>` : ''}
       </div>
     </div>`;
@@ -2568,7 +2600,7 @@ function renderKalender(){
     agendaList.innerHTML = items.length ? items.map(it => `
       <div class="agenda-item">
         <div class="dot" style="background:${it.tipe==='proyek' ? 'var(--blue)' : 'var(--accent-bright)'}"></div>
-        <div><b>${it.teks}</b> — <span class="cell-muted">${it.sub}</span></div>
+        <div><b>${esc(it.teks)}</b> — <span class="cell-muted">${esc(it.sub)}</span></div>
       </div>`).join('') : `<div class="empty-state"><p>Tidak ada agenda di tanggal ini.</p></div>`;
   } else {
     agendaTitle.textContent = 'Agenda Bulan Ini';
@@ -2577,7 +2609,7 @@ function renderKalender(){
     agendaList.innerHTML = semuaItem.length ? semuaItem.map(it => `
       <div class="agenda-item">
         <div class="dot" style="background:${it.tipe==='proyek' ? 'var(--blue)' : 'var(--accent-bright)'}"></div>
-        <div><b>${it.teks}</b> — <span class="cell-muted">${it.sub} · ${it.hari} ${BULAN_SINGKAT_INDO[calBulan]}</span></div>
+        <div><b>${esc(it.teks)}</b> — <span class="cell-muted">${esc(it.sub)} · ${it.hari} ${BULAN_SINGKAT_INDO[calBulan]}</span></div>
       </div>`).join('') : `<div class="empty-state"><p>Tidak ada tenggat proyek/tugas di bulan ini.</p></div>`;
   }
 }
@@ -2639,13 +2671,13 @@ function renderPesan(){
   badge.style.display = 'inline-block';
   wrap.innerHTML = DATA.catatan.map(c => `
     <div class="message-item">
-      <div class="message-avatar">${(c.dibuat_oleh||'?').trim().charAt(0).toUpperCase()}</div>
+      <div class="message-avatar">${esc((c.dibuat_oleh||'?').trim().charAt(0).toUpperCase())}</div>
       <div class="message-body">
         <div class="message-head">
-          <span class="message-author">${c.dibuat_oleh}</span>
-          <span class="message-time">${waktuRelatif(c.dibuat_pada)}</span>
+          <span class="message-author">${esc(c.dibuat_oleh)}</span>
+          <span class="message-time">${esc(waktuRelatif(c.dibuat_pada))}</span>
         </div>
-        <div class="message-text">${c.isi}</div>
+        <div class="message-text">${esc(c.isi)}</div>
       </div>
       <div class="message-del" title="Hapus" onclick="hapusCatatan('${c.id}')">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
@@ -2654,9 +2686,12 @@ function renderPesan(){
 }
 async function tambahCatatan(){
   const isiEl = document.getElementById('input-catatan');
-  const namaEl = document.getElementById('input-catatan-nama');
   const isi = isiEl.value.trim();
-  const nama = namaEl.value.trim() || 'Anonim';
+  // BUGFIX (audit): sebelumnya nama pengirim diambil dari field teks bebas
+  // (#input-catatan-nama, default "Lawrence Austin"), jadi siapa pun yang
+  // login bisa mengaku sebagai orang lain / Admin di papan Pesan. Nama
+  // sekarang selalu diambil dari akun yang sedang login.
+  const nama = (CURRENT_USER && CURRENT_USER.nama) || 'Anonim';
   if(!isi){ tampilkanToast('Tulis catatan terlebih dahulu', true); return; }
 
   const { data, error } = await supabaseClient.from('catatan_tim').insert({ isi, dibuat_oleh: nama }).select().single();

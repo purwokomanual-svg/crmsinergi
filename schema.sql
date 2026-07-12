@@ -621,3 +621,113 @@ create index if not exists idx_riwayat_stok_kondisi on riwayat_stok (kondisi_bar
 
 -- ---- Tandai riwayat stok masuk lama (sebelum v12) sebagai "Baru" secara default ----
 update riwayat_stok set kondisi_barang = 'baru' where tipe = 'masuk' and kondisi_barang is null;
+
+-- =========================================================
+-- TAMBAHAN v13 — PERBAIKAN HASIL AUDIT (indeks & integritas data)
+-- Aman dijalankan berulang / di database yang sudah berisi data.
+-- Tidak menghapus data apa pun.
+--
+-- (A) INDEKS YANG HILANG
+-- Kolom-kolom foreign key berikut dipakai untuk filter/JOIN di
+-- aplikasi (mis. "tugas milik saya", "aktivitas oleh saya", riwayat
+-- stok per pelanggan/proyek) tapi belum punya indeks — pada tabel
+-- kecil tidak terasa, tapi begitu data bertambah query akan makin
+-- lambat (full table scan). Aman & murah untuk ditambahkan sekarang.
+-- =========================================================
+create index if not exists idx_tugas_ditugaskan_ke on tugas (ditugaskan_ke);
+create index if not exists idx_tugas_ditugaskan_oleh on tugas (ditugaskan_oleh);
+create index if not exists idx_aktivitas_pelaku_id on aktivitas (pelaku_id);
+create index if not exists idx_proyek_dibuat_oleh_id on proyek (dibuat_oleh_id);
+create index if not exists idx_riwayat_stok_pelanggan_id on riwayat_stok (pelanggan_id);
+create index if not exists idx_riwayat_stok_proyek_id on riwayat_stok (proyek_id);
+
+-- =========================================================
+-- (B) STOK NEGATIF HANYA DICEGAH DI JAVASCRIPT — BISA DILEWATI
+-- Saat ini validasi "Sisa Stok tidak boleh negatif" hanya dilakukan
+-- di script.js sebelum mengirim data. Ini TIDAK melindungi dari:
+--   - panggilan langsung ke Supabase REST/API di luar aplikasi ini
+--   - dua pengguna mencatat stok keluar pada saat bersamaan (race
+--     condition): keduanya membaca sisa stok yang sama sebelum salah
+--     satu selesai menyimpan, sehingga total bisa lolos jadi negatif
+-- Trigger di bawah ini menjadi pengaman terakhir di level database:
+-- setiap kali ada baris riwayat_stok baru bertipe 'keluar', hitung
+-- ulang total keluar untuk item tsb dan tolak jika melebihi total
+-- masuk. Ini TIDAK menggantikan validasi di JS (validasi JS tetap
+-- penting untuk pesan error yang cepat & ramah pengguna) — ini
+-- lapisan pertahanan kedua yang tidak bisa dilewati dari luar.
+-- =========================================================
+create or replace function public.cegah_stok_keluar_negatif()
+returns trigger as $$
+declare
+  total_masuk bigint;
+  total_keluar bigint;
+begin
+  if new.tipe <> 'keluar' then
+    return new;
+  end if;
+  select coalesce(sum(jumlah) filter (where tipe = 'masuk'), 0),
+         coalesce(sum(jumlah) filter (where tipe = 'keluar'), 0)
+    into total_masuk, total_keluar
+    from riwayat_stok
+    where item_id = new.item_id and id <> coalesce(new.id, '00000000-0000-0000-0000-000000000000'::uuid);
+
+  if (total_keluar + new.jumlah) > total_masuk then
+    raise exception 'Stok keluar melebihi stok tersedia untuk item ini (tersedia: %, diminta: %)',
+      (total_masuk - total_keluar), new.jumlah;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_cegah_stok_keluar_negatif on riwayat_stok;
+create trigger trg_cegah_stok_keluar_negatif
+  before insert or update on riwayat_stok
+  for each row execute procedure public.cegah_stok_keluar_negatif();
+
+-- =========================================================
+-- TAMBAHAN v14 — HILANGKAN RACE CONDITION PADA AKUMULASI STOK
+-- Aman dijalankan berulang / di database yang sudah berisi data.
+-- Tidak menghapus data apa pun.
+--
+-- MASALAH: script.js menghitung stok_item.stok_masuk / stok_keluar
+-- di browser lalu menulisnya lewat request UPDATE terpisah dari
+-- insert riwayat_stok. Ini dua langkah, bukan satu transaksi —
+-- kalau dua pengguna mencatat stok untuk item yang sama nyaris
+-- bersamaan, salah satu update bisa menimpa update yang lain
+-- (lost update), sehingga angka Stok Masuk/Keluar di kartu stok
+-- bisa "ngedrift" dari riwayat_stok yang sebenarnya (sumber
+-- kebenaran yang asli).
+--
+-- SOLUSI: trigger di bawah ini berjalan otomatis di DATABASE setiap
+-- kali riwayat_stok berubah (tambah/edit/hapus), dan menghitung ULANG
+-- stok_masuk & stok_keluar langsung dari SUM(riwayat_stok) untuk item
+-- terkait, lalu menulisnya ke stok_item — semuanya dalam satu
+-- transaksi atom di server. Ini membuat kartu stok TIDAK MUNGKIN lagi
+-- tidak sinkron dengan riwayatnya, apa pun yang dikirim dari klien.
+-- Update stok_masuk/stok_keluar yang masih dikirim script.js jadi
+-- tidak berbahaya (akan langsung ditimpa ulang dengan angka yang
+-- benar oleh trigger ini) — tidak perlu mengubah script.js.
+-- =========================================================
+create or replace function public.sinkron_akumulasi_stok()
+returns trigger as $$
+declare
+  target_item_id uuid;
+begin
+  target_item_id := coalesce(new.item_id, old.item_id);
+  update stok_item set
+    stok_masuk = coalesce((select sum(jumlah) from riwayat_stok where item_id = target_item_id and tipe = 'masuk'), 0),
+    stok_keluar = coalesce((select sum(jumlah) from riwayat_stok where item_id = target_item_id and tipe = 'keluar'), 0)
+  where id = target_item_id;
+  return null;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_sinkron_akumulasi_stok on riwayat_stok;
+create trigger trg_sinkron_akumulasi_stok
+  after insert or update or delete on riwayat_stok
+  for each row execute procedure public.sinkron_akumulasi_stok();
+
+-- ---- Jalankan sekali untuk menyamakan data lama dengan riwayat_stok ----
+update stok_item si set
+  stok_masuk = coalesce((select sum(jumlah) from riwayat_stok where item_id = si.id and tipe = 'masuk'), 0),
+  stok_keluar = coalesce((select sum(jumlah) from riwayat_stok where item_id = si.id and tipe = 'keluar'), 0);
