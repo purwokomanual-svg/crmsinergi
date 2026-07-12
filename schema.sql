@@ -437,3 +437,105 @@ alter table proyek add column if not exists budget_terpakai bigint not null defa
 update proyek set tanggal = dibuat_pada::date where tanggal is null;
 update proyek set sub_total = nilai, grand_total = nilai
   where sub_total = 0 and grand_total = 0 and nilai > 0;
+
+-- =========================================================
+-- TAMBAHAN v10 — STOCK & GUDANG (multi-gudang, kartu stok, riwayat)
+-- Jalankan blok ini di SQL Editor untuk mengaktifkan menu
+-- "Stock & Gudang" (kelompok Penjualan & Operasional):
+-- SKU, Nama Produk, Variant, Kategori, Gudang, Stok Masuk,
+-- Stok Keluar, Sisa Stok, Update Terakhir, Diupdate Oleh,
+-- Status, Aksi (Edit/Tambah Stok/Hapus).
+-- Aman dijalankan berulang / di database yang sudah berisi data.
+--
+-- Desain: satu SKU bisa punya baris stok terpisah di tiap gudang
+-- (kombinasi gudang_id + sku unik), karena stok fisik memang
+-- berbeda-beda per lokasi. Setiap pergerakan stok (masuk/keluar)
+-- dicatat sebagai baris di riwayat_stok, sehingga Stok Masuk dan
+-- Stok Keluar pada tabel utama selalu berupa akumulasi yang bisa
+-- ditelusuri riwayatnya (audit trail), bukan angka yang ditimpa
+-- begitu saja.
+-- =========================================================
+
+-- ---- Tabel gudang (lokasi/cabang penyimpanan) ----
+create table if not exists gudang (
+  id uuid primary key default gen_random_uuid(),
+  nama text unique not null,
+  lokasi text,
+  dibuat_pada timestamptz default now()
+);
+
+-- ---- Tabel kartu stok: 1 baris = 1 SKU di 1 gudang ----
+create table if not exists stok_item (
+  id uuid primary key default gen_random_uuid(),
+  gudang_id uuid not null references gudang(id) on delete cascade,
+  sku text not null,
+  nama_produk text not null,
+  variant text,
+  kategori text default 'Umum',
+  stok_masuk bigint not null default 0,
+  stok_keluar bigint not null default 0,
+  stok_minimum bigint not null default 0,
+  status text not null default 'aktif' check (status in ('aktif','nonaktif')),
+  diupdate_oleh_id uuid references profil(id) on delete set null,
+  diupdate_oleh_nama text,
+  diupdate_pada timestamptz default now(),
+  dibuat_pada timestamptz default now(),
+  unique (gudang_id, sku)
+);
+create index if not exists idx_stok_item_gudang on stok_item (gudang_id);
+create index if not exists idx_stok_item_sku on stok_item (sku);
+
+-- ---- Tabel riwayat pergerakan stok (kartu stok / audit trail) ----
+create table if not exists riwayat_stok (
+  id uuid primary key default gen_random_uuid(),
+  item_id uuid not null references stok_item(id) on delete cascade,
+  tipe text not null check (tipe in ('masuk','keluar')),
+  jumlah bigint not null check (jumlah > 0),
+  catatan text,
+  dibuat_oleh_id uuid references profil(id) on delete set null,
+  dibuat_oleh_nama text,
+  dibuat_pada timestamptz default now()
+);
+create index if not exists idx_riwayat_stok_item on riwayat_stok (item_id);
+
+alter table gudang enable row level security;
+alter table stok_item enable row level security;
+alter table riwayat_stok enable row level security;
+
+create policy "pengguna login dapat membaca gudang" on gudang for select using (auth.uid() is not null);
+create policy "pengguna login dapat menambah gudang" on gudang for insert with check (auth.uid() is not null);
+create policy "pengguna login dapat mengubah gudang" on gudang for update using (auth.uid() is not null);
+create policy "hanya admin dapat menghapus gudang" on gudang for delete using (
+  exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+
+create policy "pengguna login dapat membaca stok item" on stok_item for select using (auth.uid() is not null);
+create policy "pengguna login dapat menambah stok item" on stok_item for insert with check (auth.uid() is not null);
+create policy "pengguna login dapat mengubah stok item" on stok_item for update using (auth.uid() is not null);
+create policy "hanya admin dapat menghapus stok item" on stok_item for delete using (
+  exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+
+create policy "pengguna login dapat membaca riwayat stok" on riwayat_stok for select using (auth.uid() is not null);
+create policy "pengguna login dapat menambah riwayat stok" on riwayat_stok for insert with check (auth.uid() is not null);
+
+-- ---- Izinkan tipe 'gudang' pada log Aktivitas (perubahan stok tercatat di sana) ----
+alter table aktivitas drop constraint if exists aktivitas_tipe_check;
+alter table aktivitas add constraint aktivitas_tipe_check check (tipe in ('proyek','pelanggan','tugas','pengguna','gudang'));
+
+-- ---- Data contoh (aman dilewati jika sudah ada) ----
+insert into gudang (nama, lokasi) values
+  ('Gudang Pusat Surabaya', 'Rungkut Industri, Surabaya'),
+  ('Gudang Cabang Jakarta', 'Cakung, Jakarta Timur')
+on conflict (nama) do nothing;
+
+insert into stok_item (gudang_id, sku, nama_produk, variant, kategori, stok_masuk, stok_keluar, stok_minimum, diupdate_oleh_nama)
+select g.id, v.sku, v.nama_produk, v.variant, v.kategori, v.stok_masuk, v.stok_keluar, v.stok_minimum, 'Sistem'
+from gudang g
+join (values
+  ('Gudang Pusat Surabaya', 'SKU-1001', 'Kabel LAN Cat6', '20 Meter', 'Elektronik', 200, 65, 30),
+  ('Gudang Pusat Surabaya', 'SKU-1002', 'Router WiFi AX', 'Hitam', 'Elektronik', 80, 72, 15),
+  ('Gudang Pusat Surabaya', 'SKU-1003', 'Kertas A4 80gr', '1 Rim', 'ATK', 500, 480, 50),
+  ('Gudang Cabang Jakarta', 'SKU-1001', 'Kabel LAN Cat6', '20 Meter', 'Elektronik', 120, 118, 30),
+  ('Gudang Cabang Jakarta', 'SKU-2001', 'Toner Printer', 'Hitam', 'ATK', 40, 40, 10)
+) as v(gudang_nama, sku, nama_produk, variant, kategori, stok_masuk, stok_keluar, stok_minimum)
+  on v.gudang_nama = g.nama
+on conflict (gudang_id, sku) do nothing;

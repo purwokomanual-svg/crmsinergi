@@ -75,6 +75,7 @@
   <button class="nav-item" data-view="aktivitas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg>Aktivitas</button>
   <button class="nav-item" data-view="tugas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l2.5 2.5L16 9"/></svg>Tugas</button>
   <button class="nav-item" data-view="kalender"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>Kalender</button>
+  <button class="nav-item" data-view="gudang"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/></svg>Stock &amp; Gudang<span class="nav-badge" id="badge-gudang" style="display:none;"></span></button>
 
   <div class="nav-label">Wawasan</div>
   <button class="nav-item" data-view="analitik"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>Analitik</button>
@@ -377,6 +378,7 @@
           <option value="pelanggan">Pelanggan</option>
           <option value="proyek">Proyek</option>
           <option value="tugas">Tugas</option>
+          <option value="gudang">Stock &amp; Gudang</option>
           <option value="pengguna">Pengguna</option>
         </select>
         <div class="toolbar-spacer"></div>
@@ -423,6 +425,76 @@
           </thead>
           <tbody id="tbody-tugas"></tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- ===================== VIEW: STOCK & GUDANG ===================== -->
+    <section class="view" id="view-gudang">
+      <div class="view-head">
+        <div>
+          <h2>Stock &amp; Gudang</h2>
+          <p>Atur dan awasi stok produk di setiap gudang — satu SKU dipantau terpisah per lokasi.</p>
+        </div>
+        <div class="view-head-actions">
+          <button class="btn btn-secondary" onclick="bukaModalKelolaGudang()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/></svg>
+            Kelola Gudang
+          </button>
+          <button class="btn btn-primary" onclick="bukaModalTambahItemStok()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+            Tambah Item
+          </button>
+        </div>
+      </div>
+
+      <div class="stat-mini-grid" id="stat-gudang"></div>
+
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="cari-gudang" placeholder="Cari SKU, nama produk, atau variant...">
+        </div>
+        <select class="filter-select" id="filter-lokasi-gudang">
+          <option value="semua">Semua Gudang</option>
+        </select>
+        <select class="filter-select" id="filter-kategori-gudang">
+          <option value="semua">Semua Kategori</option>
+        </select>
+        <select class="filter-select" id="filter-status-gudang">
+          <option value="semua">Semua Status</option>
+          <option value="tersedia">Tersedia</option>
+          <option value="menipis">Stok Menipis</option>
+          <option value="habis">Stok Habis</option>
+          <option value="nonaktif">Nonaktif</option>
+        </select>
+        <div class="toolbar-spacer"></div>
+        <button class="btn btn-secondary" onclick="unduhStokCSV()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
+          Unduh CSV
+        </button>
+      </div>
+
+      <div class="table-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Nama Produk</th>
+              <th>Variant</th>
+              <th>Kategori</th>
+              <th>Gudang</th>
+              <th>Stok Masuk</th>
+              <th>Stok Keluar</th>
+              <th>Sisa Stok</th>
+              <th>Update Terakhir</th>
+              <th>Diupdate Oleh</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-gudang"></tbody>
+        </table>
+        <p class="table-hint">Klik <b>Tambah Stok</b> untuk mencatat stok masuk/keluar — Sisa Stok &amp; Update Terakhir akan diperbarui otomatis.</p>
       </div>
     </section>
 
@@ -873,6 +945,122 @@
         <button type="submit" class="btn btn-primary">Simpan Tugas</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: TAMBAH / EDIT ITEM STOK ===================== -->
+<div class="modal-overlay hidden" id="modal-item-stok">
+  <div class="modal-box">
+    <h3 id="judul-modal-item-stok">Tambah Item Stok</h3>
+    <form id="form-item-stok">
+      <input type="hidden" id="input-id-item-stok">
+      <div class="modal-fields">
+      <div class="form-group">
+        <label>Gudang</label>
+        <select id="input-gudang-item-stok" required>
+          <option value="" disabled selected>Pilih gudang...</option>
+        </select>
+      </div>
+      <div class="settings-form-grid">
+        <div class="form-group">
+          <label>SKU</label>
+          <input type="text" id="input-sku-item-stok" placeholder="Contoh: SKU-1004" required>
+        </div>
+        <div class="form-group">
+          <label>Kategori</label>
+          <input type="text" id="input-kategori-item-stok" placeholder="Contoh: Elektronik">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Nama Produk</label>
+        <input type="text" id="input-nama-item-stok" placeholder="Contoh: Kabel LAN Cat6" required>
+      </div>
+      <div class="form-group">
+        <label>Variant</label>
+        <input type="text" id="input-variant-item-stok" placeholder="Contoh: 20 Meter / Hitam / XL">
+      </div>
+      <div class="settings-form-grid">
+        <div class="form-group" id="wrap-stok-awal-item-stok">
+          <label>Stok Awal (Masuk)</label>
+          <input type="number" id="input-stok-awal-item-stok" placeholder="0" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label>Stok Minimum</label>
+          <input type="number" id="input-stok-minimum-item-stok" placeholder="Contoh: 20" min="0" value="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select id="input-status-item-stok">
+          <option value="aktif">Aktif</option>
+          <option value="nonaktif">Nonaktif (produk dihentikan)</option>
+        </select>
+      </div>
+      <p class="modal-note" id="catatan-modal-item-stok">Stok Minimum dipakai sistem untuk otomatis menandai status "Stok Menipis". Setelah item dibuat, ubah jumlah stok lewat tombol <b>Tambah Stok</b> di tabel agar riwayat pergerakan stok tetap tercatat.</p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="tutupModal('modal-item-stok')">Batal</button>
+        <button type="submit" class="btn btn-primary" id="btn-simpan-item-stok">Simpan Item</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: TAMBAH STOK (masuk/keluar) ===================== -->
+<div class="modal-overlay hidden" id="modal-tambah-stok">
+  <div class="modal-box">
+    <h3>Tambah Pergerakan Stok</h3>
+    <p class="modal-note" id="info-item-tambah-stok">—</p>
+    <form id="form-tambah-stok">
+      <input type="hidden" id="input-id-item-tambah-stok">
+      <div class="modal-fields">
+      <div class="form-group">
+        <label>Tipe Pergerakan</label>
+        <select id="input-tipe-tambah-stok">
+          <option value="masuk">Stok Masuk</option>
+          <option value="keluar">Stok Keluar</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Jumlah</label>
+        <input type="number" id="input-jumlah-tambah-stok" placeholder="Contoh: 50" min="1" required>
+      </div>
+      <div class="form-group">
+        <label>Catatan (opsional)</label>
+        <input type="text" id="input-catatan-tambah-stok" placeholder="Contoh: Pembelian dari supplier / pengiriman ke pelanggan">
+      </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="tutupModal('modal-tambah-stok')">Batal</button>
+        <button type="submit" class="btn btn-primary">Simpan Pergerakan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: KELOLA GUDANG ===================== -->
+<div class="modal-overlay hidden" id="modal-gudang">
+  <div class="modal-box">
+    <h3>Kelola Gudang</h3>
+    <div class="modal-fields">
+      <div id="list-gudang-kelola" style="margin-bottom:14px;"></div>
+      <form id="form-gudang">
+        <div class="settings-form-grid">
+          <div class="form-group">
+            <label>Nama Gudang</label>
+            <input type="text" id="input-nama-gudang" placeholder="Contoh: Gudang Cabang Bandung" required>
+          </div>
+          <div class="form-group">
+            <label>Lokasi</label>
+            <input type="text" id="input-lokasi-gudang" placeholder="Contoh: Jl. Soekarno Hatta, Bandung">
+          </div>
+        </div>
+        <div class="modal-actions" style="padding-top:4px;">
+          <button type="button" class="btn btn-secondary" onclick="tutupModal('modal-gudang')">Tutup</button>
+          <button type="submit" class="btn btn-primary">Tambah Gudang</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 

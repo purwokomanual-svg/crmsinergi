@@ -8,7 +8,7 @@
 
 /* Cache data di memori, diisi dari Supabase saat halaman dimuat
    dan diperbarui lagi setiap ada perubahan (tambah/hapus/ubah) */
-let DATA = { pelanggan: [], proyek: [], tugas: [], aktivitas: [], catatan: [], profil: [], perusahaan: { nama_perusahaan: 'Dealstack', logo_url: null } };
+let DATA = { pelanggan: [], proyek: [], tugas: [], aktivitas: [], catatan: [], profil: [], gudang: [], stokItem: [], perusahaan: { nama_perusahaan: 'Dealstack', logo_url: null } };
 
 /* Pengguna yang sedang login (diisi setelah autentikasi berhasil) */
 let CURRENT_USER = null; // { id, nama, email, peran }
@@ -170,6 +170,7 @@ async function masukKeAplikasi(session){
   renderPesan();
   renderNotifikasi();
   renderChart();
+  renderStatGudang();
   if(CURRENT_USER.peran === 'admin'){ renderPengawasanTim(); renderPenggunaAdmin(); }
   initRealtime();
 }
@@ -263,8 +264,9 @@ function cariGlobal(q){
   const pelanggan = DATA.pelanggan.filter(p => p.nama.toLowerCase().includes(q) || (p.industri||'').toLowerCase().includes(q)).slice(0,4);
   const proyek = DATA.proyek.filter(p => p.nama.toLowerCase().includes(q) || p.pelanggan_nama.toLowerCase().includes(q)).slice(0,4);
   const tugas = DATA.tugas.filter(t => t.judul.toLowerCase().includes(q)).slice(0,4);
+  const stok = DATA.stokItem.filter(i => i.sku.toLowerCase().includes(q) || i.nama_produk.toLowerCase().includes(q) || (i.variant||'').toLowerCase().includes(q)).slice(0,4);
 
-  if(!pelanggan.length && !proyek.length && !tugas.length){
+  if(!pelanggan.length && !proyek.length && !tugas.length && !stok.length){
     panel.innerHTML = `<div class="search-empty">Tidak ada hasil untuk "${q}"</div>`;
     panel.classList.remove('hidden');
     return;
@@ -282,6 +284,10 @@ function cariGlobal(q){
   if(tugas.length){
     html += `<div class="search-result-group">Tugas</div>`;
     html += tugas.map(t => `<div class="search-result-item" onclick="bukaHasilPencarian('tugas','${t.id}')"><b>${t.judul}</b><span>${labelStatusKerja(statusKerjaTugas(t))}</span></div>`).join('');
+  }
+  if(stok.length){
+    html += `<div class="search-result-group">Stock &amp; Gudang</div>`;
+    html += stok.map(i => `<div class="search-result-item" onclick="bukaHasilPencarian('stok','${i.id}')"><b>${i.nama_produk} (${i.sku})</b><span>${namaGudang(i.gudang_id)} · ${labelStatusStok(hitungStatusStok(i))}</span></div>`).join('');
   }
   panel.innerHTML = html;
   panel.classList.remove('hidden');
@@ -302,6 +308,11 @@ function bukaHasilPencarian(jenis, id){
     }
   } else if(jenis === 'tugas'){
     pindahTampilan('tugas');
+  } else if(jenis === 'stok'){
+    pindahTampilan('gudang');
+    const item = DATA.stokItem.find(i=>i.id===id);
+    document.getElementById('cari-gudang').value = item ? item.sku : '';
+    renderGudang();
   }
 }
 
@@ -335,6 +346,14 @@ function hitungNotifikasi(){
       }
     }
   });
+  DATA.stokItem.filter(i => i.status !== 'nonaktif').forEach(i => {
+    const status = hitungStatusStok(i);
+    if(status === 'habis'){
+      hasil.push({ judul: `Stok "${i.nama_produk}" (${i.sku}) di ${namaGudang(i.gudang_id)} habis`, meta: 'Stock & Gudang', urgent: true, urutan: -1 });
+    } else if(status === 'menipis'){
+      hasil.push({ judul: `Stok "${i.nama_produk}" (${i.sku}) di ${namaGudang(i.gudang_id)} menipis (sisa ${sisaStok(i)})`, meta: 'Stock & Gudang', urgent: false, urutan: 2 });
+    }
+  });
   hasil.sort((a,b) => a.urutan - b.urutan);
   return hasil;
 }
@@ -366,13 +385,15 @@ function renderNotifikasi(){
    Semua fungsi di bawah ini melakukan query ke database.
 --------------------------------------------------------- */
 async function muatSemuaData(){
-  const [pelanggan, proyek, tugas, aktivitas, catatan, profil] = await Promise.all([
+  const [pelanggan, proyek, tugas, aktivitas, catatan, profil, gudang, stokItem] = await Promise.all([
     supabaseClient.from('pelanggan').select('*').order('dibuat_pada', { ascending: false }),
     supabaseClient.from('proyek').select('*').order('dibuat_pada', { ascending: false }),
     supabaseClient.from('tugas').select('*').order('dibuat_pada', { ascending: false }),
     supabaseClient.from('aktivitas').select('*').order('dibuat_pada', { ascending: false }).limit(80),
     supabaseClient.from('catatan_tim').select('*').order('dibuat_pada', { ascending: false }),
     supabaseClient.from('profil').select('*').order('nama', { ascending: true }),
+    supabaseClient.from('gudang').select('*').order('nama', { ascending: true }),
+    supabaseClient.from('stok_item').select('*').order('nama_produk', { ascending: true }),
   ]);
 
   if(pelanggan.error || proyek.error || tugas.error || aktivitas.error){
@@ -389,6 +410,9 @@ async function muatSemuaData(){
   // jangan gagalkan seluruh aplikasi kalau tabel ini belum ada.
   DATA.catatan = catatan.error ? (console.warn('Tabel catatan_tim belum tersedia.', catatan.error), []) : (catatan.data || []);
   DATA.profil = profil.error ? (console.warn('Tabel profil belum tersedia. Jalankan migrasi v3 di schema.sql.', profil.error), []) : (profil.data || []);
+  // Tabel gudang / stok_item mungkin belum ada jika migrasi v10 belum dijalankan.
+  DATA.gudang = gudang.error ? (console.warn('Tabel gudang belum tersedia. Jalankan migrasi v10 di schema.sql.', gudang.error), []) : (gudang.data || []);
+  DATA.stokItem = stokItem.error ? (console.warn('Tabel stok_item belum tersedia. Jalankan migrasi v10 di schema.sql.', stokItem.error), []) : (stokItem.data || []);
 }
 
 async function catatAktivitas(tipe, teks){
@@ -423,6 +447,7 @@ function pindahTampilan(namaView){
   if(namaView === 'ringkasan'){ renderChart(); renderTagRingkasan(); }
   if(namaView === 'pelanggan-detail') renderDetailPelanggan();
   if(namaView === 'kalender') renderKalender();
+  if(namaView === 'gudang') renderGudang();
   if(namaView === 'laporan') renderLaporan();
   if(namaView === 'pesan') renderPesan();
   if(namaView === 'integrasi') tesKoneksiSupabase();
@@ -595,7 +620,7 @@ function editPelanggan(id){
 }
 
 function pesanErrorKode(error, label){
-  if(error && error.code === '23505') return `${label} sudah dipakai pelanggan/proyek lain. Gunakan ${label.toLowerCase()} yang berbeda.`;
+  if(error && error.code === '23505') return `${label} sudah dipakai. Gunakan ${label.toLowerCase()} yang berbeda.`;
   return null;
 }
 
@@ -929,6 +954,7 @@ const ikonAktivitas = {
   pelanggan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0113 0"/></svg>',
   tugas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l2.5 2.5L16 9"/></svg>',
   pengguna: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0114 0"/></svg>',
+  gudang: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/></svg>',
 };
 function waktuRelatif(iso){
   const detik = Math.floor((Date.now() - new Date(iso).getTime())/1000);
@@ -1117,6 +1143,344 @@ async function hapusTugas(id){
   if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
   if(t) await catatAktivitas('tugas', `Tugas <b>${t.judul}</b> dihapus`);
   tampilkanToast('Tugas dihapus');
+}
+
+/* ---------------------------------------------------------
+   17b. STOCK & GUDANG (multi-gudang, kartu stok, riwayat)
+--------------------------------------------------------- */
+function sisaStok(item){ return (item.stok_masuk || 0) - (item.stok_keluar || 0); }
+
+/* Status ditentukan otomatis dari sisa stok vs Stok Minimum, kecuali
+   item ditandai "nonaktif" secara manual (produk dihentikan). */
+function hitungStatusStok(item){
+  if(item.status === 'nonaktif') return 'nonaktif';
+  const sisa = sisaStok(item);
+  if(sisa <= 0) return 'habis';
+  if((item.stok_minimum || 0) > 0 && sisa <= item.stok_minimum) return 'menipis';
+  return 'tersedia';
+}
+function labelStatusStok(s){
+  return { tersedia:'Tersedia', menipis:'Stok Menipis', habis:'Stok Habis', nonaktif:'Nonaktif' }[s] || s;
+}
+function namaGudang(id){
+  const g = DATA.gudang.find(x => x.id === id);
+  return g ? g.nama : '—';
+}
+
+function isiDropdownGudang(){
+  // Dropdown gudang di form Tambah/Edit Item
+  const selForm = document.getElementById('input-gudang-item-stok');
+  if(selForm){
+    const nilaiSaatIni = selForm.value;
+    selForm.innerHTML = '<option value="" disabled>Pilih gudang...</option>' +
+      DATA.gudang.map(g => `<option value="${g.id}">${g.nama}</option>`).join('');
+    if(nilaiSaatIni) selForm.value = nilaiSaatIni;
+  }
+  // Filter gudang di toolbar menu Stock & Gudang
+  const selFilter = document.getElementById('filter-lokasi-gudang');
+  if(selFilter){
+    const nilaiSaatIni = selFilter.value || 'semua';
+    selFilter.innerHTML = '<option value="semua">Semua Gudang</option>' +
+      DATA.gudang.map(g => `<option value="${g.id}">${g.nama}</option>`).join('');
+    selFilter.value = nilaiSaatIni;
+  }
+}
+function isiDropdownKategoriGudang(){
+  const sel = document.getElementById('filter-kategori-gudang');
+  if(!sel) return;
+  const nilaiSaatIni = sel.value || 'semua';
+  const kategoriUnik = [...new Set(DATA.stokItem.map(i => i.kategori || 'Umum'))].sort();
+  sel.innerHTML = '<option value="semua">Semua Kategori</option>' +
+    kategoriUnik.map(k => `<option value="${k}">${k}</option>`).join('');
+  sel.value = nilaiSaatIni;
+}
+
+function renderStatGudang(){
+  const wrap = document.getElementById('stat-gudang');
+  const items = DATA.stokItem;
+  const jumlahMenipis = items.filter(i => hitungStatusStok(i) === 'menipis').length;
+  const jumlahHabis = items.filter(i => hitungStatusStok(i) === 'habis').length;
+
+  const badge = document.getElementById('badge-gudang');
+  if(badge){
+    const totalPeringatan = jumlahMenipis + jumlahHabis;
+    if(totalPeringatan > 0){ badge.textContent = totalPeringatan; badge.style.display = ''; }
+    else { badge.style.display = 'none'; }
+  }
+  if(!wrap) return;
+  wrap.innerHTML = `
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Total Item (SKU x Gudang)</span>
+      <span class="stat-mini-value">${items.length}</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Jumlah Gudang</span>
+      <span class="stat-mini-value">${DATA.gudang.length}</span>
+    </div>
+    <div class="stat-mini-card ${jumlahMenipis ? 'warn' : 'ok'}">
+      <span class="stat-mini-label">Stok Menipis</span>
+      <span class="stat-mini-value">${jumlahMenipis}</span>
+    </div>
+    <div class="stat-mini-card ${jumlahHabis ? 'danger' : 'ok'}">
+      <span class="stat-mini-label">Stok Habis</span>
+      <span class="stat-mini-value">${jumlahHabis}</span>
+    </div>`;
+}
+
+function renderGudang(){
+  isiDropdownGudang();
+  isiDropdownKategoriGudang();
+  renderStatGudang();
+  const tbody = document.getElementById('tbody-gudang');
+  if(!tbody) return;
+  const isAdmin = CURRENT_USER && CURRENT_USER.peran === 'admin';
+  const q = (document.getElementById('cari-gudang').value || '').toLowerCase();
+  const filterGudang = document.getElementById('filter-lokasi-gudang').value;
+  const filterKategori = document.getElementById('filter-kategori-gudang').value;
+  const filterStatus = document.getElementById('filter-status-gudang').value;
+
+  const data = DATA.stokItem.filter(i => {
+    const cocokCari = i.sku.toLowerCase().includes(q) || i.nama_produk.toLowerCase().includes(q) || (i.variant || '').toLowerCase().includes(q);
+    const cocokGudang = filterGudang === 'semua' || i.gudang_id === filterGudang;
+    const cocokKategori = filterKategori === 'semua' || (i.kategori || 'Umum') === filterKategori;
+    const cocokStatus = filterStatus === 'semua' || hitungStatusStok(i) === filterStatus;
+    return cocokCari && cocokGudang && cocokKategori && cocokStatus;
+  });
+
+  if(!data.length){
+    tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><p>Tidak ada item stok yang cocok.</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map(i => {
+    const status = hitungStatusStok(i);
+    return `
+    <tr>
+      <td class="cell-muted">${i.sku}</td>
+      <td class="cell-name">${i.nama_produk}</td>
+      <td>${i.variant || '—'}</td>
+      <td>${i.kategori || 'Umum'}</td>
+      <td>${namaGudang(i.gudang_id)}</td>
+      <td>${(i.stok_masuk || 0).toLocaleString('id-ID')}</td>
+      <td>${(i.stok_keluar || 0).toLocaleString('id-ID')}</td>
+      <td><b>${sisaStok(i).toLocaleString('id-ID')}</b></td>
+      <td class="cell-muted">${i.diupdate_pada ? waktuRelatif(i.diupdate_pada) : '—'}</td>
+      <td class="cell-muted">${i.diupdate_oleh_nama || '—'}</td>
+      <td><span class="stok-status stok-status--${status}">${labelStatusStok(status)}</span></td>
+      <td class="cell-actions">
+        <div class="icon-btn btn-tambah-stok" title="Tambah Stok" onclick="bukaModalTambahStok('${i.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+        </div>
+        <div class="icon-btn" title="Edit" onclick="editItemStok('${i.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </div>
+        ${isAdmin ? `<div class="icon-btn" title="Hapus" onclick="hapusItemStok('${i.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
+        </div>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function bukaModalTambahItemStok(){
+  if(!DATA.gudang.length){
+    tampilkanToast('Tambah gudang terlebih dahulu lewat "Kelola Gudang"', true);
+    return;
+  }
+  document.getElementById('form-item-stok').reset();
+  document.getElementById('input-id-item-stok').value = '';
+  document.getElementById('input-status-item-stok').value = 'aktif';
+  document.getElementById('wrap-stok-awal-item-stok').style.display = '';
+  document.getElementById('input-stok-awal-item-stok').disabled = false;
+  document.getElementById('catatan-modal-item-stok').innerHTML = 'Stok Minimum dipakai sistem untuk otomatis menandai status "Stok Menipis". Setelah item dibuat, ubah jumlah stok lewat tombol <b>Tambah Stok</b> di tabel agar riwayat pergerakan stok tetap tercatat.';
+  document.getElementById('judul-modal-item-stok').textContent = 'Tambah Item Stok';
+  document.getElementById('btn-simpan-item-stok').textContent = 'Simpan Item';
+  isiDropdownGudang();
+  bukaModal('modal-item-stok');
+}
+
+function editItemStok(id){
+  const i = DATA.stokItem.find(x => x.id === id);
+  if(!i) return;
+  isiDropdownGudang();
+  document.getElementById('input-id-item-stok').value = i.id;
+  document.getElementById('input-gudang-item-stok').value = i.gudang_id;
+  document.getElementById('input-sku-item-stok').value = i.sku || '';
+  document.getElementById('input-kategori-item-stok').value = i.kategori || '';
+  document.getElementById('input-nama-item-stok').value = i.nama_produk || '';
+  document.getElementById('input-variant-item-stok').value = i.variant || '';
+  document.getElementById('input-stok-minimum-item-stok').value = i.stok_minimum || 0;
+  document.getElementById('input-status-item-stok').value = i.status || 'aktif';
+  // Stok Masuk/Keluar hanya bisa diubah lewat "Tambah Stok" (menjaga riwayat tetap akurat)
+  document.getElementById('wrap-stok-awal-item-stok').style.display = 'none';
+  document.getElementById('catatan-modal-item-stok').innerHTML = `Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')}</b>. Gunakan tombol <b>Tambah Stok</b> di tabel untuk mencatat stok masuk/keluar baru — bukan lewat form ini.`;
+  document.getElementById('judul-modal-item-stok').textContent = 'Edit Item Stok';
+  document.getElementById('btn-simpan-item-stok').textContent = 'Simpan Perubahan';
+  bukaModal('modal-item-stok');
+}
+
+async function simpanItemStok(e){
+  e.preventDefault();
+  const id = document.getElementById('input-id-item-stok').value;
+  const gudang_id = document.getElementById('input-gudang-item-stok').value;
+  const sku = document.getElementById('input-sku-item-stok').value.trim();
+  const nama_produk = document.getElementById('input-nama-item-stok').value.trim();
+  const variant = document.getElementById('input-variant-item-stok').value.trim() || null;
+  const kategori = document.getElementById('input-kategori-item-stok').value.trim() || 'Umum';
+  const stok_minimum = Number(document.getElementById('input-stok-minimum-item-stok').value) || 0;
+  const status = document.getElementById('input-status-item-stok').value;
+  if(!gudang_id || !sku || !nama_produk) return;
+
+  const diupdate_oleh_id = CURRENT_USER ? CURRENT_USER.id : null;
+  const diupdate_oleh_nama = CURRENT_USER ? CURRENT_USER.nama : null;
+
+  if(id){
+    // --- mode edit: hanya metadata, jumlah stok tidak diubah dari sini ---
+    const baris = { gudang_id, sku, nama_produk, variant, kategori, stok_minimum, status, diupdate_oleh_id, diupdate_oleh_nama, diupdate_pada: new Date().toISOString() };
+    const { data, error } = await supabaseClient.from('stok_item').update(baris).eq('id', id).select().single();
+    if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'SKU pada gudang ini') || 'Gagal menyimpan perubahan item', true); return; }
+    const idx = DATA.stokItem.findIndex(x => x.id === id);
+    if(idx > -1) DATA.stokItem[idx] = data;
+    renderGudang();
+    await catatAktivitas('gudang', `Item stok <b>${nama_produk}</b> (${sku}) diperbarui`);
+    tutupModal('modal-item-stok');
+    tampilkanToast('Perubahan item stok disimpan');
+  } else {
+    // --- mode tambah ---
+    const stokAwal = Number(document.getElementById('input-stok-awal-item-stok').value) || 0;
+    const baris = { gudang_id, sku, nama_produk, variant, kategori, stok_minimum, status, stok_masuk: stokAwal, stok_keluar: 0, diupdate_oleh_id, diupdate_oleh_nama };
+    const { data, error } = await supabaseClient.from('stok_item').insert(baris).select().single();
+    if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'SKU pada gudang ini') || 'Gagal menambah item stok', true); return; }
+    DATA.stokItem.unshift(data);
+    if(stokAwal > 0){
+      await supabaseClient.from('riwayat_stok').insert({ item_id: data.id, tipe: 'masuk', jumlah: stokAwal, catatan: 'Stok awal saat item dibuat', dibuat_oleh_id: diupdate_oleh_id, dibuat_oleh_nama: diupdate_oleh_nama });
+    }
+    renderGudang();
+    await catatAktivitas('gudang', `Item stok baru <b>${nama_produk}</b> (${sku}) ditambahkan di ${namaGudang(gudang_id)}`);
+    tutupModal('modal-item-stok');
+    tampilkanToast('Item stok baru ditambahkan');
+  }
+  e.target.reset();
+  document.getElementById('input-id-item-stok').value = '';
+}
+
+async function hapusItemStok(id){
+  const i = DATA.stokItem.find(x => x.id === id);
+  const { error } = await supabaseClient.from('stok_item').delete().eq('id', id);
+  if(error){ console.error(error); tampilkanToast('Gagal menghapus item stok', true); return; }
+  DATA.stokItem = DATA.stokItem.filter(x => x.id !== id);
+  renderGudang();
+  if(i) await catatAktivitas('gudang', `Item stok <b>${i.nama_produk}</b> (${i.sku}) dihapus`);
+  tampilkanToast('Item stok dihapus');
+}
+
+function bukaModalTambahStok(id){
+  const i = DATA.stokItem.find(x => x.id === id);
+  if(!i) return;
+  document.getElementById('form-tambah-stok').reset();
+  document.getElementById('input-id-item-tambah-stok').value = id;
+  document.getElementById('input-tipe-tambah-stok').value = 'masuk';
+  document.getElementById('info-item-tambah-stok').innerHTML = `<b>${i.nama_produk}</b> (${i.sku}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')}</b>`;
+  bukaModal('modal-tambah-stok');
+}
+
+async function simpanTambahStok(e){
+  e.preventDefault();
+  const id = document.getElementById('input-id-item-tambah-stok').value;
+  const i = DATA.stokItem.find(x => x.id === id);
+  if(!i) return;
+  const tipe = document.getElementById('input-tipe-tambah-stok').value;
+  const jumlah = Number(document.getElementById('input-jumlah-tambah-stok').value);
+  const catatan = document.getElementById('input-catatan-tambah-stok').value.trim() || null;
+  if(!jumlah || jumlah <= 0) return;
+  if(tipe === 'keluar' && jumlah > sisaStok(i)){
+    tampilkanToast('Jumlah stok keluar melebihi sisa stok yang tersedia', true);
+    return;
+  }
+
+  const diupdate_oleh_id = CURRENT_USER ? CURRENT_USER.id : null;
+  const diupdate_oleh_nama = CURRENT_USER ? CURRENT_USER.nama : null;
+  const baris = tipe === 'masuk'
+    ? { stok_masuk: (i.stok_masuk || 0) + jumlah, diupdate_oleh_id, diupdate_oleh_nama, diupdate_pada: new Date().toISOString() }
+    : { stok_keluar: (i.stok_keluar || 0) + jumlah, diupdate_oleh_id, diupdate_oleh_nama, diupdate_pada: new Date().toISOString() };
+
+  const { data, error } = await supabaseClient.from('stok_item').update(baris).eq('id', id).select().single();
+  if(error){ console.error(error); tampilkanToast('Gagal mencatat pergerakan stok', true); return; }
+
+  await supabaseClient.from('riwayat_stok').insert({ item_id: id, tipe, jumlah, catatan, dibuat_oleh_id: diupdate_oleh_id, dibuat_oleh_nama: diupdate_oleh_nama });
+
+  const idx = DATA.stokItem.findIndex(x => x.id === id);
+  if(idx > -1) DATA.stokItem[idx] = data;
+  renderGudang();
+  await catatAktivitas('gudang', `Stok ${tipe === 'masuk' ? 'masuk' : 'keluar'} <b>${jumlah.toLocaleString('id-ID')}</b> dicatat untuk <b>${i.nama_produk}</b> (${i.sku})`);
+  tutupModal('modal-tambah-stok');
+  tampilkanToast('Pergerakan stok dicatat');
+  e.target.reset();
+}
+
+/* ---- Kelola Gudang (daftar lokasi/cabang) ---- */
+function bukaModalKelolaGudang(){
+  renderListGudangKelola();
+  document.getElementById('form-gudang').reset();
+  bukaModal('modal-gudang');
+}
+function renderListGudangKelola(){
+  const wrap = document.getElementById('list-gudang-kelola');
+  const isAdmin = CURRENT_USER && CURRENT_USER.peran === 'admin';
+  if(!DATA.gudang.length){
+    wrap.innerHTML = `<div class="empty-state"><p>Belum ada gudang. Tambahkan lewat form di bawah.</p></div>`;
+    return;
+  }
+  wrap.innerHTML = DATA.gudang.map(g => {
+    const jumlahItem = DATA.stokItem.filter(i => i.gudang_id === g.id).length;
+    return `
+    <div class="gudang-row">
+      <div>
+        <div class="gudang-row-name">${g.nama}</div>
+        <div class="gudang-row-loc">${g.lokasi || 'Lokasi belum diisi'} · ${jumlahItem} item stok</div>
+      </div>
+      ${isAdmin ? `<div class="icon-btn" title="Hapus Gudang" onclick="hapusGudang('${g.id}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+async function tambahGudang(e){
+  e.preventDefault();
+  const nama = document.getElementById('input-nama-gudang').value.trim();
+  const lokasi = document.getElementById('input-lokasi-gudang').value.trim() || null;
+  if(!nama) return;
+  const { data, error } = await supabaseClient.from('gudang').insert({ nama, lokasi }).select().single();
+  if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'Nama gudang') || 'Gagal menambah gudang', true); return; }
+  DATA.gudang.push(data);
+  renderListGudangKelola();
+  isiDropdownGudang();
+  renderGudang();
+  await catatAktivitas('gudang', `Gudang baru <b>${nama}</b> ditambahkan`);
+  tampilkanToast('Gudang baru ditambahkan');
+  e.target.reset();
+}
+async function hapusGudang(id){
+  const g = DATA.gudang.find(x => x.id === id);
+  if(DATA.stokItem.some(i => i.gudang_id === id)){
+    tampilkanToast('Gudang ini masih memiliki item stok. Hapus atau pindahkan item terlebih dahulu.', true);
+    return;
+  }
+  const { error } = await supabaseClient.from('gudang').delete().eq('id', id);
+  if(error){ console.error(error); tampilkanToast('Gagal menghapus gudang', true); return; }
+  DATA.gudang = DATA.gudang.filter(x => x.id !== id);
+  renderListGudangKelola();
+  isiDropdownGudang();
+  renderGudang();
+  if(g) await catatAktivitas('gudang', `Gudang <b>${g.nama}</b> dihapus`);
+  tampilkanToast('Gudang dihapus');
+}
+
+function unduhStokCSV(){
+  unduhCSV('stock-gudang-dealstack.csv',
+    ['SKU','Nama Produk','Variant','Kategori','Gudang','Stok Masuk','Stok Keluar','Sisa Stok','Update Terakhir','Diupdate Oleh','Status'],
+    DATA.stokItem.map(i => [i.sku, i.nama_produk, i.variant || '', i.kategori || 'Umum', namaGudang(i.gudang_id), i.stok_masuk || 0, i.stok_keluar || 0, sisaStok(i), i.diupdate_pada || '', i.diupdate_oleh_nama || '', labelStatusStok(hitungStatusStok(i))]));
+  tampilkanToast('Data stok diunduh');
 }
 
 /* ---------------------------------------------------------
@@ -1413,6 +1777,21 @@ function initRealtime(){
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pengaturan_perusahaan' }, (payload) => {
       DATA.perusahaan = payload.new;
       terapkanBrandingPerusahaan();
+    })
+    .subscribe();
+
+  supabaseClient.channel('dealstack-stok-item')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'stok_item' }, (payload) => {
+      if(payload.eventType === 'DELETE'){
+        DATA.stokItem = DATA.stokItem.filter(i => i.id !== payload.old.id);
+      } else {
+        upsertKeArray(DATA.stokItem, payload.new);
+        if(hitungStatusStok(payload.new) === 'habis'){
+          kirimNotifikasiBrowser('Stok habis', `${payload.new.nama_produk} (${payload.new.sku}) di ${namaGudang(payload.new.gudang_id)}`);
+        }
+      }
+      renderGudang();
+      renderNotifikasi();
     })
     .subscribe();
 }
@@ -1879,6 +2258,14 @@ function initEventListener(){
 
   document.getElementById('cari-aktivitas').addEventListener('input', renderAktivitas);
   document.getElementById('filter-tipe-aktivitas').addEventListener('change', renderAktivitas);
+
+  document.getElementById('cari-gudang').addEventListener('input', renderGudang);
+  document.getElementById('filter-lokasi-gudang').addEventListener('change', renderGudang);
+  document.getElementById('filter-kategori-gudang').addEventListener('change', renderGudang);
+  document.getElementById('filter-status-gudang').addEventListener('change', renderGudang);
+  document.getElementById('form-item-stok').addEventListener('submit', simpanItemStok);
+  document.getElementById('form-tambah-stok').addEventListener('submit', simpanTambahStok);
+  document.getElementById('form-gudang').addEventListener('submit', tambahGudang);
 
   document.querySelectorAll('.range-tab').forEach(tab => {
     tab.addEventListener('click', () => ubahRentangChart(tab.dataset.range));

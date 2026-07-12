@@ -206,6 +206,39 @@ sendiri di sidebar sudah **dihapus**. Sebagai gantinya:
   tidak menghapus data proyek apa pun, hanya mengubah cara menampilkannya
   agar monitoring pelanggan ⇄ proyek lebih efisien dalam satu tempat.
 
+## 1j. Stock & Gudang — pengelolaan stok multi-gudang (v10)
+
+Jalankan blok **`TAMBAHAN v10`** di akhir `schema.sql` untuk mengaktifkan
+menu **Stock & Gudang** (kelompok sidebar **Penjualan & Operasional**):
+
+`SKU · Nama Produk · Variant · Kategori · Gudang · Stok Masuk ·
+Stok Keluar · Sisa Stok · Update Terakhir · Diupdate Oleh · Status ·
+Aksi (Tambah Stok/Edit/Hapus)`
+
+- **Desain multi-gudang** — satu SKU boleh punya baris stok terpisah di
+  tiap gudang (mis. "Kabel LAN Cat6" bisa berbeda jumlah stoknya di
+  Gudang Surabaya vs Gudang Jakarta). Gunakan tombol **Kelola Gudang**
+  untuk menambah/menghapus lokasi gudang.
+- **Stok Masuk & Stok Keluar bersifat akumulatif dan tidak diedit
+  langsung** — keduanya hanya bisa bertambah lewat tombol **Tambah
+  Stok** di setiap baris (pilih Masuk/Keluar + jumlah + catatan
+  opsional). Ini menjaga angka Sisa Stok selalu konsisten dan setiap
+  pergerakan tercatat sebagai riwayat (tabel `riwayat_stok`), bukan
+  angka yang bisa ditimpa sembarangan.
+- **Status otomatis** — dihitung sistem dari Sisa Stok dibanding "Stok
+  Minimum" yang diisi saat menambah/edit item: **Tersedia**, **Stok
+  Menipis**, atau **Stok Habis**. Admin juga bisa menandai item
+  **Nonaktif** (produk dihentikan) lewat form Edit.
+- **Notifikasi otomatis** — item yang stoknya menipis/habis muncul di
+  ikon lonceng topbar dan badge merah di menu sidebar, serta memicu
+  Notifikasi Desktop (jika diaktifkan) saat stok baru saja habis.
+- Kartu ringkasan di atas tabel menampilkan total item, jumlah gudang,
+  serta jumlah item menipis/habis. Toolbar mendukung pencarian,
+  filter per gudang/kategori/status, dan unduh CSV.
+- Menghapus item atau gudang memakai tombol **Hapus** (khusus Admin
+  sesuai kebijakan RLS) — gudang yang masih memiliki item stok tidak
+  bisa dihapus sampai item di dalamnya dipindahkan/dihapus dulu.
+
 ## Perbaikan Tata Letak (Audit UI/UX)
 
 Tidak perlu migrasi database untuk perubahan ini — murni perbaikan
@@ -269,6 +302,9 @@ Setiap kali Anda `git push` ke branch `main`, Vercel otomatis men-deploy ulang.
   dan 1i.
 - **Pesan** — papan catatan/pengumuman internal tim (memerlukan migrasi
   tabel `catatan_tim`, lihat langkah 1b di bawah).
+- **Stock & Gudang** — kartu stok per SKU di setiap gudang (Sisa Stok,
+  status Tersedia/Menipis/Habis otomatis, riwayat pergerakan stok
+  masuk/keluar), lihat langkah 1j.
 - **Kalender** — tenggat proyek & tugas otomatis ditampilkan per bulan,
   lengkap dengan agenda harian.
 - **Analitik** — corong penjualan berdasarkan nilai & jumlah proyek per tahap.
