@@ -59,6 +59,7 @@ function simpanPengaturan(){
   PENGATURAN.notifAktif = document.getElementById('setting-notif-aktif').checked;
   localStorage.setItem('dealstack_pengaturan', JSON.stringify(PENGATURAN));
   renderKPI(); renderPelanggan(); segarkanDetailPelangganJikaAktif(); renderLaporan();
+  renderRingkasanTabelPelanggan(); renderRingkasanTabelProyek();
   renderNotifikasi();
   tampilkanToast('Pengaturan disimpan');
 }
@@ -192,8 +193,7 @@ async function masukKeAplikasi(session){
   initEventListener();
   await muatSemuaData();
   await muatBrandingPerusahaan();
-  renderKPI();
-  renderTagRingkasan();
+  renderRingkasan(); // BUGFIX: dulu daftar manual (KPI, donut, tim, tabel, tag) — sekarang satu fungsi refresh total, sama seperti dipakai di tempat lain
   renderPelanggan();
   isiDropdownPelangganProyek();
   renderFunnel();
@@ -201,7 +201,6 @@ async function masukKeAplikasi(session){
   renderTugas();
   renderPesan();
   renderNotifikasi();
-  renderChart();
   renderStatGudang();
   if(CURRENT_USER.peran === 'admin'){ renderPengawasanTim(); renderPenggunaAdmin(); }
   initRealtime();
@@ -243,6 +242,79 @@ function formatTanggal(iso){
   const d = new Date(iso);
   return d.getDate() + ' ' + bln[d.getMonth()] + ' ' + d.getFullYear();
 }
+
+/* ---------------------------------------------------------
+   1a. FILTER "PERIODE DATA" — dipakai di berbagai halaman
+   (Pelanggan, Proyek Pelanggan, Aktivitas, Laporan, dst).
+   Setiap halaman memasang:
+     <select id="filter-periode-{prefix}">  → semua|harian|bulanan|semester|tahunan|custom
+     <div id="wrap-periode-custom-{prefix}"> → 2 input tanggal, hanya tampil saat mode custom
+       <input id="periode-dari-{prefix}"> <input id="periode-sampai-{prefix}">
+   Lalu di fungsi render halaman tsb panggil dapatkanRentangPeriode('{prefix}')
+   dan saring data dengan tanggalDalamRentang(field_tanggal, awal, akhir).
+--------------------------------------------------------- */
+function hitungRentangPeriode(mode, customDari, customSampai){
+  const now = new Date();
+  const awalHariIni = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  switch(mode){
+    case 'harian':
+      return { awal: awalHariIni, akhir: new Date(awalHariIni.getTime() + 86400000 - 1) };
+    case 'bulanan':
+      return {
+        awal: new Date(now.getFullYear(), now.getMonth(), 1),
+        akhir: new Date(new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime() - 1)
+      };
+    case 'semester': {
+      const semesterKe = now.getMonth() < 6 ? 0 : 1; // 0 = Jan-Jun, 1 = Jul-Des
+      return {
+        awal: new Date(now.getFullYear(), semesterKe * 6, 1),
+        akhir: new Date(new Date(now.getFullYear(), semesterKe * 6 + 6, 1).getTime() - 1)
+      };
+    }
+    case 'tahunan':
+      return {
+        awal: new Date(now.getFullYear(), 0, 1),
+        akhir: new Date(new Date(now.getFullYear() + 1, 0, 1).getTime() - 1)
+      };
+    case 'custom':
+      return {
+        awal: customDari ? new Date(customDari + 'T00:00:00') : null,
+        akhir: customSampai ? new Date(customSampai + 'T23:59:59') : null
+      };
+    default: // 'semua' → tanpa batas
+      return { awal: null, akhir: null };
+  }
+}
+
+/* Membaca nilai select + input custom sebuah halaman (via id prefix)
+   dan mengembalikan { awal, akhir } siap pakai untuk penyaringan. */
+function dapatkanRentangPeriode(prefix){
+  const select = document.getElementById(`filter-periode-${prefix}`);
+  const mode = select ? select.value : 'semua';
+  const dari = document.getElementById(`periode-dari-${prefix}`)?.value || '';
+  const sampai = document.getElementById(`periode-sampai-${prefix}`)?.value || '';
+  return hitungRentangPeriode(mode, dari, sampai);
+}
+
+/* Tampil/sembunyikan sepasang input tanggal custom saat dropdown diganti ke "custom" */
+function toggleInputPeriodeCustom(prefix){
+  const mode = document.getElementById(`filter-periode-${prefix}`)?.value;
+  const wrap = document.getElementById(`wrap-periode-custom-${prefix}`);
+  if(wrap) wrap.classList.toggle('hidden', mode !== 'custom');
+}
+
+/* Cek apakah sebuah tanggal (string/ISO) berada dalam rentang { awal, akhir }.
+   awal & akhir bernilai null berarti tanpa batas (mis. mode "Semua Waktu"). */
+function tanggalDalamRentang(tanggalStr, awal, akhir){
+  if(!awal && !akhir) return true;
+  if(!tanggalStr) return false;
+  const t = new Date(tanggalStr);
+  if(isNaN(t.getTime())) return false;
+  if(awal && t < awal) return false;
+  if(akhir && t > akhir) return false;
+  return true;
+}
+
 function labelStatusProyek(s){
   return { berjalan:'Berjalan', selesai:'Selesai', tertunda:'Tertunda', dibatalkan:'Dibatalkan' }[s] || s;
 }
@@ -482,7 +554,14 @@ function pindahTampilan(namaView){
     el.classList.toggle('active', el.dataset.view === namaViewNav);
   });
   tutupSidebarMobile();
-  if(namaView === 'ringkasan'){ renderChart(); renderTagRingkasan(); }
+  // BUGFIX (sinkronisasi dashboard): sebelumnya hanya renderChart() &
+  // renderTagRingkasan() yang dipanggil di sini, sehingga kartu KPI, donut
+  // status proyek, baris tim, dan tabel Top Pelanggan/Proyek TIDAK ikut
+  // di-refresh saat berpindah ke halaman Ringkasan — nilainya baru berubah
+  // kalau fungsi yang menghapus/mengubah data kebetulan memanggil render
+  // yang tepat. Sekarang dipanggil satu fungsi refresh total agar dashboard
+  // selalu menampilkan data terbaru dari DATA, apa pun yang terjadi sebelumnya.
+  if(namaView === 'ringkasan'){ renderRingkasan(); }
   if(namaView === 'pelanggan-detail') renderDetailPelanggan();
   if(namaView === 'kalender') renderKalender();
   if(namaView === 'gudang') renderGudang();
@@ -516,6 +595,32 @@ function renderKPI(){
   document.getElementById('kpi-jumlah-proyek').textContent = jumlahProyek;
 }
 
+/* BUGFIX (sinkronisasi dashboard): sebelumnya setiap fungsi yang mengubah
+   data (hapus/tambah/edit proyek, pelanggan, stok, dst.) harus SECARA MANUAL
+   memanggil satu-satu fungsi render dashboard yang relevan (renderKPI,
+   renderRingkasanDonut, renderDashTeamRow, renderRingkasanTabelPelanggan,
+   renderRingkasanTabelProyek, renderTagRingkasan). Kalau satu saja lupa
+   dipanggil, atau perubahan data terjadi dari sumber lain (realtime dari
+   tab/perangkat lain, atau perubahan langsung di Supabase), Ringkasan/
+   Dashboard akan menampilkan angka yang basi walau data pelanggan/proyek/
+   stok yang mendasarinya sudah berubah.
+
+   renderRingkasan() di bawah ini adalah satu fungsi "refresh total" untuk
+   seluruh kartu & tabel di halaman Ringkasan, dipanggil setiap kali halaman
+   ini dibuka (lihat pindahTampilan) dan setiap kali ada perubahan data yang
+   relevan (lewat Realtime), sehingga dashboard dijamin selalu sinkron dengan
+   DATA terbaru tanpa bergantung pada setiap fungsi mengingat semua render
+   yang harus dipanggil. */
+function renderRingkasan(){
+  renderChart();
+  renderTagRingkasan();
+  renderKPI();
+  renderRingkasanDonut();
+  renderDashTeamRow();
+  renderRingkasanTabelPelanggan();
+  renderRingkasanTabelProyek();
+}
+
 function renderTagRingkasan(){
   const aktif = DATA.pelanggan.filter(p => p.status === 'aktif').length;
   const berjalan = DATA.proyek.filter(p => p.status === 'berjalan').length;
@@ -524,6 +629,117 @@ function renderTagRingkasan(){
   const hariIni = new Date();
   const bln = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
   document.getElementById('tag-tanggal-ringkasan').textContent = hariIni.getDate() + ' ' + bln[hariIni.getMonth()] + ' ' + hariIni.getFullYear();
+}
+
+/* ---------------------------------------------------------
+   4b. RENDER: KARTU BARU DASHBOARD RINGKASAN
+       (donut status proyek, baris anggota tim, tabel top pelanggan/proyek)
+--------------------------------------------------------- */
+function renderRingkasanDonut(){
+  const svg = document.getElementById('donut-svg');
+  const legend = document.getElementById('donut-legend');
+  const centerValue = document.getElementById('donut-center-value');
+  if(!svg || !legend) return;
+
+  const statuses = [
+    { key:'berjalan',   label:'Berjalan',   color:'var(--blue)' },
+    { key:'selesai',    label:'Selesai',    color:'var(--accent-bright)' },
+    { key:'tertunda',   label:'Tertunda',   color:'var(--yellow)' },
+    { key:'dibatalkan', label:'Dibatalkan', color:'var(--red)' },
+  ];
+  const total = DATA.proyek.length;
+  const counts = statuses.map(s => DATA.proyek.filter(p => p.status === s.key).length);
+  if(centerValue) centerValue.textContent = total;
+
+  const r = 80, cx = 100, cy = 100, strokeWidth = 22, circumference = 2 * Math.PI * r;
+  let markup = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" style="stroke:rgba(255,255,255,.06)" stroke-width="${strokeWidth}"></circle>`;
+  let akumulasi = 0;
+  if(total > 0){
+    statuses.forEach((s, i) => {
+      const jumlah = counts[i];
+      if(!jumlah) return;
+      const frac = jumlah / total;
+      const dash = frac * circumference;
+      const gap = circumference - dash;
+      const rotasi = (akumulasi / total) * 360 - 90;
+      akumulasi += jumlah;
+      markup += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" style="stroke:${s.color}" stroke-width="${strokeWidth}" stroke-dasharray="${dash} ${gap}" stroke-linecap="butt" transform="rotate(${rotasi} ${cx} ${cy})"></circle>`;
+    });
+  }
+  svg.innerHTML = markup;
+
+  legend.innerHTML = total === 0
+    ? `<div class="cell-muted">Belum ada data proyek.</div>`
+    : statuses.map((s, i) => {
+        const jumlah = counts[i];
+        const pct = total ? Math.round((jumlah / total) * 100) : 0;
+        return `<div class="donut-legend-row">
+          <span class="donut-legend-dot" style="background:${s.color}"></span>
+          <span class="donut-legend-name">${s.label}</span>
+          <span class="donut-legend-count">${jumlah}</span>
+          <span class="donut-legend-pct">${pct}%</span>
+        </div>`;
+      }).join('');
+}
+
+function renderDashTeamRow(){
+  const wrap = document.getElementById('dash-team-row');
+  if(!wrap) return;
+  if(!DATA.profil.length){
+    wrap.innerHTML = `<div class="empty-state"><p>Belum ada anggota tim terdaftar.</p></div>`;
+    return;
+  }
+  wrap.innerHTML = DATA.profil.map(p => {
+    const totalTugas = DATA.tugas.filter(t => t.ditugaskan_ke === p.id).length;
+    const peranLabel = p.jabatan ? esc(p.jabatan) : (p.peran === 'admin' ? 'Administrator' : 'Anggota Tim');
+    return `
+      <div class="dash-team-mini">
+        ${markupAvatar(p)}
+        <div style="min-width:0;">
+          <div class="dash-team-mini-name">${esc(p.nama)}</div>
+          <div class="dash-team-mini-role">${peranLabel}</div>
+          <div class="dash-team-mini-link" onclick="pindahTampilan('tugas')">${totalTugas}+ Tugas &rarr;</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderRingkasanTabelPelanggan(){
+  const tbody = document.getElementById('tbody-ringkasan-pelanggan');
+  if(!tbody) return;
+  if(!DATA.pelanggan.length){
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><p>Belum ada data pelanggan.</p></div></td></tr>`;
+    return;
+  }
+  const data = DATA.pelanggan
+    .map(p => ({ p, totalNilai: hitungTotalNilaiProyek(p.id, 'semua'), jumlahProyek: DATA.proyek.filter(pr => pr.pelanggan_id === p.id).length }))
+    .sort((a, b) => b.totalNilai - a.totalNilai)
+    .slice(0, 5);
+  tbody.innerHTML = data.map(({ p, totalNilai, jumlahProyek }) => `
+    <tr>
+      <td class="cell-name">${esc(p.nama)}</td>
+      <td>${esc(p.industri) || '—'}</td>
+      <td>${jumlahProyek}</td>
+      <td><span class="badge badge-${esc(p.status)}"><span class="dot"></span>${labelStatusPelanggan(p.status)}</span></td>
+      <td><b>${formatRupiah(totalNilai)}</b></td>
+    </tr>`).join('');
+}
+
+function renderRingkasanTabelProyek(){
+  const tbody = document.getElementById('tbody-ringkasan-proyek');
+  if(!tbody) return;
+  if(!DATA.proyek.length){
+    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><p>Belum ada data proyek.</p></div></td></tr>`;
+    return;
+  }
+  const data = [...DATA.proyek].sort((a, b) => (b.grand_total || b.nilai || 0) - (a.grand_total || a.nilai || 0)).slice(0, 5);
+  tbody.innerHTML = data.map(p => `
+    <tr>
+      <td class="cell-name">${esc(p.kode)}</td>
+      <td>${esc(p.pelanggan_nama)}</td>
+      <td><span class="badge badge-${esc(p.status)}"><span class="dot"></span>${labelStatusProyek(p.status)}</span></td>
+      <td><b>${formatRupiah(p.grand_total || p.nilai || 0)}</b></td>
+    </tr>`).join('');
 }
 
 function toggleFavoritRingkasan(){
@@ -571,9 +787,11 @@ function unduhRingkasanCSV(){
   tampilkanToast('Ringkasan diunduh');
 }
 function unduhLaporanCSV(){
+  const { awal, akhir } = dapatkanRentangPeriode('laporan');
+  const data = DATA.proyek.filter(p => tanggalDalamRentang(p.tanggal, awal, akhir));
   unduhCSV('laporan-proyek-dealstack.csv',
     ['Kode','Nama Proyek','Pelanggan','Status','Progres (%)','Nilai (Rp)','Tenggat'],
-    DATA.proyek.map(p => [p.kode, p.nama, p.pelanggan_nama, labelStatusProyek(p.status), p.progres, p.nilai, p.tenggat || '']));
+    data.map(p => [p.kode, p.nama, p.pelanggan_nama, labelStatusProyek(p.status), p.progres, p.nilai, p.tenggat || '']));
   tampilkanToast('Laporan diunduh');
 }
 
@@ -586,22 +804,46 @@ function hitungTotalNilaiProyek(pelangganId, filterStatus){
     .reduce((total, pr) => total + (pr.nilai || 0), 0);
 }
 
+/* Rekap 8 metrik proyek per pelanggan untuk kolom-kolom di tabel Pelanggan.
+   Disengaja dihitung dari field yang SAMA dengan yang dipakai di tabel
+   "Proyek Pelanggan Ini" (sub_total, grand_total, tax_persen, dana_lainnya)
+   supaya kedua halaman selalu sinkron — cukup ubah satu proyek dan kedua
+   tabel otomatis ikut berubah karena sama-sama membaca dari DATA.proyek.
+   awal/akhir (opsional) menyaring proyek berdasarkan Tanggal PO sesuai
+   filter "Periode Data" yang dipilih di halaman ini. */
+function hitungAgregatProyekPelanggan(pelangganId, awal, akhir){
+  const agregat = { berjalan:0, tertunda:0, selesai:0, dibatalkan:0, totalSubTotal:0, totalTax:0, totalDanaLainnya:0, grandTotal:0 };
+  DATA.proyek
+    .filter(pr => pr.pelanggan_id === pelangganId && tanggalDalamRentang(pr.tanggal, awal, akhir))
+    .forEach(pr => {
+      const nilaiProyek = pr.grand_total || pr.nilai || 0;
+      if(agregat[pr.status] !== undefined) agregat[pr.status] += nilaiProyek;
+      agregat.totalSubTotal += (pr.sub_total || 0);
+      agregat.totalTax += hitungPajakNominal(pr.sub_total, pr.tax_persen);
+      agregat.totalDanaLainnya += (pr.dana_lainnya || 0);
+      agregat.grandTotal += nilaiProyek;
+    });
+  return agregat;
+}
+
 function renderPelanggan(){
   const tbody = document.getElementById('tbody-pelanggan');
   const q = (document.getElementById('cari-pelanggan').value || '').toLowerCase();
-  const filterNilaiProyek = document.getElementById('filter-nilai-proyek-pelanggan').value;
+  const { awal, akhir } = dapatkanRentangPeriode('pelanggan');
 
   const data = DATA.pelanggan.filter(p => {
     return p.nama.toLowerCase().includes(q) || (p.industri || '').toLowerCase().includes(q);
   });
 
   if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="16"><div class="empty-state">
       <p>Tidak ada pelanggan yang cocok dengan pencarian.</p></div></td></tr>`;
     return;
   }
 
-  tbody.innerHTML = data.map(p => `
+  tbody.innerHTML = data.map(p => {
+    const a = hitungAgregatProyekPelanggan(p.id, awal, akhir);
+    return `
     <tr>
       <td class="cell-muted">${esc(p.kode)}</td>
       <td class="cell-name"><span class="cell-link" title="Lihat proyek pelanggan ini" onclick="bukaDetailPelanggan('${p.id}')">${esc(p.nama)}</span></td>
@@ -610,8 +852,18 @@ function renderPelanggan(){
       <td>${esc(p.no_telepon) || '—'}</td>
       <td>${esc(p.no_whatsapp) || '—'}</td>
       <td>${esc(p.nama_pic) || '—'}</td>
-      <td>${formatRupiah(hitungTotalNilaiProyek(p.id, filterNilaiProyek))}</td>
+      <td>${formatRupiah(a.berjalan)}</td>
+      <td>${formatRupiah(a.tertunda)}</td>
+      <td>${formatRupiah(a.selesai)}</td>
+      <td>${formatRupiah(a.dibatalkan)}</td>
+      <td>${formatRupiah(a.totalSubTotal)}</td>
+      <td>${formatRupiah(a.totalTax)}</td>
+      <td>${formatRupiah(a.totalDanaLainnya)}</td>
+      <td><b>${formatRupiah(a.grandTotal)}</b></td>
       <td class="cell-actions">
+        <div class="icon-btn" title="Tambah Proyek untuk Pelanggan Ini" onclick="bukaModalTambahProyekUntukPelanggan('${p.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+        </div>
         <div class="icon-btn" title="Edit" onclick="editPelanggan('${p.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         </div>
@@ -620,7 +872,8 @@ function renderPelanggan(){
         </div>
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 }
 
 async function hapusPelanggan(id){
@@ -630,6 +883,7 @@ async function hapusPelanggan(id){
   DATA.pelanggan = DATA.pelanggan.filter(x => x.id !== id);
   renderPelanggan();
   isiDropdownPelangganProyek();
+  renderRingkasan(); // BUGFIX: dulu hanya renderRingkasanTabelPelanggan() yang dipanggil, tag "X Pelanggan Aktif" & tabel lain di dashboard tidak ikut ter-refresh
   if(p) await catatAktivitas('pelanggan', `Pelanggan <b>${esc(p.nama)}</b> dihapus`);
   tampilkanToast('Pelanggan dihapus');
 }
@@ -686,6 +940,7 @@ async function simpanPelanggan(e){
     if(idx > -1) DATA.pelanggan[idx] = data;
     renderPelanggan();
     isiDropdownPelangganProyek();
+    renderRingkasanTabelPelanggan();
     await catatAktivitas('pelanggan', `Data pelanggan <b>${nama}</b> diperbarui`);
     tutupModal('modal-pelanggan');
     tampilkanToast('Perubahan pelanggan disimpan');
@@ -702,6 +957,7 @@ async function simpanPelanggan(e){
     DATA.pelanggan.unshift(data);
     renderPelanggan();
     isiDropdownPelangganProyek();
+    renderRingkasanTabelPelanggan();
     await catatAktivitas('pelanggan', `Pelanggan baru <b>${nama}</b> ditambahkan ke sistem`);
     tutupModal('modal-pelanggan');
     tampilkanToast('Pelanggan baru ditambahkan');
@@ -736,8 +992,11 @@ function bukaDetailPelanggan(id){
   PELANGGAN_AKTIF_ID = id;
   const cari = document.getElementById('cari-proyek-detail');
   const filter = document.getElementById('filter-status-proyek-detail');
+  const filterPeriode = document.getElementById('filter-periode-proyek-detail');
   if(cari) cari.value = '';
   if(filter) filter.value = 'semua';
+  if(filterPeriode) filterPeriode.value = 'semua';
+  toggleInputPeriodeCustom('proyek-detail');
   pindahTampilan('pelanggan-detail');
 }
 
@@ -776,16 +1035,18 @@ function renderProyekDetail(){
   if(!tbody || !PELANGGAN_AKTIF_ID) return;
   const q = (document.getElementById('cari-proyek-detail').value || '').toLowerCase();
   const filterStatus = document.getElementById('filter-status-proyek-detail').value;
+  const { awal, akhir } = dapatkanRentangPeriode('proyek-detail');
 
   const data = DATA.proyek.filter(p => {
     if(p.pelanggan_id !== PELANGGAN_AKTIF_ID) return false;
     const cocokCari = p.nama.toLowerCase().includes(q) || (p.kode||'').toLowerCase().includes(q);
     const cocokStatus = filterStatus === 'semua' || p.status === filterStatus;
-    return cocokCari && cocokStatus;
+    const cocokPeriode = tanggalDalamRentang(p.tanggal, awal, akhir);
+    return cocokCari && cocokStatus && cocokPeriode;
   });
 
   if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="15"><div class="empty-state">
       <p>Belum ada proyek untuk pelanggan ini.</p></div></td></tr>`;
     return;
   }
@@ -794,9 +1055,12 @@ function renderProyekDetail(){
     const persenBudget = hitungPersenBudget(p.budget_terpakai, p.total_budget);
     return `
     <tr>
-      <td class="cell-name">${esc(p.kode)}<div class="cell-muted">${esc(p.nama)}</div></td>
+      <td class="cell-name">${esc(p.kode)}</td>
+      <td class="cell-muted">${esc(p.nama)}</td>
+      <td><span class="badge badge-${esc(p.status)}"><span class="dot"></span>${labelStatusProyek(p.status)}</span></td>
       <td class="cell-muted">${formatTanggal(p.tanggal)}</td>
       <td class="cell-muted">${formatTanggal(p.tenggat)}</td>
+      <td class="cell-muted">${p.diupdate_pada ? waktuRelatif(p.diupdate_pada) : '—'}</td>
       <td class="cell-muted">${esc(p.dibuat_oleh_nama) || '—'}</td>
       <td>${formatRupiah(p.sub_total)}</td>
       <td>${formatRupiah(hitungPajakNominal(p.sub_total, p.tax_persen))}<div class="cell-muted">${p.tax_persen || 0}%</div></td>
@@ -827,9 +1091,9 @@ async function hapusProyek(id){
   if(error){ console.error(error); tampilkanToast('Gagal menghapus proyek', true); return; }
   DATA.proyek = DATA.proyek.filter(x => x.id !== id);
   segarkanDetailPelangganJikaAktif();
-  renderKPI();
   renderFunnel();
   renderPelanggan();
+  renderRingkasan(); // BUGFIX: dulu hanya sebagian kartu dashboard yang di-refresh (mis. tag "X Proyek Berjalan" tidak ikut) — sekarang satu panggilan me-refresh semuanya
   if(p) await catatAktivitas('proyek', `Proyek <b>${esc(p.nama)}</b> dihapus`);
   tampilkanToast('Proyek dihapus');
 }
@@ -867,15 +1131,23 @@ function bukaModalTambahProyek(){
   bukaModal('modal-proyek');
 }
 
+/* Membuka modal Tambah Proyek dengan field Nama Pelanggan otomatis
+   diisi & dikunci ke pelanggan tertentu. Dipakai dari 2 tempat:
+   1) tombol "Tambah Proyek" di halaman detail pelanggan (lewat wrapper di bawah)
+   2) tombol proyek pada baris tabel menu Pelanggan (langsung pakai id baris) */
+function bukaModalTambahProyekUntukPelanggan(pelangganId){
+  if(!pelangganId) return;
+  bukaModalTambahProyek();
+  const select = document.getElementById('input-pelanggan-proyek');
+  select.value = pelangganId;
+  select.disabled = true;
+}
+
 /* Dipanggil dari tombol "Tambah Proyek" di halaman detail pelanggan —
    sama seperti bukaModalTambahProyek(), tapi field Nama Pelanggan
    otomatis diisi & dikunci ke pelanggan yang sedang dibuka. */
 function bukaModalTambahProyekUntukPelangganAktif(){
-  if(!PELANGGAN_AKTIF_ID) return;
-  bukaModalTambahProyek();
-  const select = document.getElementById('input-pelanggan-proyek');
-  select.value = PELANGGAN_AKTIF_ID;
-  select.disabled = true;
+  bukaModalTambahProyekUntukPelanggan(PELANGGAN_AKTIF_ID);
 }
 
 function editProyek(id){
@@ -924,14 +1196,15 @@ async function simpanProyek(e){
     const baris = {
       kode, nama, pelanggan_id: pelanggan.id, pelanggan_nama: pelanggan.nama,
       tanggal, tenggat, status, progres, sub_total, tax_persen, dana_lainnya, grand_total,
-      total_budget, budget_terpakai, nilai: grand_total
+      total_budget, budget_terpakai, nilai: grand_total, diupdate_pada: new Date().toISOString()
     };
     const { data, error } = await supabaseClient.from('proyek').update(baris).eq('id', id).select().single();
     if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'No PO') || 'Gagal menyimpan perubahan proyek', true); return; }
 
     const idx = DATA.proyek.findIndex(x => x.id === id);
     if(idx > -1) DATA.proyek[idx] = data;
-    segarkanDetailPelangganJikaAktif(); renderKPI(); renderFunnel(); renderPelanggan();
+    segarkanDetailPelangganJikaAktif(); renderFunnel(); renderPelanggan();
+    renderRingkasan(); // BUGFIX: satu panggilan refresh total dashboard, konsisten dengan hapusProyek()
     await catatAktivitas('proyek', `Proyek <b>${nama}</b> (${esc(data.kode)}) diperbarui`);
     tutupModal('modal-proyek');
     tampilkanToast('Perubahan proyek disimpan');
@@ -943,13 +1216,14 @@ async function simpanProyek(e){
       dibuat_oleh_id: CURRENT_USER ? CURRENT_USER.id : null,
       dibuat_oleh_nama: CURRENT_USER ? CURRENT_USER.nama : null,
       sub_total, tax_persen, dana_lainnya, grand_total,
-      total_budget, budget_terpakai, nilai: grand_total
+      total_budget, budget_terpakai, nilai: grand_total, diupdate_pada: new Date().toISOString()
     };
     const { data, error } = await supabaseClient.from('proyek').insert(baris).select().single();
     if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'No PO') || 'Gagal menambah proyek', true); return; }
 
     DATA.proyek.unshift(data);
-    segarkanDetailPelangganJikaAktif(); renderKPI(); renderFunnel(); renderPelanggan();
+    segarkanDetailPelangganJikaAktif(); renderFunnel(); renderPelanggan();
+    renderRingkasan(); // BUGFIX: satu panggilan refresh total dashboard, konsisten dengan hapusProyek()
     await catatAktivitas('proyek', `Proyek baru <b>${nama}</b> (${esc(data.kode)}) dibuat untuk ${esc(pelanggan.nama)}`);
     tutupModal('modal-proyek');
     tampilkanToast('Proyek baru ditambahkan');
@@ -1007,11 +1281,13 @@ function renderAktivitas(){
   const wrap = document.getElementById('timeline-wrap');
   const q = (document.getElementById('cari-aktivitas')?.value || '').toLowerCase();
   const filterTipe = document.getElementById('filter-tipe-aktivitas')?.value || 'semua';
+  const { awal, akhir } = dapatkanRentangPeriode('aktivitas');
 
   const data = DATA.aktivitas.filter(a => {
     const cocokTipe = filterTipe === 'semua' || a.tipe === filterTipe;
     const cocokCari = !q || a.teks.toLowerCase().includes(q) || (a.pelaku_nama || '').toLowerCase().includes(q);
-    return cocokTipe && cocokCari;
+    const cocokPeriode = tanggalDalamRentang(a.dibuat_pada, awal, akhir);
+    return cocokTipe && cocokCari && cocokPeriode;
   });
 
   if(!data.length){
@@ -1138,6 +1414,7 @@ async function tambahTugas(e){
 
   DATA.tugas.unshift(data);
   renderTugas();
+  renderDashTeamRow();
   if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
   const namaAssignee = DATA.profil.find(p => p.id === ditugaskan_ke)?.nama;
   await catatAktivitas('tugas', `Tugas baru <b>${judul}</b> dibuat${namaAssignee ? ' untuk ' + namaAssignee : ''}`);
@@ -1154,6 +1431,7 @@ async function ubahStatusTugas(id, statusBaru){
   t.status_kerja = statusBaru;
   t.selesai = statusBaru === 'selesai';
   renderTugas();
+  renderDashTeamRow();
   renderNotifikasi();
   if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
   await catatAktivitas('tugas', `Status tugas <b>${esc(t.judul)}</b> diubah menjadi ${labelStatusKerja(statusBaru)}`);
@@ -1168,6 +1446,7 @@ async function ubahAssigneeTugas(id, assigneeBaru){
   if(error){ console.error(error); tampilkanToast('Gagal menugaskan ulang', true); return; }
   t.ditugaskan_ke = assigneeBaru || null;
   renderTugas();
+  renderDashTeamRow();
   if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
   const namaBaru = DATA.profil.find(p => p.id === assigneeBaru)?.nama;
   await catatAktivitas('tugas', `Tugas <b>${esc(t.judul)}</b> ditugaskan ulang ke ${namaBaru || 'tidak ada (dilepas)'}`);
@@ -1180,6 +1459,7 @@ async function hapusTugas(id){
   if(error){ console.error(error); tampilkanToast('Gagal menghapus tugas', true); return; }
   DATA.tugas = DATA.tugas.filter(x => x.id !== id);
   renderTugas();
+  renderDashTeamRow();
   if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
   if(t) await catatAktivitas('tugas', `Tugas <b>${esc(t.judul)}</b> dihapus`);
   tampilkanToast('Tugas dihapus');
@@ -2159,6 +2439,7 @@ async function simpanProfilSaya(e){
 
   terapkanPeran();
   renderTugas();
+  renderDashTeamRow();
   if(CURRENT_USER.peran === 'admin'){ renderPengawasanTim(); renderPenggunaAdmin(); }
   tampilkanToast('Profil berhasil disimpan');
 }
@@ -2258,6 +2539,7 @@ function initRealtime(){
         upsertKeArray(DATA.tugas, payload.new);
       }
       renderTugas();
+      renderDashTeamRow();
       renderNotifikasi();
       if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
     })
@@ -2289,6 +2571,44 @@ function initRealtime(){
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pengaturan_perusahaan' }, (payload) => {
       DATA.perusahaan = payload.new;
       terapkanBrandingPerusahaan();
+    })
+    .subscribe();
+
+  // BUGFIX (sinkronisasi dashboard): tabel 'proyek' dan 'pelanggan' sebelumnya
+  // TIDAK punya channel Realtime sama sekali (berbeda dari tugas/stok_item/
+  // riwayat_stok yang sudah ada di bawah). Akibatnya, jika data proyek atau
+  // pelanggan berubah/dihapus dari luar tab ini — tab lain, pengguna lain,
+  // atau langsung lewat Table Editor Supabase saat pengujian — DATA di
+  // memori tab yang sedang terbuka tidak pernah diberi tahu, sehingga kartu
+  // KPI, donut, dan tabel di halaman Ringkasan/Dashboard tetap menampilkan
+  // angka lama sampai halaman di-refresh manual. Dua channel di bawah ini
+  // menutup celah tersebut.
+  supabaseClient.channel('dealstack-proyek')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'proyek' }, (payload) => {
+      if(payload.eventType === 'DELETE'){
+        DATA.proyek = DATA.proyek.filter(p => p.id !== payload.old.id);
+      } else {
+        upsertKeArray(DATA.proyek, payload.new);
+      }
+      segarkanDetailPelangganJikaAktif();
+      renderFunnel();
+      renderPelanggan();
+      renderRingkasan();
+      if(document.getElementById('view-laporan') && document.getElementById('view-laporan').classList.contains('active')) renderLaporan();
+    })
+    .subscribe();
+
+  supabaseClient.channel('dealstack-pelanggan')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pelanggan' }, (payload) => {
+      if(payload.eventType === 'DELETE'){
+        DATA.pelanggan = DATA.pelanggan.filter(p => p.id !== payload.old.id);
+      } else {
+        upsertKeArray(DATA.pelanggan, payload.new);
+      }
+      renderPelanggan();
+      isiDropdownPelangganProyek();
+      segarkanDetailPelangganJikaAktif();
+      renderRingkasan();
     })
     .subscribe();
 
@@ -2618,10 +2938,13 @@ function renderKalender(){
    13. LAPORAN
 --------------------------------------------------------- */
 function renderLaporan(){
-  const proyekAktif = DATA.proyek.filter(p => p.status !== 'dibatalkan');
+  const { awal, akhir } = dapatkanRentangPeriode('laporan');
+  const proyekPeriode = DATA.proyek.filter(p => tanggalDalamRentang(p.tanggal, awal, akhir));
+
+  const proyekAktif = proyekPeriode.filter(p => p.status !== 'dibatalkan');
   const totalNilai = proyekAktif.reduce((s,p) => s + Number(p.nilai), 0);
-  const selesai = DATA.proyek.filter(p => p.status === 'selesai').length;
-  const dibatalkan = DATA.proyek.filter(p => p.status === 'dibatalkan').length;
+  const selesai = proyekPeriode.filter(p => p.status === 'selesai').length;
+  const dibatalkan = proyekPeriode.filter(p => p.status === 'dibatalkan').length;
   const totalDitutup = selesai + dibatalkan;
   const winRate = totalDitutup ? Math.round((selesai/totalDitutup)*100) : 0;
 
@@ -2639,7 +2962,7 @@ function renderLaporan(){
     </div>`).join('');
 
   const perIndustri = {};
-  DATA.proyek.forEach(p => {
+  proyekPeriode.forEach(p => {
     const pel = DATA.pelanggan.find(x => x.nama === p.pelanggan_nama);
     const industri = pel ? (pel.industri || 'Umum') : 'Umum';
     perIndustri[industri] = perIndustri[industri] || { jumlah:0, nilai:0 };
@@ -2648,10 +2971,10 @@ function renderLaporan(){
   });
   document.getElementById('laporan-industri').innerHTML = Object.keys(perIndustri).length
     ? Object.entries(perIndustri).map(([nama,d]) => `<div class="report-row"><span>${nama}</span><b>${d.jumlah} proyek · ${formatRupiah(d.nilai)}</b></div>`).join('')
-    : `<div class="empty-state"><p>Belum ada data proyek.</p></div>`;
+    : `<div class="empty-state"><p>Belum ada data proyek pada periode ini.</p></div>`;
 
   const perStatus = { berjalan:0, tertunda:0, selesai:0, dibatalkan:0 };
-  DATA.proyek.forEach(p => perStatus[p.status] = (perStatus[p.status]||0) + 1);
+  proyekPeriode.forEach(p => perStatus[p.status] = (perStatus[p.status]||0) + 1);
   document.getElementById('laporan-status').innerHTML = Object.entries(perStatus).map(([status,jumlah]) =>
     `<div class="report-row"><span>${labelStatusProyek(status)}</span><b>${jumlah} proyek</b></div>`).join('');
 }
@@ -2769,11 +3092,16 @@ function initNavigasi(){
 }
 function initEventListener(){
   document.getElementById('cari-pelanggan').addEventListener('input', renderPelanggan);
-  document.getElementById('filter-nilai-proyek-pelanggan').addEventListener('change', renderPelanggan);
   document.getElementById('form-pelanggan').addEventListener('submit', simpanPelanggan);
+  document.getElementById('filter-periode-pelanggan').addEventListener('change', renderPelanggan);
+  document.getElementById('periode-dari-pelanggan').addEventListener('change', renderPelanggan);
+  document.getElementById('periode-sampai-pelanggan').addEventListener('change', renderPelanggan);
 
   document.getElementById('cari-proyek-detail').addEventListener('input', renderProyekDetail);
   document.getElementById('filter-status-proyek-detail').addEventListener('change', renderProyekDetail);
+  document.getElementById('filter-periode-proyek-detail').addEventListener('change', renderProyekDetail);
+  document.getElementById('periode-dari-proyek-detail').addEventListener('change', renderProyekDetail);
+  document.getElementById('periode-sampai-proyek-detail').addEventListener('change', renderProyekDetail);
   document.getElementById('form-proyek').addEventListener('submit', simpanProyek);
   ['input-subtotal-proyek','input-tax-proyek','input-dana-lain-proyek','input-total-budget-proyek','input-budget-terpakai-proyek']
     .forEach(id => document.getElementById(id).addEventListener('input', perbaruiKalkulasiFormProyek));
@@ -2787,6 +3115,13 @@ function initEventListener(){
 
   document.getElementById('cari-aktivitas').addEventListener('input', renderAktivitas);
   document.getElementById('filter-tipe-aktivitas').addEventListener('change', renderAktivitas);
+  document.getElementById('filter-periode-aktivitas').addEventListener('change', renderAktivitas);
+  document.getElementById('periode-dari-aktivitas').addEventListener('change', renderAktivitas);
+  document.getElementById('periode-sampai-aktivitas').addEventListener('change', renderAktivitas);
+
+  document.getElementById('filter-periode-laporan').addEventListener('change', renderLaporan);
+  document.getElementById('periode-dari-laporan').addEventListener('change', renderLaporan);
+  document.getElementById('periode-sampai-laporan').addEventListener('change', renderLaporan);
 
   document.getElementById('cari-gudang').addEventListener('input', renderGudang);
   document.getElementById('filter-lokasi-gudang').addEventListener('change', renderGudang);

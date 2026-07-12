@@ -198,7 +198,8 @@
         </div>
       </div>
 
-      <div class="chart-card">
+      <div class="dash-row dash-row-chart">
+      <div class="chart-card chart-card-main">
         <div class="chart-head">
           <div class="range-tabs">
             <div class="range-tab" data-range="1J">1J</div>
@@ -233,6 +234,55 @@
           <div class="brush-window" id="brush-window"></div>
         </div>
       </div>
+
+      <div class="donut-card">
+        <div class="donut-card-head">
+          <h3>Statistik Proyek</h3>
+          <div class="icon-btn" title="Segarkan" onclick="renderRingkasanDonut()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V6a2 2 0 012-2h2M20 8V6a2 2 0 00-2-2h-2M4 16v2a2 2 0 002 2h2M20 16v2a2 2 0 01-2 2h-2"/><circle cx="12" cy="12" r="3.2"/></svg></div>
+        </div>
+        <div class="donut-wrap">
+          <svg viewBox="0 0 200 200" id="donut-svg"></svg>
+          <div class="donut-center">
+            <div class="donut-center-value" id="donut-center-value">0</div>
+            <div class="donut-center-label">Total Proyek</div>
+          </div>
+        </div>
+        <div class="donut-legend" id="donut-legend"></div>
+      </div>
+      </div><!-- /dash-row-chart -->
+
+      <div class="dash-section-head">
+        <h3>Anggota Tim</h3>
+        <span class="dash-section-sub">Beban tugas tiap anggota tim saat ini</span>
+      </div>
+      <div class="dash-team-row" id="dash-team-row"></div>
+
+      <div class="dash-row dash-row-bottom">
+        <div class="table-card dash-table-card">
+          <div class="dash-table-head">
+            <h3>Pelanggan Teratas</h3>
+            <button class="btn btn-secondary btn-sm" onclick="pindahTampilan('pelanggan')">Lihat Semua</button>
+          </div>
+          <div class="dash-table-scroll">
+            <table class="data-table">
+              <thead><tr><th>Pelanggan</th><th>Industri</th><th>Proyek</th><th>Status</th><th>Total Nilai</th></tr></thead>
+              <tbody id="tbody-ringkasan-pelanggan"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="table-card dash-table-card">
+          <div class="dash-table-head">
+            <h3>Proyek Bernilai Tertinggi</h3>
+            <button class="btn btn-secondary btn-sm" onclick="pindahTampilan('laporan')">Lihat Laporan</button>
+          </div>
+          <div class="dash-table-scroll">
+            <table class="data-table">
+              <thead><tr><th>No PO</th><th>Pelanggan</th><th>Status</th><th>Grand Total</th></tr></thead>
+              <tbody id="tbody-ringkasan-proyek"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ===================== VIEW: PELANGGAN ===================== -->
@@ -253,13 +303,19 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input type="text" id="cari-pelanggan" placeholder="Cari nama atau industri...">
         </div>
-        <select class="filter-select" id="filter-nilai-proyek-pelanggan" title="Cakupan Total Nilai Proyek">
-          <option value="semua">Total Nilai Proyek: Semua</option>
-          <option value="berjalan">Total Nilai Proyek: Berjalan</option>
-          <option value="tertunda">Total Nilai Proyek: Tertunda</option>
-          <option value="selesai">Total Nilai Proyek: Selesai</option>
-          <option value="dibatalkan">Total Nilai Proyek: Dibatalkan</option>
+        <select class="filter-select" id="filter-periode-pelanggan" title="Saring total proyek berdasarkan tanggal PO" onchange="toggleInputPeriodeCustom('pelanggan')">
+          <option value="semua">Periode: Semua Waktu</option>
+          <option value="harian">Periode: Hari Ini</option>
+          <option value="bulanan">Periode: Bulan Ini</option>
+          <option value="semester">Periode: Semester Ini</option>
+          <option value="tahunan">Periode: Tahun Ini</option>
+          <option value="custom">Periode: Custom...</option>
         </select>
+        <div class="periode-custom-wrap hidden" id="wrap-periode-custom-pelanggan">
+          <input type="date" class="periode-date-input" id="periode-dari-pelanggan">
+          <span>s/d</span>
+          <input type="date" class="periode-date-input" id="periode-sampai-pelanggan">
+        </div>
         <div class="toolbar-spacer"></div>
       </div>
 
@@ -274,13 +330,20 @@
               <th>No. Telepon</th>
               <th>No. WhatsApp</th>
               <th>Nama PIC</th>
-              <th>Total Nilai Proyek</th>
+              <th>Total Nilai Proyek Berjalan</th>
+              <th>Total Nilai Proyek Tertunda</th>
+              <th>Total Nilai Proyek Selesai</th>
+              <th>Total Nilai Proyek Dibatalkan</th>
+              <th>Total Sub Total</th>
+              <th>Total Tax</th>
+              <th>Total Dana Lainnya</th>
+              <th>Grand Total</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="tbody-pelanggan"></tbody>
         </table>
-        <p class="table-hint">Klik nama pelanggan untuk membuka seluruh proyek (PO) milik pelanggan tersebut.</p>
+        <p class="table-hint">Klik nama pelanggan untuk membuka seluruh proyek (PO) milik pelanggan tersebut. Kolom total mengikuti data di halaman "Proyek Pelanggan Ini" masing-masing pelanggan.</p>
       </div>
     </section>
 
@@ -336,6 +399,19 @@
           <option value="selesai">Selesai</option>
           <option value="dibatalkan">Dibatalkan</option>
         </select>
+        <select class="filter-select" id="filter-periode-proyek-detail" title="Saring berdasarkan Tanggal PO" onchange="toggleInputPeriodeCustom('proyek-detail')">
+          <option value="semua">Periode: Semua Waktu</option>
+          <option value="harian">Periode: Hari Ini</option>
+          <option value="bulanan">Periode: Bulan Ini</option>
+          <option value="semester">Periode: Semester Ini</option>
+          <option value="tahunan">Periode: Tahun Ini</option>
+          <option value="custom">Periode: Custom...</option>
+        </select>
+        <div class="periode-custom-wrap hidden" id="wrap-periode-custom-proyek-detail">
+          <input type="date" class="periode-date-input" id="periode-dari-proyek-detail">
+          <span>s/d</span>
+          <input type="date" class="periode-date-input" id="periode-sampai-proyek-detail">
+        </div>
         <div class="toolbar-spacer"></div>
       </div>
 
@@ -344,8 +420,11 @@
           <thead>
             <tr>
               <th>No PO</th>
+              <th>Nama Proyek</th>
+              <th>Status</th>
               <th>Tanggal</th>
               <th>Tenggat</th>
+              <th>Update Terakhir</th>
               <th>Dibuat Oleh</th>
               <th>Sub Total</th>
               <th>Tax</th>
@@ -383,6 +462,19 @@
           <option value="gudang">Stock &amp; Gudang</option>
           <option value="pengguna">Pengguna</option>
         </select>
+        <select class="filter-select" id="filter-periode-aktivitas" title="Saring berdasarkan tanggal aktivitas" onchange="toggleInputPeriodeCustom('aktivitas')">
+          <option value="semua">Periode: Semua Waktu</option>
+          <option value="harian">Periode: Hari Ini</option>
+          <option value="bulanan">Periode: Bulan Ini</option>
+          <option value="semester">Periode: Semester Ini</option>
+          <option value="tahunan">Periode: Tahun Ini</option>
+          <option value="custom">Periode: Custom...</option>
+        </select>
+        <div class="periode-custom-wrap hidden" id="wrap-periode-custom-aktivitas">
+          <input type="date" class="periode-date-input" id="periode-dari-aktivitas">
+          <span>s/d</span>
+          <input type="date" class="periode-date-input" id="periode-sampai-aktivitas">
+        </div>
         <div class="toolbar-spacer"></div>
       </div>
       <div class="timeline" id="timeline-wrap"></div>
@@ -705,6 +797,22 @@
           <button class="btn btn-secondary" onclick="window.print()">Cetak</button>
           <button class="btn btn-primary" onclick="unduhLaporanCSV()">Unduh CSV</button>
         </div>
+      </div>
+      <div class="toolbar no-print">
+        <select class="filter-select" id="filter-periode-laporan" title="Saring laporan berdasarkan Tanggal PO" onchange="toggleInputPeriodeCustom('laporan')">
+          <option value="semua">Periode: Semua Waktu</option>
+          <option value="harian">Periode: Hari Ini</option>
+          <option value="bulanan">Periode: Bulan Ini</option>
+          <option value="semester">Periode: Semester Ini</option>
+          <option value="tahunan">Periode: Tahun Ini</option>
+          <option value="custom">Periode: Custom...</option>
+        </select>
+        <div class="periode-custom-wrap hidden" id="wrap-periode-custom-laporan">
+          <input type="date" class="periode-date-input" id="periode-dari-laporan">
+          <span>s/d</span>
+          <input type="date" class="periode-date-input" id="periode-sampai-laporan">
+        </div>
+        <div class="toolbar-spacer"></div>
       </div>
       <div class="kpi-grid" id="laporan-kpi"></div>
       <div class="report-grid">

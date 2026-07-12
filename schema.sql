@@ -731,3 +731,17 @@ create trigger trg_sinkron_akumulasi_stok
 update stok_item si set
   stok_masuk = coalesce((select sum(jumlah) from riwayat_stok where item_id = si.id and tipe = 'masuk'), 0),
   stok_keluar = coalesce((select sum(jumlah) from riwayat_stok where item_id = si.id and tipe = 'keluar'), 0);
+
+-- =========================================================
+-- TAMBAHAN v12 — KOLOM "UPDATE TERAKHIR" PADA PROYEK
+-- Menambahkan kolom diupdate_pada pada tabel proyek supaya
+-- halaman "Proyek Pelanggan Ini" bisa menampilkan kolom
+-- "Update Terakhir" (kapan proyek/PO tersebut terakhir diubah),
+-- konsisten dengan pola yang sudah dipakai pada stok_item.
+-- Nilainya diisi otomatis oleh aplikasi (script.js) setiap kali
+-- proyek dibuat atau diedit — bukan lewat trigger database.
+-- =========================================================
+alter table proyek add column if not exists diupdate_pada timestamptz default now();
+
+-- ---- Samakan data lama: pakai dibuat_pada sebagai update terakhir awal ----
+update proyek set diupdate_pada = dibuat_pada where diupdate_pada is null;
