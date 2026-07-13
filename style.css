@@ -886,6 +886,10 @@ select option{ background-color:#232226; color:var(--ink); }
 .settings-actions{justify-content:flex-start;margin-top:4px;}
 .settings-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
 @media(max-width:560px){.settings-form-grid{grid-template-columns:1fr;}}
+
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:6px;}
+@media(max-width:560px){.form-grid-3{grid-template-columns:1fr;}}
+.form-sublabel{font-size:12.5px;color:var(--muted);}
 .opsional-label{color:var(--muted-2);font-weight:500;text-transform:none;letter-spacing:0;}
 .settings-readonly{
   background:var(--overlay-1);border:1px solid var(--edge);border-radius:9px;

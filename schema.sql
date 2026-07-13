@@ -745,3 +745,43 @@ alter table proyek add column if not exists diupdate_pada timestamptz default no
 
 -- ---- Samakan data lama: pakai dibuat_pada sebagai update terakhir awal ----
 update proyek set diupdate_pada = dibuat_pada where diupdate_pada is null;
+
+-- =========================================================
+-- TAMBAHAN v16 — RINCIAN KONDISI BARANG PADA SATU TRANSAKSI
+-- STOK MASUK (Stok Baru, Stok Bekas, Stok Rusak sekaligus)
+-- Jalankan blok ini di SQL Editor setelah v12 aktif.
+--
+-- MASALAH SEBELUMNYA: satu baris riwayat_stok (tipe='masuk')
+-- hanya bisa menyimpan SATU kondisi barang lewat kondisi_barang
+-- ('baru' / 'bekas' / 'rusak') untuk seluruh Qty di baris itu.
+-- Padahal satu penerimaan barang (satu No DO/No PO/tanggal/
+-- vendor yang sama) sering berisi campuran kondisi sekaligus,
+-- misalnya 40 unit baru + 5 unit bekas + 2 unit rusak dari
+-- pengiriman yang sama.
+--
+-- PERUBAHAN: tambah 3 kolom kuantitas per kondisi supaya SATU
+-- baris riwayat_stok bisa merepresentasikan satu transaksi
+-- penerimaan barang secara utuh:
+--   stok_baru, stok_bekas, stok_rusak (masing-masing bigint)
+-- Kolom "jumlah" (sudah ada sejak v10) tetap dipakai sebagai
+-- TOTAL (stok_baru + stok_bekas + stok_rusak) supaya trigger
+-- akumulasi stok_item.stok_masuk (lihat v14, yang menjumlahkan
+-- "jumlah" untuk tipe='masuk') tidak perlu diubah sama sekali —
+-- single source of truth untuk total tetap kolom "jumlah".
+--
+-- Kolom kondisi_barang (v12) TIDAK dihapus, dibiarkan apa adanya
+-- sebagai arsip data lama; aplikasi (script.js) per v16 tidak
+-- membacanya lagi untuk transaksi stok masuk yang baru.
+-- Aman dijalankan berulang / di database yang sudah berisi data.
+-- =========================================================
+
+alter table riwayat_stok add column if not exists stok_baru bigint not null default 0;
+alter table riwayat_stok add column if not exists stok_bekas bigint not null default 0;
+alter table riwayat_stok add column if not exists stok_rusak bigint not null default 0;
+
+-- ---- Migrasi data lama (sebelum v16): pindahkan jumlah+kondisi_barang
+-- (satu kondisi per baris) ke kolom kuantitas per kondisi yang baru,
+-- supaya riwayat stok masuk lama tetap tampil benar di tabel baru ----
+update riwayat_stok set stok_baru  = jumlah where tipe = 'masuk' and coalesce(kondisi_barang,'baru') = 'baru'  and stok_baru = 0 and stok_bekas = 0 and stok_rusak = 0;
+update riwayat_stok set stok_bekas = jumlah where tipe = 'masuk' and kondisi_barang = 'bekas' and stok_baru = 0 and stok_bekas = 0 and stok_rusak = 0;
+update riwayat_stok set stok_rusak = jumlah where tipe = 'masuk' and kondisi_barang = 'rusak' and stok_baru = 0 and stok_bekas = 0 and stok_rusak = 0;

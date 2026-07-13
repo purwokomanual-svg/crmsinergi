@@ -1828,7 +1828,7 @@ async function simpanItemStok(e){
     if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'SKU pada gudang ini') || 'Gagal menambah item stok', true); return; }
     DATA.stokItem.unshift(data);
     if(stokAwal > 0){
-      await supabaseClient.from('riwayat_stok').insert({ item_id: data.id, tipe: 'masuk', kondisi_barang: 'baru', jumlah: stokAwal, catatan: 'Stok awal saat item dibuat', dibuat_oleh_id: diupdate_oleh_id, dibuat_oleh_nama: diupdate_oleh_nama });
+      await supabaseClient.from('riwayat_stok').insert({ item_id: data.id, tipe: 'masuk', stok_baru: stokAwal, jumlah: stokAwal, catatan: 'Stok awal saat item dibuat', dibuat_oleh_id: diupdate_oleh_id, dibuat_oleh_nama: diupdate_oleh_nama });
     }
     renderGudang();
     await catatAktivitas('gudang', `Item stok baru <b>${nama_produk}</b> (${sku}) ditambahkan di ${namaGudang(gudang_id)}`);
@@ -1852,9 +1852,11 @@ async function hapusItemStok(id){
 /* ---------------------------------------------------------
    17c. DETAIL STOK MASUK (per item, dibuka dari klik angka
    Stok Masuk pada tabel Stock & Gudang). Setiap baris riwayat
-   di sini adalah satu penerimaan barang, lengkap dengan No DO,
-   Vendor, No PO, Qty, Satuan, dan Status kondisi barang
-   (Baru/Bekas/Rusak).
+   di sini adalah satu penerimaan barang (satu No DO/No PO/
+   tanggal/vendor), lengkap dengan rincian kuantitas per kondisi
+   barang sekaligus: Stok Baru, Stok Bekas, Stok Rusak — Total
+   Stok dihitung otomatis (jumlah ketiganya) dan disimpan di
+   kolom "jumlah" untuk akumulasi Stok Masuk pada kartu stok.
 --------------------------------------------------------- */
 let STOK_ITEM_AKTIF_ID = null; // id item stok yang sedang dibuka di halaman detail (masuk maupun keluar)
 
@@ -1898,30 +1900,34 @@ function renderTabelStokMasukDetail(){
 
   const data = DATA.riwayatStok.filter(r => {
     if(r.item_id !== STOK_ITEM_AKTIF_ID || r.tipe !== 'masuk') return false;
-    const kondisi = r.kondisi_barang || 'baru';
-    if(filterKondisi !== 'semua' && kondisi !== filterKondisi) return false;
+    if(filterKondisi !== 'semua' && Number(r[`stok_${filterKondisi}`] || 0) <= 0) return false;
     if(!q) return true;
     const gabungan = [r.no_do, r.vendor_nama, r.no_po, r.catatan].filter(Boolean).join(' ').toLowerCase();
     return gabungan.includes(q);
   }).sort((a,b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.dibuat_pada || '').localeCompare(a.dibuat_pada || ''));
 
   if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state">
       <p>Belum ada riwayat stok masuk untuk produk ini.</p></div></td></tr>`;
     return;
   }
 
   tbody.innerHTML = data.map(r => {
-    const kondisi = r.kondisi_barang || 'baru';
+    const stokBaru = Number(r.stok_baru || 0);
+    const stokBekas = Number(r.stok_bekas || 0);
+    const stokRusak = Number(r.stok_rusak || 0);
+    const total = Number(r.jumlah || (stokBaru + stokBekas + stokRusak));
     return `
     <tr>
       <td class="cell-muted">${formatTanggal(r.tanggal)}</td>
-      <td>${esc(r.no_do) || '—'}</td>
       <td>${esc(r.vendor_nama) || '—'}</td>
+      <td>${esc(r.no_do) || '—'}</td>
       <td>${esc(r.no_po) || '—'}</td>
-      <td><b>${Number(r.jumlah || 0).toLocaleString('id-ID')}</b></td>
+      <td>${stokBaru ? stokBaru.toLocaleString('id-ID') : '—'}</td>
+      <td>${stokBekas ? stokBekas.toLocaleString('id-ID') : '—'}</td>
+      <td>${stokRusak ? stokRusak.toLocaleString('id-ID') : '—'}</td>
+      <td><b>${total.toLocaleString('id-ID')}</b></td>
       <td>${esc(r.satuan) || '—'}</td>
-      <td><span class="stok-status stok-status--${kondisi}">${labelKondisiBarang(kondisi)}</span></td>
       <td class="cell-muted">${esc(r.catatan) || '—'}</td>
       <td class="cell-actions">
         <div class="icon-btn" title="Edit" onclick="editStokMasuk('${r.id}')">
@@ -1952,11 +1958,24 @@ function bukaModalTambahStokMasuk(){
   document.getElementById('input-id-riwayat-stok-masuk').value = '';
   document.getElementById('input-tanggal-stok-masuk').value = new Date().toISOString().slice(0,10);
   document.getElementById('input-satuan-stok-masuk').value = i.satuan || 'Pcs';
-  document.getElementById('input-kondisi-stok-masuk').value = 'baru';
+  document.getElementById('input-stok-baru-masuk').value = '';
+  document.getElementById('input-stok-bekas-masuk').value = '';
+  document.getElementById('input-stok-rusak-masuk').value = '';
+  hitungTotalStokMasukForm();
   document.getElementById('info-item-stok-masuk').innerHTML = `<b>${esc(i.nama_produk)}</b> (${esc(i.sku)}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')} ${esc(i.satuan) || 'Pcs'}</b>`;
   document.getElementById('judul-modal-stok-masuk').textContent = 'Tambah Stok Masuk';
   document.getElementById('btn-simpan-stok-masuk').textContent = 'Simpan Stok Masuk';
   bukaModal('modal-stok-masuk');
+}
+
+/* Menghitung & menampilkan Total Stok secara langsung di form Tambah/Edit
+   Stok Masuk saat pengguna mengisi Stok Baru/Bekas/Rusak, supaya totalnya
+   terlihat sebelum disimpan (Total Stok = Stok Baru + Stok Bekas + Stok Rusak). */
+function hitungTotalStokMasukForm(){
+  const baru = Number(document.getElementById('input-stok-baru-masuk').value) || 0;
+  const bekas = Number(document.getElementById('input-stok-bekas-masuk').value) || 0;
+  const rusak = Number(document.getElementById('input-stok-rusak-masuk').value) || 0;
+  document.getElementById('total-stok-masuk-form').textContent = 'Total Stok: ' + (baru + bekas + rusak).toLocaleString('id-ID');
 }
 
 function editStokMasuk(riwayatId){
@@ -1970,9 +1989,11 @@ function editStokMasuk(riwayatId){
   document.getElementById('input-no-do-stok-masuk').value = r.no_do || '';
   document.getElementById('input-vendor-stok-masuk').value = r.vendor_nama || '';
   document.getElementById('input-no-po-stok-masuk').value = r.no_po || '';
-  document.getElementById('input-qty-stok-masuk').value = r.jumlah || '';
   document.getElementById('input-satuan-stok-masuk').value = r.satuan || i.satuan || 'Pcs';
-  document.getElementById('input-kondisi-stok-masuk').value = r.kondisi_barang || 'baru';
+  document.getElementById('input-stok-baru-masuk').value = r.stok_baru || '';
+  document.getElementById('input-stok-bekas-masuk').value = r.stok_bekas || '';
+  document.getElementById('input-stok-rusak-masuk').value = r.stok_rusak || '';
+  hitungTotalStokMasukForm();
   document.getElementById('input-catatan-stok-masuk').value = r.catatan || '';
   document.getElementById('info-item-stok-masuk').innerHTML = `<b>${esc(i.nama_produk)}</b> (${esc(i.sku)}) · ${namaGudang(i.gudang_id)} — Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')} ${esc(i.satuan) || 'Pcs'}</b>`;
   document.getElementById('judul-modal-stok-masuk').textContent = 'Edit Stok Masuk';
@@ -1989,11 +2010,16 @@ async function simpanStokMasuk(e){
   const no_do = document.getElementById('input-no-do-stok-masuk').value.trim() || null;
   const vendor_nama = document.getElementById('input-vendor-stok-masuk').value.trim() || null;
   const no_po = document.getElementById('input-no-po-stok-masuk').value.trim() || null;
-  const qty = Number(document.getElementById('input-qty-stok-masuk').value);
+  const stok_baru = Math.max(0, Number(document.getElementById('input-stok-baru-masuk').value) || 0);
+  const stok_bekas = Math.max(0, Number(document.getElementById('input-stok-bekas-masuk').value) || 0);
+  const stok_rusak = Math.max(0, Number(document.getElementById('input-stok-rusak-masuk').value) || 0);
   const satuan = document.getElementById('input-satuan-stok-masuk').value.trim() || i.satuan || 'Pcs';
-  const kondisi_barang = document.getElementById('input-kondisi-stok-masuk').value || 'baru';
   const catatan = document.getElementById('input-catatan-stok-masuk').value.trim() || null;
-  if(!qty || qty <= 0) return;
+  const qty = stok_baru + stok_bekas + stok_rusak;
+  if(!qty || qty <= 0){
+    tampilkanToast('Isi minimal salah satu dari Stok Baru, Stok Bekas, atau Stok Rusak', true);
+    return;
+  }
 
   // --- Validasi sisa stok: mengurangi Qty stok masuk (lewat edit) tidak boleh membuat Sisa Stok jadi negatif ---
   const entriLama = idRiwayat ? DATA.riwayatStok.find(x => x.id === idRiwayat) : null;
@@ -2007,7 +2033,7 @@ async function simpanStokMasuk(e){
 
   const pelaku_id = CURRENT_USER ? CURRENT_USER.id : null;
   const pelaku_nama = CURRENT_USER ? CURRENT_USER.nama : null;
-  const barisRiwayat = { tanggal, no_do, vendor_nama, no_po, jumlah: qty, satuan, kondisi_barang, catatan };
+  const barisRiwayat = { tanggal, no_do, vendor_nama, no_po, jumlah: qty, satuan, stok_baru, stok_bekas, stok_rusak, catatan };
 
   if(idRiwayat){
     // --- mode edit ---
@@ -2078,8 +2104,8 @@ function unduhStokMasukDetailCSV(){
   const i = DATA.stokItem.find(x => x.id === STOK_ITEM_AKTIF_ID);
   const data = DATA.riwayatStok.filter(r => r.item_id === STOK_ITEM_AKTIF_ID && r.tipe === 'masuk');
   unduhCSV(`stok-masuk-${i ? i.sku : 'item'}.csv`,
-    ['Tanggal Masuk','No DO','Nama Vendor','No PO','Qty','Satuan','Status','Catatan'],
-    data.map(r => [formatTanggal(r.tanggal), r.no_do || '', r.vendor_nama || '', r.no_po || '', r.jumlah || 0, r.satuan || '', labelKondisiBarang(r.kondisi_barang || 'baru'), r.catatan || '']));
+    ['Tanggal Masuk','Nama Vendor','No DO','No PO','Stok Baru','Stok Bekas','Stok Rusak','Total Stok','Satuan','Catatan'],
+    data.map(r => [formatTanggal(r.tanggal), r.vendor_nama || '', r.no_do || '', r.no_po || '', r.stok_baru || 0, r.stok_bekas || 0, r.stok_rusak || 0, r.jumlah || 0, r.satuan || '', r.catatan || '']));
   tampilkanToast('Riwayat stok masuk diunduh');
 }
 

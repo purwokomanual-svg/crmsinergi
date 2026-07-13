@@ -622,7 +622,7 @@
           </thead>
           <tbody id="tbody-gudang"></tbody>
         </table>
-        <p class="table-hint">Klik angka pada kolom <b>Stok Masuk</b> untuk melihat & mencatat detail penerimaan barang (No DO, Vendor, No PO, Status), atau klik angka pada kolom <b>Stok Keluar</b> untuk melihat & mencatat detail pengiriman (No DO, Pelanggan, No PO, Proyek) — Sisa Stok &amp; Update Terakhir akan diperbarui otomatis.</p>
+        <p class="table-hint">Klik angka pada kolom <b>Stok Masuk</b> untuk melihat & mencatat detail penerimaan barang (No DO, Vendor, No PO, rincian Stok Baru/Bekas/Rusak), atau klik angka pada kolom <b>Stok Keluar</b> untuk melihat & mencatat detail pengiriman (No DO, Pelanggan, No PO, Proyek) — Sisa Stok &amp; Update Terakhir akan diperbarui otomatis.</p>
       </div>
     </section>
 
@@ -665,11 +665,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input type="text" id="cari-stok-masuk-detail" placeholder="Cari No DO, vendor, atau No PO...">
         </div>
-        <select class="filter-select" id="filter-kondisi-stok-masuk-detail">
-          <option value="semua">Semua Status</option>
-          <option value="baru">Baru</option>
-          <option value="bekas">Bekas</option>
-          <option value="rusak">Rusak</option>
+        <select class="filter-select" id="filter-kondisi-stok-masuk-detail" title="Tampilkan hanya transaksi yang mengandung kondisi barang ini">
+          <option value="semua">Semua Kondisi</option>
+          <option value="baru">Ada Stok Baru</option>
+          <option value="bekas">Ada Stok Bekas</option>
+          <option value="rusak">Ada Stok Rusak</option>
         </select>
         <div class="toolbar-spacer"></div>
         <button class="btn btn-secondary" onclick="unduhStokMasukDetailCSV()">
@@ -683,12 +683,14 @@
           <thead>
             <tr>
               <th>Tanggal Masuk</th>
-              <th>No DO</th>
               <th>Nama Vendor</th>
+              <th>No DO</th>
               <th>No PO</th>
-              <th>Qty</th>
+              <th>Stok Baru</th>
+              <th>Stok Bekas</th>
+              <th>Stok Rusak</th>
+              <th>Total Stok</th>
               <th>Satuan</th>
-              <th>Status</th>
               <th>Catatan</th>
               <th></th>
             </tr>
@@ -1320,23 +1322,27 @@
             <input type="text" id="input-no-po-stok-masuk" placeholder="Contoh: PO-2026-0032">
           </div>
           <div class="form-group">
-            <label>Qty</label>
-            <input type="number" id="input-qty-stok-masuk" placeholder="Contoh: 50" min="1" required>
-          </div>
-        </div>
-        <div class="settings-form-grid">
-          <div class="form-group">
             <label>Satuan</label>
             <input type="text" id="input-satuan-stok-masuk" placeholder="Contoh: Pcs">
           </div>
-          <div class="form-group">
-            <label>Status</label>
-            <select id="input-kondisi-stok-masuk">
-              <option value="baru">Baru</option>
-              <option value="bekas">Bekas</option>
-              <option value="rusak">Rusak</option>
-            </select>
+        </div>
+        <div class="form-group">
+          <label>Jumlah per Kondisi Barang</label>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label class="form-sublabel">Stok Baru</label>
+              <input type="number" id="input-stok-baru-masuk" placeholder="0" min="0" oninput="hitungTotalStokMasukForm()">
+            </div>
+            <div class="form-group">
+              <label class="form-sublabel">Stok Bekas</label>
+              <input type="number" id="input-stok-bekas-masuk" placeholder="0" min="0" oninput="hitungTotalStokMasukForm()">
+            </div>
+            <div class="form-group">
+              <label class="form-sublabel">Stok Rusak</label>
+              <input type="number" id="input-stok-rusak-masuk" placeholder="0" min="0" oninput="hitungTotalStokMasukForm()">
+            </div>
           </div>
+          <p class="modal-note" id="total-stok-masuk-form">Total Stok: 0</p>
         </div>
         <div class="form-group">
           <label>Catatan (opsional)</label>
