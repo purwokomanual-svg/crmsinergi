@@ -65,6 +65,53 @@ function simpanPengaturan(){
 }
 
 /* ---------------------------------------------------------
+   0z. TEMA TAMPILAN (mode gelap / mode terang)
+   Disimpan di localStorage supaya konsisten di seluruh aplikasi
+   (termasuk sidebar, topbar, dropdown, dan modal), dan sudah
+   diterapkan lebih awal lewat script kecil di <head> index.html
+   supaya tidak ada kedipan (flash) saat halaman dimuat ulang.
+--------------------------------------------------------- */
+const TEMA_KEY = 'dealstack_tema';
+
+/* Path ikon bulan (gelap aktif) dan matahari (terang aktif) untuk
+   dipakai di knob sakelar (ikon di dalam bola geser) */
+const IKON_BULAN = '<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>';
+const IKON_MATAHARI = '<circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8L6 18M18 6l1.8-1.8"/>';
+
+function temaAktif(){
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+
+/* Menyamakan tampilan semua kontrol tema (sakelar di dropdown +
+   label teks) dengan atribut data-theme yang sedang aktif di <html>.
+   Dipanggil setiap kali halaman dimuat & setiap kali tema berganti. */
+function sinkronkanUITema(){
+  const terang = temaAktif() === 'light';
+  const sakelar = document.getElementById('theme-switch');
+  const label = document.getElementById('label-tema-aktif');
+  const ikonKnob = document.getElementById('icon-knob-tema');
+  if(sakelar){
+    sakelar.dataset.on = terang ? 'true' : 'false';
+    sakelar.setAttribute('aria-checked', terang ? 'true' : 'false');
+  }
+  if(label) label.textContent = terang ? 'Terang' : 'Gelap';
+  if(ikonKnob) ikonKnob.innerHTML = terang ? IKON_MATAHARI : IKON_BULAN;
+}
+
+/* Berpindah antara mode gelap <-> terang. Dipanggil dari tombol cepat
+   di topbar maupun sakelar di dropdown "Pengaturan Tampilan". */
+function toggleTema(){
+  const temaBaru = temaAktif() === 'light' ? 'dark' : 'light';
+  if(temaBaru === 'light'){
+    document.documentElement.setAttribute('data-theme', 'light');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+  try{ localStorage.setItem(TEMA_KEY, temaBaru); }catch(e){}
+  sinkronkanUITema();
+}
+
+/* ---------------------------------------------------------
    0a. IDENTITAS PERUSAHAAN (logo & nama, tampil di sidebar +
    layar masuk untuk semua orang — bisa dibaca tanpa login)
 --------------------------------------------------------- */
@@ -616,6 +663,7 @@ function renderRingkasan(){
   renderTagRingkasan();
   renderKPI();
   renderRingkasanDonut();
+  renderRingkasanStokGudang();
   renderDashTeamRow();
   renderRingkasanTabelPelanggan();
   renderRingkasanTabelProyek();
@@ -680,6 +728,113 @@ function renderRingkasanDonut(){
           <span class="donut-legend-pct">${pct}%</span>
         </div>`;
       }).join('');
+}
+
+/* ---------------------------------------------------------
+   4c. RINGKASAN — PERINGATAN STOK GUDANG (Surabaya & Jakarta)
+   Menampilkan item berstatus "Stok Habis" & "Stok Menipis" untuk dua
+   gudang spesifik langsung di dashboard, tanpa perlu buka menu Stock &
+   Gudang. Dicocokkan berdasarkan NAMA gudang (bukan ID tetap), supaya
+   tetap berfungsi normal walau gudang tsb diedit/dibuat ulang lewat
+   "Kelola Gudang" — dan menampilkan pesan yang jelas jika gudang dengan
+   nama tsb belum terdaftar sama sekali.
+--------------------------------------------------------- */
+const IKON_GUDANG_DASH = '<path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/>';
+const IKON_CENTANG_DASH = '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.3 2.3L16 9.5"/>';
+
+function cariGudangBerdasarkanNama(potongan){
+  const p = potongan.toLowerCase();
+  return DATA.gudang.find(g => (g.nama || '').toLowerCase().includes(p)) || null;
+}
+
+/* Render satu kartu ("Gudang Surabaya" / "Gudang Jakarta"). Mengembalikan
+   markup HTML string agar renderRingkasanStokGudang() tinggal menggabung
+   dua kartu ke dalam satu baris (.dash-row-stok). */
+function markupKartuStokGudang(potonganNama, labelKota){
+  const g = cariGudangBerdasarkanNama(potonganNama);
+
+  if(!g){
+    return `
+    <div class="stock-alert-card">
+      <div class="stock-alert-head">
+        <div class="stock-alert-title">
+          <div class="stock-alert-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${IKON_GUDANG_DASH}</svg></div>
+          <div><h4>Gudang ${esc(labelKota)}</h4><span>Belum terdaftar</span></div>
+        </div>
+      </div>
+      <div class="stock-alert-empty stock-alert-missing">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        <span>Gudang <b>${esc(labelKota)}</b> belum terdaftar.<br>Tambahkan lewat Stock &amp; Gudang → Kelola Gudang.</span>
+      </div>
+    </div>`;
+  }
+
+  const items = DATA.stokItem.filter(i => i.gudang_id === g.id);
+  const bermasalah = items
+    .map(i => ({ item:i, status:hitungStatusStok(i) }))
+    .filter(x => x.status === 'habis' || x.status === 'menipis')
+    // Habis ditampilkan lebih dulu, lalu urut dari sisa stok paling sedikit
+    .sort((a,b) => {
+      if(a.status !== b.status) return a.status === 'habis' ? -1 : 1;
+      return sisaStok(a.item) - sisaStok(b.item);
+    });
+
+  const jumlahHabis = bermasalah.filter(x => x.status === 'habis').length;
+  const jumlahMenipis = bermasalah.filter(x => x.status === 'menipis').length;
+
+  const daftarHtml = !bermasalah.length
+    ? `<div class="stock-alert-empty">
+         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${IKON_CENTANG_DASH}</svg>
+         <span>Semua stok di <b>${esc(g.nama)}</b> aman, tidak ada yang menipis atau habis.</span>
+       </div>`
+    : bermasalah.map(({item, status}) => `
+      <div class="stock-alert-row" title="Klik untuk membuka detail di Stock & Gudang" onclick="bukaAlertStokGudang('${g.id}','${status}')">
+        <div class="stock-alert-row-main">
+          <span class="stock-alert-dot ${status}"></span>
+          <div>
+            <div class="stock-alert-row-name">${esc(item.nama_produk)}</div>
+            <div class="stock-alert-row-sub">${esc(item.sku)}${item.variant ? ' · ' + esc(item.variant) : ''}</div>
+          </div>
+        </div>
+        <div class="stock-alert-row-right">
+          <span class="stock-alert-row-qty"><b>${sisaStok(item).toLocaleString('id-ID')}</b> ${esc(item.satuan || 'Pcs')}</span>
+          <span class="stok-status stok-status--${status}">${labelStatusStok(status)}</span>
+        </div>
+      </div>`).join('');
+
+  return `
+  <div class="stock-alert-card">
+    <div class="stock-alert-head">
+      <div class="stock-alert-title">
+        <div class="stock-alert-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${IKON_GUDANG_DASH}</svg></div>
+        <div><h4>${esc(g.nama)}</h4><span>${items.length} SKU terdaftar</span></div>
+      </div>
+      <div class="stock-alert-counts">
+        ${jumlahHabis ? `<span class="stok-status stok-status--habis">${jumlahHabis} Habis</span>` : ''}
+        ${jumlahMenipis ? `<span class="stok-status stok-status--menipis">${jumlahMenipis} Menipis</span>` : ''}
+        ${!jumlahHabis && !jumlahMenipis ? `<span class="stok-status stok-status--tersedia">Aman</span>` : ''}
+      </div>
+    </div>
+    <div class="stock-alert-list">${daftarHtml}</div>
+  </div>`;
+}
+
+/* Membuka menu Stock & Gudang, langsung difilter ke gudang + status yang
+   diklik dari dashboard Ringkasan (mis. klik item "Stok Habis" di kartu
+   Gudang Jakarta -> otomatis menampilkan hanya item habis di gudang itu). */
+function bukaAlertStokGudang(gudangId, status){
+  pindahTampilan('gudang');
+  const selGudang = document.getElementById('filter-lokasi-gudang');
+  const selStatus = document.getElementById('filter-status-gudang');
+  if(selGudang) selGudang.value = gudangId;
+  if(selStatus) selStatus.value = status;
+  renderGudang();
+}
+
+function renderRingkasanStokGudang(){
+  const wrap = document.getElementById('dash-row-stok-gudang');
+  if(!wrap) return;
+  wrap.innerHTML = markupKartuStokGudang('surabaya', 'Surabaya') + markupKartuStokGudang('jakarta', 'Jakarta');
 }
 
 function renderDashTeamRow(){
@@ -2623,6 +2778,7 @@ function initRealtime(){
         }
       }
       renderGudang();
+      renderRingkasanStokGudang(); // BUGFIX: dulu kartu Peringatan Stok Gudang di halaman Ringkasan tidak ikut ter-refresh saat ada perubahan stok realtime dari perangkat lain
       renderNotifikasi();
     })
     .subscribe();
@@ -3150,6 +3306,7 @@ function mulai(){
     console.error('supabaseClient tidak ditemukan — pastikan config.js sudah diisi dan dimuat sebelum script.js');
     return;
   }
+  sinkronkanUITema(); // samakan sakelar tema dengan data-theme yang sudah diterapkan di <head>
   muatBrandingPerusahaan(); // tidak perlu ditunggu — sidebar/layar masuk pakai fallback "Dealstack" dulu
   initAuthUI();
 }

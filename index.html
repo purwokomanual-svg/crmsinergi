@@ -7,6 +7,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script>
+  /* Terapkan tema tersimpan SEBELUM tampilan digambar, supaya tidak ada
+     "kedipan" (flash) dari gelap ke terang atau sebaliknya saat halaman
+     dimuat ulang. */
+  (function(){
+    try{
+      var t = localStorage.getItem('dealstack_tema');
+      if(t === 'light') document.documentElement.setAttribute('data-theme','light');
+    }catch(e){}
+  })();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -105,6 +116,10 @@
       <div class="dropdown-panel search-dropdown hidden" id="search-dropdown"></div>
     </div>
     <div class="topbar-right">
+      <div class="icon-btn theme-quick-toggle" id="btn-tema-cepat" onclick="toggleTema()" title="Ganti mode gelap/terang">
+        <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+        <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8L6 18M18 6l1.8-1.8"/></svg>
+      </div>
       <div class="dropdown-wrap">
         <div class="icon-btn" id="btn-notifikasi" onclick="toggleDropdown('panel-notifikasi')" title="Notifikasi">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
@@ -121,6 +136,18 @@
         </div>
         <div class="dropdown-panel hidden" id="panel-pengaturan">
           <div class="dropdown-head">Pengaturan Tampilan</div>
+          <div class="theme-toggle-row">
+            <span class="theme-toggle-label">Mode Tampilan<small id="label-tema-aktif">Gelap</small></span>
+            <div class="theme-switch" id="theme-switch" data-on="false" role="switch" aria-checked="false" aria-label="Ganti mode gelap/terang" tabindex="0" onclick="toggleTema()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTema();}">
+              <div class="track-icons">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8L6 18M18 6l1.8-1.8"/></svg>
+              </div>
+              <div class="knob">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" id="icon-knob-tema"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+              </div>
+            </div>
+          </div>
           <label class="setting-row"><span>Format Rupiah ringkas (Rp1,2Jt)</span>
             <input type="checkbox" id="setting-rupiah-ringkas" onchange="simpanPengaturan()">
           </label>
@@ -250,6 +277,13 @@
         <div class="donut-legend" id="donut-legend"></div>
       </div>
       </div><!-- /dash-row-chart -->
+
+      <div class="dash-section-head">
+        <h3>Peringatan Stok Gudang</h3>
+        <span class="dash-section-sub">Item berstatus stok menipis atau habis di gudang Surabaya &amp; Jakarta</span>
+        <button class="btn btn-secondary btn-sm dash-section-action" onclick="pindahTampilan('gudang')">Buka Stock &amp; Gudang</button>
+      </div>
+      <div class="dash-row dash-row-stok" id="dash-row-stok-gudang"></div>
 
       <div class="dash-section-head">
         <h3>Anggota Tim</h3>
