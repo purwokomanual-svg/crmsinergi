@@ -8,7 +8,7 @@
 
 /* Cache data di memori, diisi dari Supabase saat halaman dimuat
    dan diperbarui lagi setiap ada perubahan (tambah/hapus/ubah) */
-let DATA = { pelanggan: [], proyek: [], tugas: [], aktivitas: [], catatan: [], profil: [], gudang: [], stokItem: [], riwayatStok: [], perusahaan: { nama_perusahaan: 'Dealstack', logo_url: null } };
+let DATA = { pelanggan: [], proyek: [], tugas: [], aktivitas: [], catatan: [], profil: [], gudang: [], stokItem: [], riwayatStok: [], kategoriProduk: [], kategoriMerek: [], perusahaan: { nama_perusahaan: 'Dealstack', logo_url: null } };
 
 /* BUGFIX (audit): escape teks sebelum disisipkan lewat innerHTML.
    Sebelumnya banyak field isian pengguna (nama pelanggan, catatan tim,
@@ -430,7 +430,7 @@ function cariGlobal(q){
   }
   if(proyek.length){
     html += `<div class="search-result-group">Proyek</div>`;
-    html += proyek.map(p => `<div class="search-result-item" onclick="bukaHasilPencarian('proyek','${p.id}')"><b>${esc(p.nama)}</b><span>${esc(p.pelanggan_nama)} · ${labelStatusProyek(p.status)}</span></div>`).join('');
+    html += proyek.map(p => `<div class="search-result-item" onclick="bukaHasilPencarian('proyek','${p.id}')"><b>${esc(p.nama)}</b><span>${labelPelangganProyek(p)} · ${labelStatusProyek(p.status)}</span></div>`).join('');
   }
   if(tugas.length){
     html += `<div class="search-result-group">Tugas</div>`;
@@ -453,7 +453,8 @@ function bukaHasilPencarian(jenis, id){
   } else if(jenis === 'proyek'){
     const proyek = DATA.proyek.find(p=>p.id===id);
     if(proyek){
-      bukaDetailPelanggan(proyek.pelanggan_id);
+      const idPelanggan = proyek.pelanggan_id || DATA.pelanggan.find(x => x.nama === proyek.pelanggan_nama)?.id;
+      bukaDetailPelanggan(idPelanggan);
       document.getElementById('cari-proyek-detail').value = proyek.nama;
       renderProyekDetail();
     }
@@ -536,7 +537,7 @@ function renderNotifikasi(){
    Semua fungsi di bawah ini melakukan query ke database.
 --------------------------------------------------------- */
 async function muatSemuaData(){
-  const [pelanggan, proyek, tugas, aktivitas, catatan, profil, gudang, stokItem, riwayatStok] = await Promise.all([
+  const [pelanggan, proyek, tugas, aktivitas, catatan, profil, gudang, stokItem, riwayatStok, kategoriProduk, kategoriMerek] = await Promise.all([
     supabaseClient.from('pelanggan').select('*').order('dibuat_pada', { ascending: false }),
     supabaseClient.from('proyek').select('*').order('dibuat_pada', { ascending: false }),
     supabaseClient.from('tugas').select('*').order('dibuat_pada', { ascending: false }),
@@ -546,6 +547,8 @@ async function muatSemuaData(){
     supabaseClient.from('gudang').select('*').order('nama', { ascending: true }),
     supabaseClient.from('stok_item').select('*').order('nama_produk', { ascending: true }),
     supabaseClient.from('riwayat_stok').select('*').order('dibuat_pada', { ascending: false }),
+    supabaseClient.from('kategori_produk').select('*').order('nama', { ascending: true }),
+    supabaseClient.from('kategori_merek').select('*').order('nama', { ascending: true }),
   ]);
 
   if(pelanggan.error || proyek.error || tugas.error || aktivitas.error){
@@ -567,6 +570,10 @@ async function muatSemuaData(){
   DATA.stokItem = stokItem.error ? (console.warn('Tabel stok_item belum tersedia. Jalankan migrasi v10 di schema.sql.', stokItem.error), []) : (stokItem.data || []);
   // Kolom detail (No DO/Pelanggan/No PO/Proyek/Satuan) mungkin belum ada jika migrasi v11 belum dijalankan.
   DATA.riwayatStok = riwayatStok.error ? (console.warn('Tabel riwayat_stok belum lengkap. Jalankan migrasi v11 di schema.sql.', riwayatStok.error), []) : (riwayatStok.data || []);
+  // Tabel kategori_produk mungkin belum ada jika migrasi v17 belum dijalankan.
+  DATA.kategoriProduk = kategoriProduk.error ? (console.warn('Tabel kategori_produk belum tersedia. Jalankan migrasi v17 di schema.sql.', kategoriProduk.error), []) : (kategoriProduk.data || []);
+  // Tabel kategori_merek mungkin belum ada jika migrasi v18 belum dijalankan.
+  DATA.kategoriMerek = kategoriMerek.error ? (console.warn('Tabel kategori_merek belum tersedia. Jalankan migrasi v18 di schema.sql.', kategoriMerek.error), []) : (kategoriMerek.data || []);
 }
 
 async function catatAktivitas(tipe, teks){
@@ -595,7 +602,7 @@ function pindahTampilan(namaView){
   // "Pelanggan" / "Stock & Gudang" di sidebar — jadi nav item induknya tetap
   // ditandai aktif saat berada di sana.
   const namaViewNav = namaView === 'pelanggan-detail' ? 'pelanggan'
-    : (namaView === 'stok-keluar-detail' || namaView === 'stok-masuk-detail') ? 'gudang'
+    : (namaView === 'stok-keluar-detail' || namaView === 'stok-masuk-detail' || namaView === 'manajemen-produk') ? 'gudang'
     : namaView;
   document.querySelectorAll('.nav-item[data-view]').forEach(el => {
     el.classList.toggle('active', el.dataset.view === namaViewNav);
@@ -614,6 +621,7 @@ function pindahTampilan(namaView){
   if(namaView === 'gudang') renderGudang();
   if(namaView === 'stok-masuk-detail') renderDetailStokMasuk();
   if(namaView === 'stok-keluar-detail') renderDetailStokKeluar();
+  if(namaView === 'manajemen-produk') pindahTabManajemenProduk(MP_TAB_AKTIF);
   if(namaView === 'laporan') renderLaporan();
   if(namaView === 'pesan') renderPesan();
   if(namaView === 'integrasi') tesKoneksiSupabase();
@@ -627,8 +635,12 @@ function pindahTampilan(namaView){
    4. RENDER: KPI RINGKASAN (dihitung dari data proyek)
 --------------------------------------------------------- */
 function renderKPI(){
-  const proyekAktif = DATA.proyek.filter(p => p.status !== 'dibatalkan');
-  const totalNilai = proyekAktif.reduce((s,p) => s + Number(p.nilai), 0);
+  // Disamakan dengan aturan Grand Total di menu Pelanggan & Laporan: proyek
+  // tertunda/dibatalkan dikecualikan dari nilai, dan pakai grand_total
+  // (fallback ke field lama "nilai") supaya angka di Dashboard, Laporan,
+  // dan menu Pelanggan selalu sinkron satu sama lain.
+  const proyekAktif = DATA.proyek.filter(p => !['tertunda','dibatalkan'].includes(p.status));
+  const totalNilai = proyekAktif.reduce((s,p) => s + (p.grand_total || p.nilai || 0), 0);
   const rataRata = proyekAktif.length ? totalNilai / proyekAktif.length : 0;
   const selesai = DATA.proyek.filter(p => p.status === 'selesai').length;
   const dibatalkan = DATA.proyek.filter(p => p.status === 'dibatalkan').length;
@@ -736,7 +748,7 @@ function renderRingkasanDonut(){
    gudang spesifik langsung di dashboard, tanpa perlu buka menu Stock &
    Gudang. Dicocokkan berdasarkan NAMA gudang (bukan ID tetap), supaya
    tetap berfungsi normal walau gudang tsb diedit/dibuat ulang lewat
-   "Kelola Gudang" — dan menampilkan pesan yang jelas jika gudang dengan
+   tab Gudang pada "Manajemen Produk & Kategori" — dan menampilkan pesan yang jelas jika gudang dengan
    nama tsb belum terdaftar sama sekali.
 --------------------------------------------------------- */
 const IKON_GUDANG_DASH = '<path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/>';
@@ -764,7 +776,7 @@ function markupKartuStokGudang(potonganNama, labelKota){
       </div>
       <div class="stock-alert-empty stock-alert-missing">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
-        <span>Gudang <b>${esc(labelKota)}</b> belum terdaftar.<br>Tambahkan lewat Stock &amp; Gudang → Kelola Gudang.</span>
+        <span>Gudang <b>${esc(labelKota)}</b> belum terdaftar.<br>Tambahkan lewat Stock &amp; Gudang → Manajemen Produk &amp; Kategori.</span>
       </div>
     </div>`;
   }
@@ -867,7 +879,7 @@ function renderRingkasanTabelPelanggan(){
     return;
   }
   const data = DATA.pelanggan
-    .map(p => ({ p, totalNilai: hitungTotalNilaiProyek(p.id, 'semua'), jumlahProyek: DATA.proyek.filter(pr => pr.pelanggan_id === p.id).length }))
+    .map(p => ({ p, totalNilai: hitungTotalNilaiProyek(p.id, 'semua'), jumlahProyek: DATA.proyek.filter(pr => proyekMilikPelanggan(pr, p.id)).length }))
     .sort((a, b) => b.totalNilai - a.totalNilai)
     .slice(0, 5);
   tbody.innerHTML = data.map(({ p, totalNilai, jumlahProyek }) => `
@@ -878,6 +890,25 @@ function renderRingkasanTabelPelanggan(){
       <td><span class="badge badge-${esc(p.status)}"><span class="dot"></span>${labelStatusPelanggan(p.status)}</span></td>
       <td><b>${formatRupiah(totalNilai)}</b></td>
     </tr>`).join('');
+}
+
+/* Cek apakah pelanggan dari sebuah proyek MASIH ADA di data pelanggan saat
+   ini. pelanggan_nama pada baris proyek adalah TEKS yang disalin saat
+   proyek dibuat — tidak otomatis ikut terhapus atau berubah saat data
+   pelanggan aslinya dihapus (pelanggan_id proyek itu akan menjadi NULL,
+   tapi pelanggan_nama tetap tersimpan sebagai riwayat). Tanpa pengecekan
+   ini, proyek lama akan terus tampil seolah pelanggannya masih ada. */
+function pelangganProyekMasihAda(pr){
+  if(pr.pelanggan_id) return DATA.pelanggan.some(x => x.id === pr.pelanggan_id);
+  return DATA.pelanggan.some(x => x.nama === pr.pelanggan_nama);
+}
+/* Nama pelanggan untuk ditampilkan di tabel/pencarian — diberi tanda
+   "(Pelanggan Dihapus)" kalau pelanggannya sudah tidak ada lagi di menu
+   Pelanggan, supaya tidak disangka pelanggan tersebut masih aktif. */
+function labelPelangganProyek(pr){
+  const nama = esc(pr.pelanggan_nama) || '—';
+  return pelangganProyekMasihAda(pr) ? nama
+    : `${nama} <span class="cell-muted" title="Pelanggan ini sudah dihapus dari menu Pelanggan">(Pelanggan Dihapus)</span>`;
 }
 
 function renderRingkasanTabelProyek(){
@@ -891,7 +922,7 @@ function renderRingkasanTabelProyek(){
   tbody.innerHTML = data.map(p => `
     <tr>
       <td class="cell-name">${esc(p.kode)}</td>
-      <td>${esc(p.pelanggan_nama)}</td>
+      <td>${labelPelangganProyek(p)}</td>
       <td><span class="badge badge-${esc(p.status)}"><span class="dot"></span>${labelStatusProyek(p.status)}</span></td>
       <td><b>${formatRupiah(p.grand_total || p.nilai || 0)}</b></td>
     </tr>`).join('');
@@ -937,7 +968,7 @@ function unduhRingkasanCSV(){
       ['Total Proyek', DATA.proyek.length],
       ['Proyek Berjalan', DATA.proyek.filter(p=>p.status==='berjalan').length],
       ['Proyek Selesai', DATA.proyek.filter(p=>p.status==='selesai').length],
-      ['Total Nilai Proyek Aktif', DATA.proyek.filter(p=>p.status!=='dibatalkan').reduce((s,p)=>s+Number(p.nilai),0)],
+      ['Total Nilai Proyek Aktif', DATA.proyek.filter(p => !['tertunda','dibatalkan'].includes(p.status)).reduce((s,p)=>s + (p.grand_total || p.nilai || 0), 0)],
     ]);
   tampilkanToast('Ringkasan diunduh');
 }
@@ -953,10 +984,35 @@ function unduhLaporanCSV(){
 /* ---------------------------------------------------------
    5. RENDER: TABEL PELANGGAN
 --------------------------------------------------------- */
+/* PENTING: sebelum migrasi v7 dijalankan di database, form Proyek hanya
+   menyimpan pelanggan_nama (teks bebas) — pelanggan_id bisa kosong (null).
+   Proyek dengan pelanggan_id kosong TIDAK akan ketemu oleh perbandingan
+   `pr.pelanggan_id === pelangganId`, sehingga proyek itu "hilang" dari
+   semua penghitungan di menu Pelanggan (Total Nilai, Sub Total, Grand
+   Total, dst) walaupun proyeknya tetap muncul di Laporan/Dashboard (yang
+   menjumlahkan dari SELURUH DATA.proyek tanpa perlu tertaut ke pelanggan).
+   Inilah sumber selisih jumlah proyek antara menu Pelanggan dan Laporan.
+   Fungsi ini mencocokkan proyek ke pelanggan lewat pelanggan_id (utama),
+   dan—kalau proyek belum tertaut—jatuh ke pencocokan nama pelanggan yang
+   identik sebagai fallback, supaya proyek lama tetap terhitung di menu
+   Pelanggan sampai migrasi SQL v7 (backfill pelanggan_id) dijalankan. */
+function proyekMilikPelanggan(pr, pelangganId){
+  if(!pelangganId) return false;
+  if(pr.pelanggan_id) return pr.pelanggan_id === pelangganId;
+  const pel = DATA.pelanggan.find(x => x.id === pelangganId);
+  return !!pel && pr.pelanggan_nama === pel.nama;
+}
+
+/* filterStatus='semua': mengikuti aturan yang sama dengan Grand Total di
+   menu Pelanggan — proyek tertunda/dibatalkan dikecualikan karena belum/tidak
+   jadi nilai riil. filterStatus spesifik (mis. 'selesai') tetap menghitung
+   proyek dengan status tersebut saja, apa pun statusnya. */
 function hitungTotalNilaiProyek(pelangganId, filterStatus){
+  const STATUS_DIKECUALIKAN = ['tertunda', 'dibatalkan'];
   return DATA.proyek
-    .filter(pr => pr.pelanggan_id === pelangganId && (filterStatus === 'semua' || pr.status === filterStatus))
-    .reduce((total, pr) => total + (pr.nilai || 0), 0);
+    .filter(pr => proyekMilikPelanggan(pr, pelangganId))
+    .filter(pr => filterStatus === 'semua' ? !STATUS_DIKECUALIKAN.includes(pr.status) : pr.status === filterStatus)
+    .reduce((total, pr) => total + (pr.grand_total || pr.nilai || 0), 0);
 }
 
 /* Rekap 8 metrik proyek per pelanggan untuk kolom-kolom di tabel Pelanggan.
@@ -965,20 +1021,92 @@ function hitungTotalNilaiProyek(pelangganId, filterStatus){
    supaya kedua halaman selalu sinkron — cukup ubah satu proyek dan kedua
    tabel otomatis ikut berubah karena sama-sama membaca dari DATA.proyek.
    awal/akhir (opsional) menyaring proyek berdasarkan Tanggal PO sesuai
-   filter "Periode Data" yang dipilih di halaman ini. */
+   filter "Periode Data" yang dipilih di halaman ini.
+   Proyek berstatus "tertunda" atau "dibatalkan" TIDAK dihitung ke kolom
+   total (Total Sub Total, Total Tax, Total Dana Lainnya, Grand Total,
+   Profit, Margin) karena belum/tidak jadi pendapatan riil — kolom
+   per-status (berjalan/tertunda/selesai/dibatalkan) tetap menampilkan
+   nilai masing-masing proyek apa adanya. */
 function hitungAgregatProyekPelanggan(pelangganId, awal, akhir){
-  const agregat = { berjalan:0, tertunda:0, selesai:0, dibatalkan:0, totalSubTotal:0, totalTax:0, totalDanaLainnya:0, grandTotal:0 };
+  const agregat = { berjalan:0, tertunda:0, selesai:0, dibatalkan:0, totalSubTotal:0, totalTax:0, totalDanaLainnya:0, grandTotal:0, totalBudgetTerpakai:0 };
+  const STATUS_DIKECUALIKAN = ['tertunda', 'dibatalkan'];
   DATA.proyek
-    .filter(pr => pr.pelanggan_id === pelangganId && tanggalDalamRentang(pr.tanggal, awal, akhir))
+    .filter(pr => proyekMilikPelanggan(pr, pelangganId) && tanggalDalamRentang(pr.tanggal, awal, akhir))
     .forEach(pr => {
       const nilaiProyek = pr.grand_total || pr.nilai || 0;
       if(agregat[pr.status] !== undefined) agregat[pr.status] += nilaiProyek;
+      if(STATUS_DIKECUALIKAN.includes(pr.status)) return; // lewati kolom total
       agregat.totalSubTotal += (pr.sub_total || 0);
       agregat.totalTax += hitungPajakNominal(pr.sub_total, pr.tax_persen);
       agregat.totalDanaLainnya += (pr.dana_lainnya || 0);
       agregat.grandTotal += nilaiProyek;
+      agregat.totalBudgetTerpakai += (pr.budget_terpakai || 0);
     });
+  // Profit & Margin dihitung dari Total Sub Total dikurangi Total Budget Terpakai
+  // seluruh proyek pelanggan ini (mengikuti periode yang sama dengan kolom lain,
+  // dan sudah tidak menyertakan proyek tertunda/dibatalkan).
+  agregat.profit = hitungProfit(agregat.totalSubTotal, agregat.totalBudgetTerpakai);
+  agregat.margin = hitungMarginPersen(agregat.totalSubTotal, agregat.totalBudgetTerpakai);
   return agregat;
+}
+
+/* 8 kartu ringkasan di atas tabel menu Pelanggan — menjumlahkan metrik yang
+   SAMA dengan kolom-kolom tabel (hitungAgregatProyekPelanggan) untuk seluruh
+   pelanggan yang sedang tampil (mengikuti pencarian & filter periode aktif),
+   supaya kartu selalu sinkron dengan isi tabel di bawahnya. Margin dihitung
+   ulang dari total Profit dibagi total Sub Total (bukan rata-rata persen
+   antar pelanggan) agar hasilnya akurat secara proporsional. */
+function renderStatPelanggan(daftarPelanggan, awal, akhir){
+  const wrap = document.getElementById('stat-pelanggan');
+  if(!wrap) return;
+
+  const total = { berjalan:0, tertunda:0, selesai:0, totalSubTotal:0, totalTax:0, grandTotal:0, profit:0 };
+  daftarPelanggan.forEach(p => {
+    const a = hitungAgregatProyekPelanggan(p.id, awal, akhir);
+    total.berjalan += a.berjalan;
+    total.tertunda += a.tertunda;
+    total.selesai += a.selesai;
+    total.totalSubTotal += a.totalSubTotal;
+    total.totalTax += a.totalTax;
+    total.grandTotal += a.grandTotal;
+    total.profit += a.profit;
+  });
+  const margin = hitungMarginPersen(total.totalSubTotal, total.totalSubTotal - total.profit);
+
+  wrap.innerHTML = `
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Total Nilai Proyek Berjalan</span>
+      <span class="stat-mini-value">${formatRupiah(total.berjalan)}</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Total Nilai Proyek Tertunda</span>
+      <span class="stat-mini-value">${formatRupiah(total.tertunda)}</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Total Nilai Proyek Selesai</span>
+      <span class="stat-mini-value">${formatRupiah(total.selesai)}</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Sub Total</span>
+      <span class="stat-mini-value">${formatRupiah(total.totalSubTotal)}</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Total Tax</span>
+      <span class="stat-mini-value">${formatRupiah(total.totalTax)}</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Grand Total</span>
+      <span class="stat-mini-value">${formatRupiah(total.grandTotal)}</span>
+    </div>
+    <div class="stat-mini-card ${total.profit < 0 ? 'danger' : 'ok'}">
+      <span class="stat-mini-label">Profit</span>
+      <span class="stat-mini-value">${formatRupiah(total.profit)}</span>
+    </div>
+    <div class="stat-mini-card ${margin < 0 ? 'danger' : 'ok'}">
+      <span class="stat-mini-label">Margin</span>
+      <span class="stat-mini-value">${margin}%</span>
+    </div>
+  `;
 }
 
 function renderPelanggan(){
@@ -990,8 +1118,10 @@ function renderPelanggan(){
     return p.nama.toLowerCase().includes(q) || (p.industri || '').toLowerCase().includes(q);
   });
 
+  renderStatPelanggan(data, awal, akhir);
+
   if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="16"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="18"><div class="empty-state">
       <p>Tidak ada pelanggan yang cocok dengan pencarian.</p></div></td></tr>`;
     return;
   }
@@ -1015,6 +1145,8 @@ function renderPelanggan(){
       <td>${formatRupiah(a.totalTax)}</td>
       <td>${formatRupiah(a.totalDanaLainnya)}</td>
       <td><b>${formatRupiah(a.grandTotal)}</b></td>
+      <td class="${a.profit < 0 ? 'profit-negative' : 'profit-positive'}"><b>${formatRupiah(a.profit)}</b></td>
+      <td class="${a.margin < 0 ? 'profit-negative' : 'profit-positive'}">${a.margin}%</td>
       <td class="cell-actions">
         <div class="icon-btn" title="Tambah Proyek untuk Pelanggan Ini" onclick="bukaModalTambahProyekUntukPelanggan('${p.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
@@ -1033,13 +1165,41 @@ function renderPelanggan(){
 
 async function hapusPelanggan(id){
   const p = DATA.pelanggan.find(x => x.id === id);
+  if(!p) return;
+
+  // Sejak migrasi v20 (schema.sql), kolom proyek.pelanggan_id memakai
+  // "ON DELETE CASCADE" — artinya begitu baris pelanggan ini dihapus,
+  // SELURUH proyek yang benar-benar tertaut (pelanggan_id terisi) ke
+  // pelanggan ini akan IKUT TERHAPUS PERMANEN oleh database, bukan cuma
+  // dilepas tautannya. Hitung dulu jumlah & nama proyeknya supaya
+  // pengguna diberi peringatan yang jelas & akurat sebelum menghapus.
+  const proyekTerkait = DATA.proyek.filter(pr => pr.pelanggan_id === id);
+  if(proyekTerkait.length > 0){
+    const daftarNama = proyekTerkait.slice(0, 5).map(pr => `• ${pr.nama}`).join('\n');
+    const sisa = proyekTerkait.length > 5 ? `\n… dan ${proyekTerkait.length - 5} proyek lainnya` : '';
+    const lanjut = confirm(
+      `Pelanggan "${p.nama}" masih memiliki ${proyekTerkait.length} proyek:\n\n${daftarNama}${sisa}\n\n` +
+      `PERINGATAN: seluruh proyek di atas akan IKUT TERHAPUS PERMANEN bersama pelanggannya. ` +
+      `Tindakan ini TIDAK BISA DIBATALKAN.\n\n` +
+      `Lanjutkan hapus pelanggan ini beserta semua proyeknya?`
+    );
+    if(!lanjut) return;
+  }
+
   const { error } = await supabaseClient.from('pelanggan').delete().eq('id', id);
   if(error){ console.error(error); tampilkanToast('Gagal menghapus pelanggan', true); return; }
   DATA.pelanggan = DATA.pelanggan.filter(x => x.id !== id);
+  // Buang juga dari cache lokal proyek yang baru saja ikut terhapus lewat
+  // CASCADE di database, supaya tabel/kartu proyek di UI langsung sinkron
+  // tanpa perlu reload manual.
+  DATA.proyek = DATA.proyek.filter(pr => pr.pelanggan_id !== id);
+
+  segarkanDetailPelangganJikaAktif();
+  renderFunnel();
   renderPelanggan();
   isiDropdownPelangganProyek();
   renderRingkasan(); // BUGFIX: dulu hanya renderRingkasanTabelPelanggan() yang dipanggil, tag "X Pelanggan Aktif" & tabel lain di dashboard tidak ikut ter-refresh
-  if(p) await catatAktivitas('pelanggan', `Pelanggan <b>${esc(p.nama)}</b> dihapus`);
+  await catatAktivitas('pelanggan', `Pelanggan <b>${esc(p.nama)}</b> dihapus${proyekTerkait.length > 0 ? ` beserta ${proyekTerkait.length} proyek terkait` : ''}`);
   tampilkanToast('Pelanggan dihapus');
 }
 
@@ -1134,6 +1294,16 @@ function hitungPersenBudget(budgetTerpakai, totalBudget){
   if(!totalBudget) return 0;
   return Math.round(((budgetTerpakai || 0) / totalBudget) * 1000) / 10; // 1 desimal
 }
+/* Profit = Sub Total - Budget Terpakai.
+   Margin = Profit dibagi Sub Total (dalam %) — menunjukkan seberapa besar
+   porsi Sub Total yang menjadi keuntungan setelah dikurangi budget terpakai. */
+function hitungProfit(subTotal, budgetTerpakai){
+  return (subTotal || 0) - (budgetTerpakai || 0);
+}
+function hitungMarginPersen(subTotal, budgetTerpakai){
+  if(!subTotal) return 0;
+  return Math.round((hitungProfit(subTotal, budgetTerpakai) / subTotal) * 1000) / 10; // 1 desimal
+}
 
 /* ---------------------------------------------------------
    6a. NAVIGASI & RENDER: DETAIL PELANGGAN (proyek per pelanggan)
@@ -1172,7 +1342,7 @@ function renderDetailPelanggan(){
   document.getElementById('detail-pelanggan-telepon').textContent = 'Telp: ' + (p.no_telepon || '—');
   document.getElementById('detail-pelanggan-whatsapp').textContent = 'WA: ' + (p.no_whatsapp || '—');
 
-  const proyekPelanggan = DATA.proyek.filter(pr => pr.pelanggan_id === PELANGGAN_AKTIF_ID);
+  const proyekPelanggan = DATA.proyek.filter(pr => proyekMilikPelanggan(pr, PELANGGAN_AKTIF_ID));
   document.getElementById('detail-pelanggan-jumlah-proyek').textContent = proyekPelanggan.length + ' Proyek';
   document.getElementById('detail-pelanggan-total-nilai').textContent = 'Total Nilai: ' + formatRupiah(hitungTotalNilaiProyek(PELANGGAN_AKTIF_ID, 'semua'));
 
@@ -1185,6 +1355,65 @@ function segarkanDetailPelangganJikaAktif(){
   if(PELANGGAN_AKTIF_ID) renderDetailPelanggan();
 }
 
+/* 8 kartu ringkasan di atas tabel "Proyek Pelanggan Ini" — menjumlahkan
+   metrik dari daftar proyek yang SEDANG TAMPIL (mengikuti pencarian, filter
+   status, dan filter periode aktif di halaman ini), supaya kartu selalu
+   sinkron dengan isi tabel di bawahnya. % Budget & Margin dihitung ulang
+   dari total nominal (bukan rata-rata persen antar proyek) agar hasilnya
+   akurat secara proporsional. */
+function renderStatProyekDetail(daftarProyek){
+  const wrap = document.getElementById('stat-proyek-detail');
+  if(!wrap) return;
+
+  const total = { subTotal:0, tax:0, danaLainnya:0, grandTotal:0, totalBudget:0, budgetTerpakai:0 };
+  daftarProyek.forEach(p => {
+    total.subTotal += (p.sub_total || 0);
+    total.tax += hitungPajakNominal(p.sub_total, p.tax_persen);
+    total.danaLainnya += (p.dana_lainnya || 0);
+    total.grandTotal += (p.grand_total || 0);
+    total.totalBudget += (p.total_budget || 0);
+    total.budgetTerpakai += (p.budget_terpakai || 0);
+  });
+  const persenBudget = hitungPersenBudget(total.budgetTerpakai, total.totalBudget);
+  const profit = hitungProfit(total.subTotal, total.budgetTerpakai);
+  const margin = hitungMarginPersen(total.subTotal, total.budgetTerpakai);
+
+  wrap.innerHTML = `
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Sub Total</span>
+      <span class="stat-mini-value">${formatRupiah(total.subTotal)}</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Tax</span>
+      <span class="stat-mini-value">${formatRupiah(total.tax)}</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Dana Lainnya</span>
+      <span class="stat-mini-value">${formatRupiah(total.danaLainnya)}</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Grand Total</span>
+      <span class="stat-mini-value">${formatRupiah(total.grandTotal)}</span>
+    </div>
+    <div class="stat-mini-card ${persenBudget > 100 ? 'danger' : (persenBudget >= 80 ? 'warn' : 'ok')}">
+      <span class="stat-mini-label">% Budget</span>
+      <span class="stat-mini-value">${persenBudget}%</span>
+    </div>
+    <div class="stat-mini-card ${profit < 0 ? 'danger' : 'ok'}">
+      <span class="stat-mini-label">Profit</span>
+      <span class="stat-mini-value">${formatRupiah(profit)}</span>
+    </div>
+    <div class="stat-mini-card ${margin < 0 ? 'danger' : 'ok'}">
+      <span class="stat-mini-label">Margin</span>
+      <span class="stat-mini-value">${margin}%</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Jumlah Proyek</span>
+      <span class="stat-mini-value">${daftarProyek.length}</span>
+    </div>
+  `;
+}
+
 function renderProyekDetail(){
   const tbody = document.getElementById('tbody-proyek-detail');
   if(!tbody || !PELANGGAN_AKTIF_ID) return;
@@ -1193,21 +1422,25 @@ function renderProyekDetail(){
   const { awal, akhir } = dapatkanRentangPeriode('proyek-detail');
 
   const data = DATA.proyek.filter(p => {
-    if(p.pelanggan_id !== PELANGGAN_AKTIF_ID) return false;
+    if(!proyekMilikPelanggan(p, PELANGGAN_AKTIF_ID)) return false;
     const cocokCari = p.nama.toLowerCase().includes(q) || (p.kode||'').toLowerCase().includes(q);
     const cocokStatus = filterStatus === 'semua' || p.status === filterStatus;
     const cocokPeriode = tanggalDalamRentang(p.tanggal, awal, akhir);
     return cocokCari && cocokStatus && cocokPeriode;
   });
 
+  renderStatProyekDetail(data);
+
   if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="15"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="17"><div class="empty-state">
       <p>Belum ada proyek untuk pelanggan ini.</p></div></td></tr>`;
     return;
   }
 
   tbody.innerHTML = data.map(p => {
     const persenBudget = hitungPersenBudget(p.budget_terpakai, p.total_budget);
+    const profit = hitungProfit(p.sub_total, p.budget_terpakai);
+    const margin = hitungMarginPersen(p.sub_total, p.budget_terpakai);
     return `
     <tr>
       <td class="cell-name">${esc(p.kode)}</td>
@@ -1227,6 +1460,8 @@ function renderProyekDetail(){
         <div class="progress-mini"><div class="progress-mini-fill" style="width:${Math.min(persenBudget,100)}%"></div></div>
         <div class="progress-mini-label">${persenBudget}%</div>
       </td>
+      <td class="${profit < 0 ? 'profit-negative' : 'profit-positive'}"><b>${formatRupiah(profit)}</b></td>
+      <td class="${margin < 0 ? 'profit-negative' : 'profit-positive'}">${margin}%</td>
       <td class="cell-actions">
         <div class="icon-btn" title="Edit" onclick="editProyek('${p.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -1397,12 +1632,12 @@ function renderFunnel(){
     { key:'selesai', nama:'Menang' },
     { key:'dibatalkan', nama:'Kalah' },
   ];
-  const totalNilaiSemua = DATA.proyek.reduce((s,p) => s + Number(p.nilai), 0) || 1;
+  const totalNilaiSemua = DATA.proyek.reduce((s,p) => s + (p.grand_total || p.nilai || 0), 0) || 1;
 
   const wrap = document.getElementById('funnel-wrap');
   wrap.innerHTML = tahapan.map(t => {
     const proyekTahap = DATA.proyek.filter(p => p.status === t.key);
-    const nilai = proyekTahap.reduce((s,p) => s + Number(p.nilai), 0);
+    const nilai = proyekTahap.reduce((s,p) => s + (p.grand_total || p.nilai || 0), 0);
     const pct = Math.max(6, Math.round((nilai/totalNilaiSemua)*100));
     return `
       <div class="funnel-row">
@@ -1642,14 +1877,17 @@ function namaGudang(id){
   return g ? g.nama : '—';
 }
 
-function isiDropdownGudang(){
-  // Dropdown gudang di form Tambah/Edit Item
+function isiDropdownGudang(excludeIds){
+  excludeIds = excludeIds || [];
+  // Dropdown gudang di form Tambah/Edit Item (excludeIds dipakai saat mode
+  // "+ Gudang Lain" supaya gudang yang sudah punya SKU ini tidak ditawarkan lagi)
   const selForm = document.getElementById('input-gudang-item-stok');
   if(selForm){
     const nilaiSaatIni = selForm.value;
+    const daftar = DATA.gudang.filter(g => !excludeIds.includes(g.id));
     selForm.innerHTML = '<option value="" disabled>Pilih gudang...</option>' +
-      DATA.gudang.map(g => `<option value="${g.id}">${esc(g.nama)}</option>`).join('');
-    if(nilaiSaatIni) selForm.value = nilaiSaatIni;
+      daftar.map(g => `<option value="${g.id}">${esc(g.nama)}</option>`).join('');
+    if(nilaiSaatIni && !excludeIds.includes(nilaiSaatIni)) selForm.value = nilaiSaatIni;
   }
   // Filter gudang di toolbar menu Stock & Gudang
   const selFilter = document.getElementById('filter-lokasi-gudang');
@@ -1660,14 +1898,52 @@ function isiDropdownGudang(){
     selFilter.value = nilaiSaatIni;
   }
 }
+/* Sumber kategori sekarang tabel master kategori_produk (bukan lagi teks bebas
+   hasil scan stok_item), supaya daftar kategori tetap konsisten di mana pun
+   dropdown/filter kategori dipakai. */
+function daftarNamaKategori(){
+  return DATA.kategoriProduk.length ? DATA.kategoriProduk.map(k => k.nama) : ['Umum'];
+}
 function isiDropdownKategoriGudang(){
   const sel = document.getElementById('filter-kategori-gudang');
   if(!sel) return;
   const nilaiSaatIni = sel.value || 'semua';
-  const kategoriUnik = [...new Set(DATA.stokItem.map(i => i.kategori || 'Umum'))].sort();
   sel.innerHTML = '<option value="semua">Semua Kategori</option>' +
-    kategoriUnik.map(k => `<option value="${k}">${k}</option>`).join('');
+    daftarNamaKategori().map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
   sel.value = nilaiSaatIni;
+}
+/* Isi dropdown kategori pada form Tambah/Edit Item Stok & Edit Produk Master —
+   dipisah dari filter kategori di atas karena elemennya select biasa (bukan
+   filter "semua"), jadi selalu diisi ulang dari kategoriProduk terbaru. */
+function isiDropdownKategoriForm(idSelect){
+  const sel = document.getElementById(idSelect);
+  if(!sel) return;
+  const nilaiSaatIni = sel.value;
+  sel.innerHTML = daftarNamaKategori().map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+  if(nilaiSaatIni && daftarNamaKategori().includes(nilaiSaatIni)) sel.value = nilaiSaatIni;
+}
+/* Sumber merek dari tabel master kategori_merek — pola persis sama dengan
+   kategori_produk di atas, supaya daftar Merek juga selalu konsisten
+   (tidak ada lagi "Samsung" vs "samsung" vs "SAMSUNG" karena salah ketik). */
+function daftarNamaMerek(){
+  return DATA.kategoriMerek.length ? DATA.kategoriMerek.map(m => m.nama) : ['Umum'];
+}
+function isiDropdownMerekGudang(){
+  const sel = document.getElementById('filter-merek-gudang');
+  if(!sel) return;
+  const nilaiSaatIni = sel.value || 'semua';
+  sel.innerHTML = '<option value="semua">Semua Merek</option>' +
+    daftarNamaMerek().map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+  sel.value = nilaiSaatIni;
+}
+/* Isi dropdown merek pada form Tambah/Edit Item Stok & Edit Produk Master —
+   sama seperti isiDropdownKategoriForm, dipakai di elemen select biasa. */
+function isiDropdownMerekForm(idSelect){
+  const sel = document.getElementById(idSelect);
+  if(!sel) return;
+  const nilaiSaatIni = sel.value;
+  sel.innerHTML = daftarNamaMerek().map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+  if(nilaiSaatIni && daftarNamaMerek().includes(nilaiSaatIni)) sel.value = nilaiSaatIni;
 }
 
 function renderStatGudang(){
@@ -1704,6 +1980,7 @@ function renderStatGudang(){
 
 function renderGudang(){
   isiDropdownGudang();
+  isiDropdownMerekGudang();
   isiDropdownKategoriGudang();
   renderStatGudang();
   const tbody = document.getElementById('tbody-gudang');
@@ -1711,19 +1988,21 @@ function renderGudang(){
   const isAdmin = CURRENT_USER && CURRENT_USER.peran === 'admin';
   const q = (document.getElementById('cari-gudang').value || '').toLowerCase();
   const filterGudang = document.getElementById('filter-lokasi-gudang').value;
+  const filterMerek = document.getElementById('filter-merek-gudang').value;
   const filterKategori = document.getElementById('filter-kategori-gudang').value;
   const filterStatus = document.getElementById('filter-status-gudang').value;
 
   const data = DATA.stokItem.filter(i => {
     const cocokCari = i.sku.toLowerCase().includes(q) || i.nama_produk.toLowerCase().includes(q) || (i.variant || '').toLowerCase().includes(q);
     const cocokGudang = filterGudang === 'semua' || i.gudang_id === filterGudang;
+    const cocokMerek = filterMerek === 'semua' || (i.merek || 'Umum') === filterMerek;
     const cocokKategori = filterKategori === 'semua' || (i.kategori || 'Umum') === filterKategori;
     const cocokStatus = filterStatus === 'semua' || hitungStatusStok(i) === filterStatus;
-    return cocokCari && cocokGudang && cocokKategori && cocokStatus;
+    return cocokCari && cocokGudang && cocokMerek && cocokKategori && cocokStatus;
   });
 
   if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><p>Tidak ada item stok yang cocok.</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><p>Tidak ada item stok yang cocok.</p></div></td></tr>`;
     return;
   }
 
@@ -1734,21 +2013,21 @@ function renderGudang(){
       <td class="cell-muted">${esc(i.sku)}</td>
       <td class="cell-name">${esc(i.nama_produk)}</td>
       <td>${esc(i.variant) || '—'}</td>
+      <td>${esc(i.merek) || 'Umum'}</td>
       <td>${esc(i.kategori) || 'Umum'}</td>
       <td>${namaGudang(i.gudang_id)}</td>
-      <td><span class="cell-link" title="Lihat detail stok masuk produk ini" onclick="bukaDetailStokMasuk('${i.id}')">${(i.stok_masuk || 0).toLocaleString('id-ID')}</span></td>
-      <td><span class="cell-link" title="Lihat detail stok keluar produk ini" onclick="bukaDetailStokKeluar('${i.id}')">${(i.stok_keluar || 0).toLocaleString('id-ID')}</span></td>
       <td><b>${sisaStok(i).toLocaleString('id-ID')}</b></td>
       <td class="cell-muted">${i.diupdate_pada ? waktuRelatif(i.diupdate_pada) : '—'}</td>
       <td class="cell-muted">${esc(i.diupdate_oleh_nama) || '—'}</td>
       <td><span class="stok-status stok-status--${status}">${labelStatusStok(status)}</span></td>
       <td class="cell-actions">
-        <div class="icon-btn" title="Edit" onclick="editItemStok('${i.id}')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <div class="icon-btn" title="Lihat Detail Stok Masuk" onclick="bukaDetailStokMasuk('${i.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m7-7H5"/></svg>
         </div>
-        ${isAdmin ? `<div class="icon-btn" title="Hapus" onclick="hapusItemStok('${i.id}')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
-        </div>` : ''}
+        <div class="icon-btn" title="Lihat Detail Stok Keluar" onclick="bukaDetailStokKeluar('${i.id}')">
+
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -1756,7 +2035,7 @@ function renderGudang(){
 
 function bukaModalTambahItemStok(){
   if(!DATA.gudang.length){
-    tampilkanToast('Tambah gudang terlebih dahulu lewat "Kelola Gudang"', true);
+    tampilkanToast('Tambah gudang terlebih dahulu lewat "Manajemen Produk & Kategori"', true);
     return;
   }
   document.getElementById('form-item-stok').reset();
@@ -1768,26 +2047,74 @@ function bukaModalTambahItemStok(){
   document.getElementById('catatan-modal-item-stok').innerHTML = 'Stok Minimum dipakai sistem untuk otomatis menandai status "Stok Menipis". Setelah item dibuat, klik angka <b>Stok Masuk</b> atau <b>Stok Keluar</b> pada tabel untuk mencatat pergerakan stok baru agar riwayatnya tetap tercatat.';
   document.getElementById('judul-modal-item-stok').textContent = 'Tambah Item Stok';
   document.getElementById('btn-simpan-item-stok').textContent = 'Simpan Item';
+  ['input-sku-item-stok','input-kategori-item-stok','input-merek-item-stok','input-nama-item-stok','input-variant-item-stok','input-satuan-item-stok'].forEach(id => document.getElementById(id).disabled = false);
+  isiDropdownKategoriForm('input-kategori-item-stok');
+  isiDropdownMerekForm('input-merek-item-stok');
   isiDropdownGudang();
   bukaModal('modal-item-stok');
+}
+
+/* Saat mode Tambah Item (bukan edit, bukan "+ Gudang Lain" yang sudah
+   mengunci SKU duluan), cek tiap kali SKU diketik: kalau SKU itu ternyata
+   sudah dipakai produk lain di gudang lain, otomatis isi & kunci Kategori/
+   Nama/Variant/Satuan dari produk yang sudah ada + saring dropdown Gudang
+   supaya gudang yang sudah punya SKU ini tidak muncul lagi. Ini menutup
+   celah utama penyebab data produk "ngedrift" antar gudang: menambah SKU
+   yang sama dari tabel utama tanpa sadar SKU itu sudah terdaftar. */
+function cekSkuSudahAda(){
+  const skuField = document.getElementById('input-sku-item-stok');
+  if(document.getElementById('input-id-item-stok').value || skuField.disabled) return; // mode edit / mode "+ Gudang Lain"
+  const skuDiketik = skuField.value.trim().toLowerCase();
+  const existing = skuDiketik ? DATA.stokItem.find(x => (x.sku || '').toLowerCase() === skuDiketik) : null;
+  const fieldsTerkunci = ['input-kategori-item-stok','input-merek-item-stok','input-nama-item-stok','input-variant-item-stok','input-satuan-item-stok'];
+  if(existing){
+    isiDropdownKategoriForm('input-kategori-item-stok');
+    document.getElementById('input-kategori-item-stok').value = existing.kategori || 'Umum';
+    isiDropdownMerekForm('input-merek-item-stok');
+    document.getElementById('input-merek-item-stok').value = existing.merek || 'Umum';
+    document.getElementById('input-nama-item-stok').value = existing.nama_produk;
+    document.getElementById('input-variant-item-stok').value = existing.variant || '';
+    document.getElementById('input-satuan-item-stok').value = existing.satuan || 'Pcs';
+    document.getElementById('input-stok-minimum-item-stok').value = existing.stok_minimum || 0;
+    fieldsTerkunci.forEach(id => document.getElementById(id).disabled = true);
+    const gudangTerpakai = DATA.stokItem.filter(x => (x.sku || '').toLowerCase() === skuDiketik).map(x => x.gudang_id);
+    isiDropdownGudang(gudangTerpakai);
+    if(gudangTerpakai.length >= DATA.gudang.length){
+      document.getElementById('catatan-modal-item-stok').innerHTML = `SKU ini (<b>${esc(existing.nama_produk)}</b>) sudah tercatat di <b>semua gudang</b> yang ada — tidak ada gudang tersisa untuk ditambahkan.`;
+    } else {
+      document.getElementById('catatan-modal-item-stok').innerHTML = `SKU ini sudah terdaftar sebagai <b>${esc(existing.nama_produk)}</b> — Merek/Kategori/Nama/Variant/Satuan dikunci otomatis agar konsisten. Pilih gudang tujuan &amp; isi Stok Awal.`;
+    }
+  } else {
+    fieldsTerkunci.forEach(id => document.getElementById(id).disabled = false);
+    isiDropdownGudang();
+    document.getElementById('catatan-modal-item-stok').innerHTML = 'Stok Minimum dipakai sistem untuk otomatis menandai status "Stok Menipis". Setelah item dibuat, klik angka <b>Stok Masuk</b> atau <b>Stok Keluar</b> pada tabel untuk mencatat pergerakan stok baru agar riwayatnya tetap tercatat.';
+  }
 }
 
 function editItemStok(id){
   const i = DATA.stokItem.find(x => x.id === id);
   if(!i) return;
   isiDropdownGudang();
+  isiDropdownKategoriForm('input-kategori-item-stok');
+  isiDropdownMerekForm('input-merek-item-stok');
   document.getElementById('input-id-item-stok').value = i.id;
   document.getElementById('input-gudang-item-stok').value = i.gudang_id;
   document.getElementById('input-sku-item-stok').value = i.sku || '';
-  document.getElementById('input-kategori-item-stok').value = i.kategori || '';
+  document.getElementById('input-kategori-item-stok').value = i.kategori || 'Umum';
+  document.getElementById('input-merek-item-stok').value = i.merek || 'Umum';
   document.getElementById('input-nama-item-stok').value = i.nama_produk || '';
   document.getElementById('input-variant-item-stok').value = i.variant || '';
   document.getElementById('input-stok-minimum-item-stok').value = i.stok_minimum || 0;
   document.getElementById('input-satuan-item-stok').value = i.satuan || 'Pcs';
   document.getElementById('input-status-item-stok').value = i.status || 'aktif';
+  // Identitas produk (SKU/Merek/Kategori/Nama/Variant/Satuan) DIKUNCI di sini — supaya
+  // tidak bisa lagi "ngedrift" beda-beda antar gudang seperti sebelumnya. Untuk
+  // mengubahnya, arahkan ke tab Produk (Manajemen Produk & Kategori) yang otomatis
+  // menyamakan perubahan ke semua gudang sekaligus.
+  ['input-sku-item-stok','input-kategori-item-stok','input-merek-item-stok','input-nama-item-stok','input-variant-item-stok','input-satuan-item-stok'].forEach(idEl => document.getElementById(idEl).disabled = true);
   // Stok Masuk/Keluar hanya bisa diubah lewat "Tambah Stok" (menjaga riwayat tetap akurat)
   document.getElementById('wrap-stok-awal-item-stok').style.display = 'none';
-  document.getElementById('catatan-modal-item-stok').innerHTML = `Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')}</b>. Klik angka <b>Stok Masuk</b> atau <b>Stok Keluar</b> pada tabel untuk mencatat pergerakan stok baru — bukan lewat form ini.`;
+  document.getElementById('catatan-modal-item-stok').innerHTML = `Sisa stok saat ini: <b>${sisaStok(i).toLocaleString('id-ID')}</b>. SKU/Merek/Kategori/Nama/Variant/Satuan dikunci di sini — ubah lewat <b>Manajemen Produk &amp; Kategori &gt; tab Produk</b> agar konsisten di semua gudang. Klik angka <b>Stok Masuk</b> atau <b>Stok Keluar</b> pada tabel untuk mencatat pergerakan stok baru.`;
   document.getElementById('judul-modal-item-stok').textContent = 'Edit Item Stok';
   document.getElementById('btn-simpan-item-stok').textContent = 'Simpan Perubahan';
   bukaModal('modal-item-stok');
@@ -1801,6 +2128,11 @@ async function simpanItemStok(e){
   const nama_produk = document.getElementById('input-nama-item-stok').value.trim();
   const variant = document.getElementById('input-variant-item-stok').value.trim() || null;
   const kategori = document.getElementById('input-kategori-item-stok').value.trim() || 'Umum';
+  const kategoriObj = DATA.kategoriProduk.find(k => k.nama === kategori);
+  const kategori_id = kategoriObj ? kategoriObj.id : null;
+  const merek = document.getElementById('input-merek-item-stok').value.trim() || 'Umum';
+  const merekObj = DATA.kategoriMerek.find(m => m.nama === merek);
+  const merek_id = merekObj ? merekObj.id : null;
   const stok_minimum = Number(document.getElementById('input-stok-minimum-item-stok').value) || 0;
   const satuan = document.getElementById('input-satuan-item-stok').value.trim() || 'Pcs';
   const status = document.getElementById('input-status-item-stok').value;
@@ -1811,19 +2143,20 @@ async function simpanItemStok(e){
 
   if(id){
     // --- mode edit: hanya metadata, jumlah stok tidak diubah dari sini ---
-    const baris = { gudang_id, sku, nama_produk, variant, kategori, stok_minimum, satuan, status, diupdate_oleh_id, diupdate_oleh_nama, diupdate_pada: new Date().toISOString() };
+    const baris = { gudang_id, sku, nama_produk, variant, kategori, kategori_id, merek, merek_id, stok_minimum, satuan, status, diupdate_oleh_id, diupdate_oleh_nama, diupdate_pada: new Date().toISOString() };
     const { data, error } = await supabaseClient.from('stok_item').update(baris).eq('id', id).select().single();
     if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'SKU pada gudang ini') || 'Gagal menyimpan perubahan item', true); return; }
     const idx = DATA.stokItem.findIndex(x => x.id === id);
     if(idx > -1) DATA.stokItem[idx] = data;
     renderGudang();
+    renderProdukMaster();
     await catatAktivitas('gudang', `Item stok <b>${nama_produk}</b> (${sku}) diperbarui`);
     tutupModal('modal-item-stok');
     tampilkanToast('Perubahan item stok disimpan');
   } else {
-    // --- mode tambah ---
+    // --- mode tambah (juga dipakai oleh "+ Gudang Lain" dari tab Produk) ---
     const stokAwal = Number(document.getElementById('input-stok-awal-item-stok').value) || 0;
-    const baris = { gudang_id, sku, nama_produk, variant, kategori, stok_minimum, satuan, status, stok_masuk: stokAwal, stok_keluar: 0, diupdate_oleh_id, diupdate_oleh_nama };
+    const baris = { gudang_id, sku, nama_produk, variant, kategori, kategori_id, merek, merek_id, stok_minimum, satuan, status, stok_masuk: stokAwal, stok_keluar: 0, diupdate_oleh_id, diupdate_oleh_nama };
     const { data, error } = await supabaseClient.from('stok_item').insert(baris).select().single();
     if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'SKU pada gudang ini') || 'Gagal menambah item stok', true); return; }
     DATA.stokItem.unshift(data);
@@ -1831,6 +2164,7 @@ async function simpanItemStok(e){
       await supabaseClient.from('riwayat_stok').insert({ item_id: data.id, tipe: 'masuk', stok_baru: stokAwal, jumlah: stokAwal, catatan: 'Stok awal saat item dibuat', dibuat_oleh_id: diupdate_oleh_id, dibuat_oleh_nama: diupdate_oleh_nama });
     }
     renderGudang();
+    renderProdukMaster();
     await catatAktivitas('gudang', `Item stok baru <b>${nama_produk}</b> (${sku}) ditambahkan di ${namaGudang(gudang_id)}`);
     tutupModal('modal-item-stok');
     tampilkanToast('Item stok baru ditambahkan');
@@ -1845,6 +2179,7 @@ async function hapusItemStok(id){
   if(error){ console.error(error); tampilkanToast('Gagal menghapus item stok', true); return; }
   DATA.stokItem = DATA.stokItem.filter(x => x.id !== id);
   renderGudang();
+  renderProdukMaster();
   if(i) await catatAktivitas('gudang', `Item stok <b>${esc(i.nama_produk)}</b> (${esc(i.sku)}) dihapus`);
   tampilkanToast('Item stok dihapus');
 }
@@ -1859,10 +2194,6 @@ async function hapusItemStok(id){
    kolom "jumlah" untuk akumulasi Stok Masuk pada kartu stok.
 --------------------------------------------------------- */
 let STOK_ITEM_AKTIF_ID = null; // id item stok yang sedang dibuka di halaman detail (masuk maupun keluar)
-
-function labelKondisiBarang(k){
-  return { baru: 'Baru', bekas: 'Bekas', rusak: 'Rusak' }[k] || 'Baru';
-}
 
 function bukaDetailStokMasuk(itemId){
   STOK_ITEM_AKTIF_ID = itemId;
@@ -2382,13 +2713,454 @@ async function hapusStokKeluar(riwayatId){
 }
 
 /* ---- Kelola Gudang (daftar lokasi/cabang) ---- */
-function bukaModalKelolaGudang(){
-  renderListGudangKelola();
-  document.getElementById('form-gudang').reset();
-  bukaModal('modal-gudang');
+/* ---------------------------------------------------------
+   17e. MANAJEMEN PRODUK, KATEGORI & GUDANG (dibuka dari tombol
+   di menu Stock & Gudang). Tiga tab dalam satu halaman:
+   - Produk   : stok_item dikelompokkan per SKU lintas gudang.
+   - Kategori : data master kategori_produk (bukan teks bebas).
+   - Gudang   : sama seperti "Kelola Gudang" sebelumnya.
+   Ketiganya saling terhubung: mengubah Kategori/Produk/Gudang
+   di sini langsung berlaku ke semua baris stok_item terkait.
+--------------------------------------------------------- */
+let MP_TAB_AKTIF = 'produk';
+
+function bukaManajemenProduk(tab){
+  pindahTampilan('manajemen-produk');
+  pindahTabManajemenProduk(tab || 'produk');
 }
+
+function pindahTabManajemenProduk(tab){
+  MP_TAB_AKTIF = tab;
+  document.querySelectorAll('.mp-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.mpTab === tab));
+  document.querySelectorAll('.mp-tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('mp-tab-' + tab).classList.add('active');
+  renderStatManajemenProduk();
+  if(tab === 'produk') renderProdukMaster();
+  if(tab === 'merek') renderMerekMaster();
+  if(tab === 'kategori') renderKategoriMaster();
+  if(tab === 'gudang') renderListGudangKelola();
+}
+
+function renderStatManajemenProduk(){
+  const wrap = document.getElementById('stat-manajemen-produk');
+  if(!wrap) return;
+  const skuUnik = new Set(DATA.stokItem.map(i => i.sku)).size;
+  wrap.innerHTML = `
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Total Produk (SKU unik)</span>
+      <span class="stat-mini-value">${skuUnik}</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Total Kategori Merek</span>
+      <span class="stat-mini-value">${DATA.kategoriMerek.length}</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Total Kategori Produk</span>
+      <span class="stat-mini-value">${DATA.kategoriProduk.length}</span>
+    </div>
+    <div class="stat-mini-card">
+      <span class="stat-mini-label">Total Gudang</span>
+      <span class="stat-mini-value">${DATA.gudang.length}</span>
+    </div>`;
+}
+
+/* Kelompokkan stok_item per SKU supaya satu produk yang tersebar di
+   beberapa gudang tampil sebagai satu baris ringkas — inti dari
+   efisiensi menu ini (tidak perlu buka satu-satu per gudang). */
+function groupProdukMaster(){
+  const map = new Map();
+  DATA.stokItem.forEach(i => {
+    if(!map.has(i.sku)){
+      map.set(i.sku, { sku: i.sku, nama_produk: i.nama_produk, kategori: i.kategori || 'Umum', merek: i.merek || 'Umum', variant: i.variant, satuan: i.satuan, gudangList: [], totalSisa: 0 });
+    }
+    const grup = map.get(i.sku);
+    grup.gudangList.push({ gudang_id: i.gudang_id, nama: namaGudang(i.gudang_id), sisa: sisaStok(i) });
+    grup.totalSisa += sisaStok(i);
+  });
+  return [...map.values()].sort((a,b) => a.nama_produk.localeCompare(b.nama_produk));
+}
+
+function renderProdukMaster(){
+  isiDropdownMerekProdukMasterFilter();
+  isiDropdownKategoriProdukMasterFilter();
+  const tbody = document.getElementById('tbody-produk-master');
+  if(!tbody) return;
+  const isAdmin = CURRENT_USER && CURRENT_USER.peran === 'admin';
+  const q = (document.getElementById('cari-produk-master').value || '').toLowerCase();
+  const filterMerek = document.getElementById('filter-merek-produk-master').value;
+  const filterKategori = document.getElementById('filter-kategori-produk-master').value;
+
+  const data = groupProdukMaster().filter(p => {
+    const cocokCari = p.sku.toLowerCase().includes(q) || p.nama_produk.toLowerCase().includes(q);
+    const cocokMerek = filterMerek === 'semua' || p.merek === filterMerek;
+    const cocokKategori = filterKategori === 'semua' || p.kategori === filterKategori;
+    return cocokCari && cocokMerek && cocokKategori;
+  });
+
+  if(!data.length){
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><p>Belum ada produk yang cocok. Tambahkan lewat tombol "Tambah Produk".</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map(p => `
+    <tr>
+      <td class="cell-muted">${esc(p.sku)}</td>
+      <td class="cell-name">${esc(p.nama_produk)}</td>
+      <td>${esc(p.merek)}</td>
+      <td>${esc(p.kategori)}</td>
+      <td>${esc(p.variant) || '—'}</td>
+      <td>${esc(p.satuan) || '—'}</td>
+      <td><div class="gudang-badge-list">${p.gudangList.map(g => `<span class="gudang-badge">${esc(g.nama)} · <b>${g.sisa.toLocaleString('id-ID')}</b></span>`).join('')}</div></td>
+      <td><b>${p.totalSisa.toLocaleString('id-ID')}</b></td>
+      <td class="cell-actions">
+        <div class="icon-btn" title="Edit Produk (semua gudang)" onclick="bukaModalEditProdukMaster('${esc(p.sku)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </div>
+        <div class="icon-btn" title="Tambahkan ke Gudang Lain" onclick="bukaModalTambahKeGudangLain('${esc(p.sku)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/><path d="M12 12v5m-2.5-2.5h5"/></svg>
+        </div>
+        ${isAdmin ? `<div class="icon-btn" title="Hapus dari semua gudang" onclick="hapusProdukMaster('${esc(p.sku)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
+        </div>` : ''}
+      </td>
+    </tr>`).join('');
+}
+
+function isiDropdownMerekProdukMasterFilter(){
+  const sel = document.getElementById('filter-merek-produk-master');
+  if(!sel) return;
+  const nilaiSaatIni = sel.value || 'semua';
+  sel.innerHTML = '<option value="semua">Semua Merek</option>' +
+    daftarNamaMerek().map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+  sel.value = nilaiSaatIni;
+}
+
+function isiDropdownKategoriProdukMasterFilter(){
+  const sel = document.getElementById('filter-kategori-produk-master');
+  if(!sel) return;
+  const nilaiSaatIni = sel.value || 'semua';
+  sel.innerHTML = '<option value="semua">Semua Kategori</option>' +
+    daftarNamaKategori().map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+  sel.value = nilaiSaatIni;
+}
+
+function bukaModalEditProdukMaster(sku){
+  const contoh = DATA.stokItem.find(x => x.sku === sku);
+  if(!contoh) return;
+  const jumlahGudang = DATA.stokItem.filter(x => x.sku === sku).length;
+  isiDropdownKategoriForm('input-kategori-produk-master');
+  isiDropdownMerekForm('input-merek-produk-master');
+  document.getElementById('input-sku-produk-master').value = sku;
+  document.getElementById('input-sku-tampil-produk-master').value = sku;
+  document.getElementById('input-kategori-produk-master').value = contoh.kategori || 'Umum';
+  document.getElementById('input-merek-produk-master').value = contoh.merek || 'Umum';
+  document.getElementById('input-nama-produk-master').value = contoh.nama_produk || '';
+  document.getElementById('input-variant-produk-master').value = contoh.variant || '';
+  document.getElementById('input-satuan-produk-master').value = contoh.satuan || 'Pcs';
+  document.getElementById('info-produk-master').innerHTML = `Produk ini tercatat di <b>${jumlahGudang}</b> gudang.`;
+  bukaModal('modal-produk-master');
+}
+
+async function simpanProdukMaster(e){
+  e.preventDefault();
+  const sku = document.getElementById('input-sku-produk-master').value;
+  const nama_produk = document.getElementById('input-nama-produk-master').value.trim();
+  const variant = document.getElementById('input-variant-produk-master').value.trim() || null;
+  const satuan = document.getElementById('input-satuan-produk-master').value.trim() || 'Pcs';
+  const kategori = document.getElementById('input-kategori-produk-master').value.trim() || 'Umum';
+  const kategoriObj = DATA.kategoriProduk.find(k => k.nama === kategori);
+  const kategori_id = kategoriObj ? kategoriObj.id : null;
+  const merek = document.getElementById('input-merek-produk-master').value.trim() || 'Umum';
+  const merekObj = DATA.kategoriMerek.find(m => m.nama === merek);
+  const merek_id = merekObj ? merekObj.id : null;
+  if(!sku || !nama_produk) return;
+
+  const diupdate_oleh_id = CURRENT_USER ? CURRENT_USER.id : null;
+  const diupdate_oleh_nama = CURRENT_USER ? CURRENT_USER.nama : null;
+  const baris = { nama_produk, variant, satuan, kategori, kategori_id, merek, merek_id, diupdate_oleh_id, diupdate_oleh_nama, diupdate_pada: new Date().toISOString() };
+
+  // --- Update SEKALIGUS ke semua baris stok_item yang punya SKU ini, di semua gudang ---
+  const { data, error } = await supabaseClient.from('stok_item').update(baris).eq('sku', sku).select();
+  if(error){ console.error(error); tampilkanToast('Gagal menyimpan perubahan produk', true); return; }
+  (data || []).forEach(baruItem => {
+    const idx = DATA.stokItem.findIndex(x => x.id === baruItem.id);
+    if(idx > -1) DATA.stokItem[idx] = baruItem;
+  });
+
+  renderGudang();
+  renderProdukMaster();
+  await catatAktivitas('gudang', `Data produk <b>${esc(nama_produk)}</b> (${esc(sku)}) diperbarui di ${(data || []).length} gudang`);
+  tutupModal('modal-produk-master');
+  tampilkanToast('Perubahan produk disimpan ke semua gudang');
+}
+
+async function hapusProdukMaster(sku){
+  const baris = DATA.stokItem.filter(x => x.sku === sku);
+  if(!baris.length) return;
+  const { error } = await supabaseClient.from('stok_item').delete().eq('sku', sku);
+  if(error){ console.error(error); tampilkanToast('Gagal menghapus produk', true); return; }
+  DATA.stokItem = DATA.stokItem.filter(x => x.sku !== sku);
+  renderGudang();
+  renderProdukMaster();
+  await catatAktivitas('gudang', `Produk <b>${esc(baris[0].nama_produk)}</b> (${esc(sku)}) dihapus dari ${baris.length} gudang`);
+  tampilkanToast('Produk dihapus dari semua gudang');
+}
+
+/* "+ Gudang Lain": buka modal Tambah Item Stok yang sama, tapi data
+   produk (SKU/Nama/Kategori/Merek/Variant/Satuan) sudah terisi otomatis dan
+   dikunci, serta dropdown Gudang hanya menampilkan gudang yang BELUM
+   punya SKU ini — jadi tinggal pilih gudang & isi Stok Awal. */
+function bukaModalTambahKeGudangLain(sku){
+  const contoh = DATA.stokItem.find(x => x.sku === sku);
+  if(!contoh) return;
+  const gudangTerpakai = DATA.stokItem.filter(x => x.sku === sku).map(x => x.gudang_id);
+  if(gudangTerpakai.length >= DATA.gudang.length){
+    tampilkanToast('Produk ini sudah tercatat di semua gudang yang ada', true);
+    return;
+  }
+  document.getElementById('form-item-stok').reset();
+  document.getElementById('input-id-item-stok').value = '';
+  isiDropdownKategoriForm('input-kategori-item-stok');
+  isiDropdownMerekForm('input-merek-item-stok');
+  isiDropdownGudang(gudangTerpakai);
+  document.getElementById('input-sku-item-stok').value = contoh.sku;
+  document.getElementById('input-kategori-item-stok').value = contoh.kategori || 'Umum';
+  document.getElementById('input-merek-item-stok').value = contoh.merek || 'Umum';
+  document.getElementById('input-nama-item-stok').value = contoh.nama_produk;
+  document.getElementById('input-variant-item-stok').value = contoh.variant || '';
+  document.getElementById('input-satuan-item-stok').value = contoh.satuan || 'Pcs';
+  document.getElementById('input-stok-minimum-item-stok').value = contoh.stok_minimum || 0;
+  document.getElementById('input-status-item-stok').value = 'aktif';
+  ['input-sku-item-stok','input-kategori-item-stok','input-merek-item-stok','input-nama-item-stok','input-variant-item-stok','input-satuan-item-stok'].forEach(id => document.getElementById(id).disabled = true);
+  document.getElementById('wrap-stok-awal-item-stok').style.display = '';
+  document.getElementById('input-stok-awal-item-stok').disabled = false;
+  document.getElementById('input-stok-awal-item-stok').value = 0;
+  document.getElementById('catatan-modal-item-stok').innerHTML = `Data produk dikunci supaya tetap konsisten dengan gudang lain — ganti dari tab <b>Produk</b> jika perlu. Pilih gudang tujuan & isi Stok Awal di sini.`;
+  document.getElementById('judul-modal-item-stok').textContent = `Tambahkan "${esc(contoh.nama_produk)}" ke Gudang Lain`;
+  document.getElementById('btn-simpan-item-stok').textContent = 'Simpan';
+  bukaModal('modal-item-stok');
+}
+
+/* ---------------------------------------------------------
+   17f. KATEGORI PRODUK (tab Kategori) — data master, dipakai
+   sebagai sumber dropdown Kategori di form Item Stok & Produk,
+   serta filter Kategori pada tabel Stock & Gudang / Produk.
+--------------------------------------------------------- */
+function renderKategoriMaster(){
+  const tbody = document.getElementById('tbody-kategori-master');
+  if(!tbody) return;
+  const isAdmin = CURRENT_USER && CURRENT_USER.peran === 'admin';
+  if(!DATA.kategoriProduk.length){
+    tbody.innerHTML = `<tr><td colspan="3"><div class="empty-state"><p>Belum ada kategori. Tambahkan lewat tombol "Tambah Kategori".</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = DATA.kategoriProduk.map(k => {
+    const jumlahProduk = DATA.stokItem.filter(i => (i.kategori || 'Umum') === k.nama).length;
+    return `
+    <tr>
+      <td class="cell-name">${esc(k.nama)}</td>
+      <td>${jumlahProduk}</td>
+      <td class="cell-actions">
+        <div class="icon-btn" title="Edit" onclick="editKategori('${k.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </div>
+        ${isAdmin ? `<div class="icon-btn" title="Hapus" onclick="hapusKategori('${k.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
+        </div>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function bukaModalTambahKategori(){
+  document.getElementById('form-kategori').reset();
+  document.getElementById('input-id-kategori').value = '';
+  document.getElementById('judul-modal-kategori').textContent = 'Tambah Kategori';
+  document.getElementById('btn-simpan-kategori').textContent = 'Simpan Kategori';
+  bukaModal('modal-kategori');
+}
+
+function editKategori(id){
+  const k = DATA.kategoriProduk.find(x => x.id === id);
+  if(!k) return;
+  document.getElementById('input-id-kategori').value = k.id;
+  document.getElementById('input-nama-kategori').value = k.nama;
+  document.getElementById('judul-modal-kategori').textContent = 'Edit Kategori';
+  document.getElementById('btn-simpan-kategori').textContent = 'Simpan Perubahan';
+  bukaModal('modal-kategori');
+}
+
+async function simpanKategori(e){
+  e.preventDefault();
+  const id = document.getElementById('input-id-kategori').value;
+  const nama = document.getElementById('input-nama-kategori').value.trim();
+  if(!nama) return;
+
+  if(id){
+    // --- mode edit: trigger di database otomatis menyinkronkan stok_item.kategori ---
+    const { data, error } = await supabaseClient.from('kategori_produk').update({ nama }).eq('id', id).select().single();
+    if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'Nama kategori') || 'Gagal menyimpan perubahan kategori. Pastikan migrasi v17 di schema.sql sudah dijalankan.', true); return; }
+    const namaLama = (DATA.kategoriProduk.find(x => x.id === id) || {}).nama;
+    const idx = DATA.kategoriProduk.findIndex(x => x.id === id);
+    if(idx > -1) DATA.kategoriProduk[idx] = data;
+    // --- ikut perbarui salinan lokal stok_item.kategori supaya tabel langsung sinkron tanpa reload ---
+    DATA.stokItem.forEach(i => { if(i.kategori === namaLama) i.kategori = nama; });
+    renderGudang();
+    renderProdukMaster();
+    await catatAktivitas('gudang', `Kategori <b>${esc(namaLama)}</b> diganti nama jadi <b>${esc(nama)}</b>`);
+    tampilkanToast('Perubahan kategori disimpan');
+  } else {
+    const { data, error } = await supabaseClient.from('kategori_produk').insert({ nama }).select().single();
+    if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'Nama kategori') || 'Gagal menambah kategori. Pastikan migrasi v17 di schema.sql sudah dijalankan.', true); return; }
+    DATA.kategoriProduk.push(data);
+    DATA.kategoriProduk.sort((a,b) => a.nama.localeCompare(b.nama));
+    await catatAktivitas('gudang', `Kategori baru <b>${esc(nama)}</b> ditambahkan`);
+    tampilkanToast('Kategori baru ditambahkan');
+  }
+  renderKategoriMaster();
+  renderStatManajemenProduk();
+  tutupModal('modal-kategori');
+  e.target.reset();
+  document.getElementById('input-id-kategori').value = '';
+}
+
+async function hapusKategori(id){
+  const k = DATA.kategoriProduk.find(x => x.id === id);
+  if(!k) return;
+  if(k.nama === 'Umum'){
+    tampilkanToast('Kategori "Umum" adalah kategori bawaan dan tidak bisa dihapus', true);
+    return;
+  }
+  if(DATA.stokItem.some(i => (i.kategori || 'Umum') === k.nama)){
+    tampilkanToast('Kategori ini masih dipakai oleh produk. Pindahkan produknya ke kategori lain terlebih dahulu.', true);
+    return;
+  }
+  const { error } = await supabaseClient.from('kategori_produk').delete().eq('id', id);
+  if(error){ console.error(error); tampilkanToast('Gagal menghapus kategori', true); return; }
+  DATA.kategoriProduk = DATA.kategoriProduk.filter(x => x.id !== id);
+  renderKategoriMaster();
+  renderStatManajemenProduk();
+  await catatAktivitas('gudang', `Kategori <b>${esc(k.nama)}</b> dihapus`);
+  tampilkanToast('Kategori dihapus');
+}
+
+/* ---------------------------------------------------------
+   17f-bis. KATEGORI MEREK (tab Kategori Merek) — data master
+   untuk Merek/Brand produk, pola & struktur PERSIS SAMA dengan
+   Kategori Produk di atas (tabel master terpisah kategori_merek,
+   kolom stok_item.merek + merek_id, trigger sinkron nama di DB).
+   Dipisah dari Kategori Produk karena keduanya menjawab pertanyaan
+   berbeda saat memfilter produk: "merek apa" (mis. Samsung, Anker)
+   vs "jenis produk apa" (mis. Kabel, Charger, Aksesoris) — satu
+   produk hanya punya 1 merek tapi bisa dikelompokkan lintas kategori,
+   jadi lebih tepat dipisah daripada digabung jadi satu daftar datar.
+--------------------------------------------------------- */
+function renderMerekMaster(){
+  const tbody = document.getElementById('tbody-merek-master');
+  if(!tbody) return;
+  const isAdmin = CURRENT_USER && CURRENT_USER.peran === 'admin';
+  if(!DATA.kategoriMerek.length){
+    tbody.innerHTML = `<tr><td colspan="3"><div class="empty-state"><p>Belum ada merek. Tambahkan lewat tombol "Tambah Merek".</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = DATA.kategoriMerek.map(m => {
+    const jumlahProduk = DATA.stokItem.filter(i => (i.merek || 'Umum') === m.nama).length;
+    return `
+    <tr>
+      <td class="cell-name">${esc(m.nama)}</td>
+      <td>${jumlahProduk}</td>
+      <td class="cell-actions">
+        <div class="icon-btn" title="Edit" onclick="editMerek('${m.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </div>
+        ${isAdmin ? `<div class="icon-btn" title="Hapus" onclick="hapusMerek('${m.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
+        </div>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function bukaModalTambahMerek(){
+  document.getElementById('form-merek').reset();
+  document.getElementById('input-id-merek').value = '';
+  document.getElementById('judul-modal-merek').textContent = 'Tambah Merek';
+  document.getElementById('btn-simpan-merek').textContent = 'Simpan Merek';
+  bukaModal('modal-merek');
+}
+
+function editMerek(id){
+  const m = DATA.kategoriMerek.find(x => x.id === id);
+  if(!m) return;
+  document.getElementById('input-id-merek').value = m.id;
+  document.getElementById('input-nama-merek').value = m.nama;
+  document.getElementById('judul-modal-merek').textContent = 'Edit Merek';
+  document.getElementById('btn-simpan-merek').textContent = 'Simpan Perubahan';
+  bukaModal('modal-merek');
+}
+
+async function simpanMerek(e){
+  e.preventDefault();
+  const id = document.getElementById('input-id-merek').value;
+  const nama = document.getElementById('input-nama-merek').value.trim();
+  if(!nama) return;
+
+  if(id){
+    // --- mode edit: trigger di database otomatis menyinkronkan stok_item.merek ---
+    const { data, error } = await supabaseClient.from('kategori_merek').update({ nama }).eq('id', id).select().single();
+    if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'Nama merek') || 'Gagal menyimpan perubahan merek. Pastikan migrasi v18 di schema.sql sudah dijalankan.', true); return; }
+    const namaLama = (DATA.kategoriMerek.find(x => x.id === id) || {}).nama;
+    const idx = DATA.kategoriMerek.findIndex(x => x.id === id);
+    if(idx > -1) DATA.kategoriMerek[idx] = data;
+    // --- ikut perbarui salinan lokal stok_item.merek supaya tabel langsung sinkron tanpa reload ---
+    DATA.stokItem.forEach(i => { if(i.merek === namaLama) i.merek = nama; });
+    renderGudang();
+    renderProdukMaster();
+    await catatAktivitas('gudang', `Merek <b>${esc(namaLama)}</b> diganti nama jadi <b>${esc(nama)}</b>`);
+    tampilkanToast('Perubahan merek disimpan');
+  } else {
+    const { data, error } = await supabaseClient.from('kategori_merek').insert({ nama }).select().single();
+    if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'Nama merek') || 'Gagal menambah merek. Pastikan migrasi v18 di schema.sql sudah dijalankan.', true); return; }
+    DATA.kategoriMerek.push(data);
+    DATA.kategoriMerek.sort((a,b) => a.nama.localeCompare(b.nama));
+    await catatAktivitas('gudang', `Merek baru <b>${esc(nama)}</b> ditambahkan`);
+    tampilkanToast('Merek baru ditambahkan');
+  }
+  renderMerekMaster();
+  renderStatManajemenProduk();
+  tutupModal('modal-merek');
+  e.target.reset();
+  document.getElementById('input-id-merek').value = '';
+}
+
+async function hapusMerek(id){
+  const m = DATA.kategoriMerek.find(x => x.id === id);
+  if(!m) return;
+  if(m.nama === 'Umum'){
+    tampilkanToast('Merek "Umum" adalah merek bawaan dan tidak bisa dihapus', true);
+    return;
+  }
+  if(DATA.stokItem.some(i => (i.merek || 'Umum') === m.nama)){
+    tampilkanToast('Merek ini masih dipakai oleh produk. Pindahkan produknya ke merek lain terlebih dahulu.', true);
+    return;
+  }
+  const { error } = await supabaseClient.from('kategori_merek').delete().eq('id', id);
+  if(error){ console.error(error); tampilkanToast('Gagal menghapus merek', true); return; }
+  DATA.kategoriMerek = DATA.kategoriMerek.filter(x => x.id !== id);
+  renderMerekMaster();
+  renderStatManajemenProduk();
+  await catatAktivitas('gudang', `Merek <b>${esc(m.nama)}</b> dihapus`);
+  tampilkanToast('Merek dihapus');
+}
+
+/* ---------------------------------------------------------
+   17g. GUDANG (tab Gudang) — lokasi/cabang penyimpanan fisik.
+   Sebelumnya lewat modal "Kelola Gudang" tersendiri; sekarang
+   jadi salah satu tab di halaman Manajemen Produk & Kategori.
+--------------------------------------------------------- */
 function renderListGudangKelola(){
   const wrap = document.getElementById('list-gudang-kelola');
+  if(!wrap) return;
   const isAdmin = CURRENT_USER && CURRENT_USER.peran === 'admin';
   if(!DATA.gudang.length){
     wrap.innerHTML = `<div class="empty-state"><p>Belum ada gudang. Tambahkan lewat form di bawah.</p></div>`;
@@ -2417,6 +3189,7 @@ async function tambahGudang(e){
   if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'Nama gudang') || 'Gagal menambah gudang', true); return; }
   DATA.gudang.push(data);
   renderListGudangKelola();
+  renderStatManajemenProduk();
   isiDropdownGudang();
   renderGudang();
   await catatAktivitas('gudang', `Gudang baru <b>${nama}</b> ditambahkan`);
@@ -2433,16 +3206,18 @@ async function hapusGudang(id){
   if(error){ console.error(error); tampilkanToast('Gagal menghapus gudang', true); return; }
   DATA.gudang = DATA.gudang.filter(x => x.id !== id);
   renderListGudangKelola();
+  renderStatManajemenProduk();
   isiDropdownGudang();
   renderGudang();
   if(g) await catatAktivitas('gudang', `Gudang <b>${esc(g.nama)}</b> dihapus`);
   tampilkanToast('Gudang dihapus');
 }
 
+
 function unduhStokCSV(){
   unduhCSV('stock-gudang-dealstack.csv',
-    ['SKU','Nama Produk','Variant','Kategori','Gudang','Satuan','Stok Masuk','Stok Keluar','Sisa Stok','Update Terakhir','Diupdate Oleh','Status'],
-    DATA.stokItem.map(i => [i.sku, i.nama_produk, i.variant || '', i.kategori || 'Umum', namaGudang(i.gudang_id), i.satuan || 'Pcs', i.stok_masuk || 0, i.stok_keluar || 0, sisaStok(i), i.diupdate_pada || '', i.diupdate_oleh_nama || '', labelStatusStok(hitungStatusStok(i))]));
+    ['SKU','Nama Produk','Variant','Merek','Kategori','Gudang','Satuan','Stok Masuk','Stok Keluar','Sisa Stok','Update Terakhir','Diupdate Oleh','Status'],
+    DATA.stokItem.map(i => [i.sku, i.nama_produk, i.variant || '', i.merek || 'Umum', i.kategori || 'Umum', namaGudang(i.gudang_id), i.satuan || 'Pcs', i.stok_masuk || 0, i.stok_keluar || 0, sisaStok(i), i.diupdate_pada || '', i.diupdate_oleh_nama || '', labelStatusStok(hitungStatusStok(i))]));
   tampilkanToast('Data stok diunduh');
 }
 
@@ -2822,6 +3597,39 @@ function initRealtime(){
       }
     })
     .subscribe();
+
+  // Sinkron real-time untuk tab Kategori (Manajemen Produk & Kategori) — supaya
+  // penggantian nama/penambahan/penghapusan kategori oleh pengguna lain langsung
+  // terlihat tanpa perlu reload, konsisten dengan channel stok_item di atas.
+  supabaseClient.channel('dealstack-kategori-produk')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kategori_produk' }, (payload) => {
+      if(payload.eventType === 'DELETE'){
+        DATA.kategoriProduk = DATA.kategoriProduk.filter(k => k.id !== payload.old.id);
+      } else {
+        upsertKeArray(DATA.kategoriProduk, payload.new);
+        DATA.kategoriProduk.sort((a,b) => a.nama.localeCompare(b.nama));
+      }
+      renderKategoriMaster();
+      renderProdukMaster();
+      renderStatManajemenProduk();
+    })
+    .subscribe();
+
+  // Sinkron real-time untuk tab Kategori Merek (Manajemen Produk & Kategori) —
+  // pola persis sama dengan channel kategori_produk di atas.
+  supabaseClient.channel('dealstack-kategori-merek')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kategori_merek' }, (payload) => {
+      if(payload.eventType === 'DELETE'){
+        DATA.kategoriMerek = DATA.kategoriMerek.filter(m => m.id !== payload.old.id);
+      } else {
+        upsertKeArray(DATA.kategoriMerek, payload.new);
+        DATA.kategoriMerek.sort((a,b) => a.nama.localeCompare(b.nama));
+      }
+      renderMerekMaster();
+      renderProdukMaster();
+      renderStatManajemenProduk();
+    })
+    .subscribe();
 }
 
 /* ---------------------------------------------------------
@@ -3123,8 +3931,16 @@ function renderLaporan(){
   const { awal, akhir } = dapatkanRentangPeriode('laporan');
   const proyekPeriode = DATA.proyek.filter(p => tanggalDalamRentang(p.tanggal, awal, akhir));
 
-  const proyekAktif = proyekPeriode.filter(p => p.status !== 'dibatalkan');
-  const totalNilai = proyekAktif.reduce((s,p) => s + Number(p.nilai), 0);
+  // Nilai proyek diambil dari grand_total (field yang sama dipakai di menu
+  // Pelanggan & "Proyek Pelanggan Ini"), dengan fallback ke field lama
+  // "nilai" untuk data lampau yang belum sempat disimpan ulang lewat form.
+  // Proyek berstatus "tertunda" & "dibatalkan" DIKECUALIKAN dari nilai —
+  // sama seperti aturan Sub Total/Grand Total/Profit di menu Pelanggan —
+  // supaya angka di Laporan selalu sinkron dengan menu Pelanggan.
+  const nilaiProyek = (p) => p.grand_total || p.nilai || 0;
+  const STATUS_DIKECUALIKAN = ['tertunda', 'dibatalkan'];
+  const proyekAktif = proyekPeriode.filter(p => !STATUS_DIKECUALIKAN.includes(p.status));
+  const totalNilai = proyekAktif.reduce((s,p) => s + nilaiProyek(p), 0);
   const selesai = proyekPeriode.filter(p => p.status === 'selesai').length;
   const dibatalkan = proyekPeriode.filter(p => p.status === 'dibatalkan').length;
   const totalDitutup = selesai + dibatalkan;
@@ -3143,13 +3959,16 @@ function renderLaporan(){
       <div class="kpi-bottom"><div class="kpi-value">${val}</div></div>
     </div>`).join('');
 
+  // Rekap per industri: jumlah proyek dihitung dari SEMUA status (agar tetap
+  // terlihat berapa banyak proyek per industri), tapi nilai rupiah hanya
+  // dari proyek yang tidak tertunda/dibatalkan — konsisten dengan kartu di atas.
   const perIndustri = {};
   proyekPeriode.forEach(p => {
     const pel = DATA.pelanggan.find(x => x.nama === p.pelanggan_nama);
     const industri = pel ? (pel.industri || 'Umum') : 'Umum';
     perIndustri[industri] = perIndustri[industri] || { jumlah:0, nilai:0 };
     perIndustri[industri].jumlah++;
-    perIndustri[industri].nilai += Number(p.nilai);
+    if(!STATUS_DIKECUALIKAN.includes(p.status)) perIndustri[industri].nilai += nilaiProyek(p);
   });
   document.getElementById('laporan-industri').innerHTML = Object.keys(perIndustri).length
     ? Object.entries(perIndustri).map(([nama,d]) => `<div class="report-row"><span>${nama}</span><b>${d.jumlah} proyek · ${formatRupiah(d.nilai)}</b></div>`).join('')
@@ -3307,10 +4126,18 @@ function initEventListener(){
 
   document.getElementById('cari-gudang').addEventListener('input', renderGudang);
   document.getElementById('filter-lokasi-gudang').addEventListener('change', renderGudang);
+  document.getElementById('filter-merek-gudang').addEventListener('change', renderGudang);
   document.getElementById('filter-kategori-gudang').addEventListener('change', renderGudang);
   document.getElementById('filter-status-gudang').addEventListener('change', renderGudang);
   document.getElementById('form-item-stok').addEventListener('submit', simpanItemStok);
   document.getElementById('form-gudang').addEventListener('submit', tambahGudang);
+
+  document.getElementById('cari-produk-master').addEventListener('input', renderProdukMaster);
+  document.getElementById('filter-merek-produk-master').addEventListener('change', renderProdukMaster);
+  document.getElementById('filter-kategori-produk-master').addEventListener('change', renderProdukMaster);
+  document.getElementById('form-kategori').addEventListener('submit', simpanKategori);
+  document.getElementById('form-merek').addEventListener('submit', simpanMerek);
+  document.getElementById('form-produk-master').addEventListener('submit', simpanProdukMaster);
 
   document.getElementById('cari-stok-masuk-detail').addEventListener('input', renderTabelStokMasukDetail);
   document.getElementById('filter-kondisi-stok-masuk-detail').addEventListener('change', renderTabelStokMasukDetail);

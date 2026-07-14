@@ -28,7 +28,7 @@ create table if not exists proyek (
   id uuid primary key default gen_random_uuid(),
   kode text unique not null,
   nama text not null,
-  pelanggan_id uuid references pelanggan(id) on delete set null,
+  pelanggan_id uuid references pelanggan(id) on delete cascade,
   pelanggan_nama text not null,
   status text not null default 'berjalan' check (status in ('berjalan','tertunda','selesai','dibatalkan')),
   progres int not null default 0 check (progres between 0 and 100),
@@ -785,3 +785,224 @@ alter table riwayat_stok add column if not exists stok_rusak bigint not null def
 update riwayat_stok set stok_baru  = jumlah where tipe = 'masuk' and coalesce(kondisi_barang,'baru') = 'baru'  and stok_baru = 0 and stok_bekas = 0 and stok_rusak = 0;
 update riwayat_stok set stok_bekas = jumlah where tipe = 'masuk' and kondisi_barang = 'bekas' and stok_baru = 0 and stok_bekas = 0 and stok_rusak = 0;
 update riwayat_stok set stok_rusak = jumlah where tipe = 'masuk' and kondisi_barang = 'rusak' and stok_baru = 0 and stok_bekas = 0 and stok_rusak = 0;
+
+-- =========================================================
+-- TAMBAHAN v17 — MANAJEMEN PRODUK, KATEGORI & GUDANG
+-- Jalankan blok ini di SQL Editor setelah v10 aktif. Mengaktifkan
+-- halaman "Manajemen Produk, Kategori & Gudang" (dibuka lewat
+-- tombol di menu Stock & Gudang), berisi 3 tab:
+--   - Produk : daftar produk dikelompokkan per SKU (gabungan dari
+--     semua baris stok_item lintas gudang), dengan aksi Edit
+--     (ubah nama/kategori/variant/satuan sekaligus di SEMUA gudang
+--     yang punya SKU itu) dan "+ Gudang Lain" (tambahkan SKU yang
+--     sama ke gudang lain tanpa mengetik ulang datanya).
+--   - Kategori : daftar kategori sebagai data master (bukan teks
+--     bebas lagi), supaya tidak ada lagi kategori ganda karena
+--     salah ketik ("Elektronik" vs "elektronik" vs "Electronic").
+--   - Gudang : sama seperti "Kelola Gudang" sebelumnya, sekarang
+--     dipindahkan ke sini supaya 3 data master (Produk, Kategori,
+--     Gudang) yang saling berhubungan dikelola di satu halaman.
+--
+-- MASALAH SEBELUMNYA: kolom stok_item.kategori adalah teks bebas
+-- tanpa tabel master, jadi (1) rawan typo/duplikat, (2) tidak ada
+-- cara mengganti nama satu kategori sekaligus di semua produk yang
+-- memakainya, (3) tidak ada tempat terpusat melihat & mengelola
+-- daftar kategori yang benar-benar dipakai.
+--
+-- PERUBAHAN: tabel kategori_produk baru sebagai data master, dan
+-- kolom stok_item.kategori_id sebagai penghubung (FK, ON DELETE
+-- SET NULL supaya menghapus kategori tidak ikut menghapus produk).
+-- Kolom stok_item.kategori (teks, sudah ada sejak v10) TETAP
+-- dipakai sebagai sumber tampilan supaya tidak perlu JOIN di semua
+-- query yang sudah ada — trigger di bawah membuatnya otomatis
+-- ikut berubah setiap kali nama kategori diganti lewat tab
+-- Kategori, sehingga keduanya selalu sinkron.
+-- Aman dijalankan berulang / di database yang sudah berisi data.
+-- =========================================================
+
+create table if not exists kategori_produk (
+  id uuid primary key default gen_random_uuid(),
+  nama text unique not null,
+  dibuat_pada timestamptz default now()
+);
+
+alter table stok_item add column if not exists kategori_id uuid references kategori_produk(id) on delete set null;
+
+alter table kategori_produk enable row level security;
+
+create policy "pengguna login dapat membaca kategori produk" on kategori_produk for select using (auth.uid() is not null);
+create policy "pengguna login dapat menambah kategori produk" on kategori_produk for insert with check (auth.uid() is not null);
+create policy "pengguna login dapat mengubah kategori produk" on kategori_produk for update using (auth.uid() is not null);
+create policy "hanya admin dapat menghapus kategori produk" on kategori_produk for delete using (
+  exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+
+-- ---- Migrasi data lama: jadikan setiap nilai kategori (teks) yang sudah
+-- terpakai di stok_item sebagai baris kategori_produk, lalu hubungkan balik
+-- lewat kategori_id. "Umum" selalu disertakan sebagai kategori bawaan ----
+insert into kategori_produk (nama) values ('Umum') on conflict (nama) do nothing;
+
+insert into kategori_produk (nama)
+select distinct coalesce(nullif(trim(kategori), ''), 'Umum') from stok_item
+on conflict (nama) do nothing;
+
+update stok_item si set kategori_id = kp.id
+from kategori_produk kp
+where kp.nama = coalesce(nullif(trim(si.kategori), ''), 'Umum') and si.kategori_id is null;
+
+-- ---- Trigger: saat nama kategori diganti lewat tab Kategori, otomatis
+-- perbarui juga kolom teks stok_item.kategori pada semua produk yang
+-- memakai kategori tersebut, supaya keduanya tidak pernah "ngedrift" ----
+create or replace function sinkron_nama_kategori_ke_stok_item() returns trigger as $$
+begin
+  if new.nama is distinct from old.nama then
+    update stok_item set kategori = new.nama where kategori_id = new.id;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists trg_sinkron_nama_kategori on kategori_produk;
+create trigger trg_sinkron_nama_kategori
+  after update on kategori_produk
+  for each row execute function sinkron_nama_kategori_ke_stok_item();
+
+-- =========================================================
+-- TAMBAHAN v18 — KATEGORI MEREK (BRAND)
+-- Jalankan blok ini di SQL Editor setelah v17 aktif. Menambahkan
+-- jenis kategori KEDUA di samping kategori_produk (v17): Kategori
+-- Merek, untuk mengelompokkan & memfilter produk berdasarkan
+-- merek/brand (mis. Samsung, Anker, Logitech) — terpisah dari
+-- Kategori Produk yang mengelompokkan berdasarkan jenis produk
+-- (mis. Kabel, Charger, Aksesoris). Satu produk hanya punya SATU
+-- merek, tapi merek yang sama bisa muncul di banyak kategori
+-- produk berbeda, jadi lebih tepat dipisah daripada digabung jadi
+-- satu daftar datar.
+--
+-- Ditambahkan di halaman "Manajemen Produk, Kategori & Gudang"
+-- sebagai tab baru "Kategori Merek" (di samping tab "Kategori
+-- Produk" yang sudah ada), dan diikutkan sebagai kolom/filter baru
+-- di menu Stock & Gudang serta tab Produk.
+--
+-- STRUKTUR: pola PERSIS SAMA seperti kategori_produk di v17—
+-- tabel kategori_merek sebagai data master, kolom stok_item.merek
+-- (teks, dipakai tampilan) + stok_item.merek_id (FK, ON DELETE SET
+-- NULL) sebagai penghubung, dan trigger yang otomatis menyamakan
+-- keduanya setiap kali nama merek diganti lewat tab Kategori Merek.
+-- Aman dijalankan berulang / di database yang sudah berisi data.
+-- =========================================================
+
+create table if not exists kategori_merek (
+  id uuid primary key default gen_random_uuid(),
+  nama text unique not null,
+  dibuat_pada timestamptz default now()
+);
+
+alter table stok_item add column if not exists merek text default 'Umum';
+alter table stok_item add column if not exists merek_id uuid references kategori_merek(id) on delete set null;
+
+alter table kategori_merek enable row level security;
+
+create policy "pengguna login dapat membaca kategori merek" on kategori_merek for select using (auth.uid() is not null);
+create policy "pengguna login dapat menambah kategori merek" on kategori_merek for insert with check (auth.uid() is not null);
+create policy "pengguna login dapat mengubah kategori merek" on kategori_merek for update using (auth.uid() is not null);
+create policy "hanya admin dapat menghapus kategori merek" on kategori_merek for delete using (
+  exists (select 1 from profil where id = auth.uid() and peran = 'admin'));
+
+-- ---- Migrasi data lama: jadikan setiap nilai merek (teks) yang sudah
+-- terpakai di stok_item sebagai baris kategori_merek, lalu hubungkan balik
+-- lewat merek_id. "Umum" selalu disertakan sebagai merek bawaan ----
+insert into kategori_merek (nama) values ('Umum') on conflict (nama) do nothing;
+
+update stok_item set merek = 'Umum' where merek is null or trim(merek) = '';
+
+insert into kategori_merek (nama)
+select distinct coalesce(nullif(trim(merek), ''), 'Umum') from stok_item
+on conflict (nama) do nothing;
+
+update stok_item si set merek_id = km.id
+from kategori_merek km
+where km.nama = coalesce(nullif(trim(si.merek), ''), 'Umum') and si.merek_id is null;
+
+-- ---- Trigger: saat nama merek diganti lewat tab Kategori Merek, otomatis
+-- perbarui juga kolom teks stok_item.merek pada semua produk yang
+-- memakai merek tersebut, supaya keduanya tidak pernah "ngedrift" ----
+create or replace function sinkron_nama_merek_ke_stok_item() returns trigger as $$
+begin
+  if new.nama is distinct from old.nama then
+    update stok_item set merek = new.nama where merek_id = new.id;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists trg_sinkron_nama_merek on kategori_merek;
+create trigger trg_sinkron_nama_merek
+  after update on kategori_merek
+  for each row execute function sinkron_nama_merek_ke_stok_item();
+
+-- =========================================================
+-- TAMBAHAN v19 — PERBAIKAN TAUTAN pelanggan_id PADA PROYEK LAMA
+-- Jalankan blok ini di SQL Editor jika menu "Pelanggan" menampilkan
+-- lebih sedikit proyek dibanding menu "Laporan"/"Ringkasan".
+--
+-- Penyebab: sebelum migrasi v7, form Proyek hanya menyimpan nama
+-- pelanggan sebagai teks bebas (pelanggan_nama), sehingga kolom
+-- pelanggan_id bisa kosong (null) untuk proyek-proyek lama. Proyek
+-- dengan pelanggan_id kosong tidak akan ketemu saat menu Pelanggan
+-- mencari proyek berdasarkan pelanggan_id, sehingga proyek itu tidak
+-- ikut terhitung di kolom-kolom total (Sub Total, Grand Total, Profit,
+-- dst) maupun tidak muncul di halaman "Proyek Pelanggan Ini" — padahal
+-- proyek yang sama tetap dihitung di menu Laporan/Ringkasan karena
+-- keduanya menjumlahkan SELURUH data proyek tanpa perlu tautan ke
+-- pelanggan. Query di bawah ini menautkan ulang proyek-proyek yang
+-- pelanggan_id-nya masih kosong ke pelanggan yang namanya identik.
+-- Aman dijalankan berulang kali / kapan pun.
+-- =========================================================
+
+update proyek pr
+set pelanggan_id = pl.id
+from pelanggan pl
+where pr.pelanggan_id is null
+  and pr.pelanggan_nama = pl.nama;
+
+-- ---- Cek apakah masih ada proyek yang belum tertaut setelah query di atas ----
+-- Jika hasil query berikut TIDAK kosong, berarti proyek tersebut punya
+-- pelanggan_nama yang tidak identik dengan nama pelanggan manapun di
+-- tabel pelanggan (mis. typo, pelanggan sudah dihapus, atau proyek
+-- ditambahkan sebelum nama pelanggan diubah). Proyek ini perlu ditautkan
+-- manual lewat tombol "Edit" di menu Proyek Pelanggan Ini, atau
+-- disesuaikan namanya agar sama persis dengan salah satu pelanggan.
+-- select id, kode, nama, pelanggan_nama from proyek where pelanggan_id is null;
+
+-- =========================================================
+-- TAMBAHAN v20 — PROYEK IKUT TERHAPUS TOTAL SAAT PELANGGANNYA DIHAPUS
+-- Jalankan blok ini SEKALI di SQL Editor Supabase.
+--
+-- SEBELUM ini: kolom proyek.pelanggan_id memakai "ON DELETE SET NULL",
+-- artinya saat sebuah pelanggan dihapus, proyek-proyeknya TIDAK ikut
+-- terhapus — hanya tautannya (pelanggan_id) yang dikosongkan, sehingga
+-- proyek "yatim" itu tetap ada selamanya (lihat catatan di v19 & fungsi
+-- hapusPelanggan() pada script.js).
+--
+-- SESUDAH ini: kolom proyek.pelanggan_id memakai "ON DELETE CASCADE",
+-- artinya saat sebuah baris pelanggan dihapus, PostgreSQL/Supabase akan
+-- OTOMATIS DAN PERMANEN menghapus seluruh baris proyek yang pelanggan_id-
+-- nya menunjuk ke pelanggan tersebut — di level database, jadi berlaku
+-- konsisten walau penghapusan dilakukan lewat aplikasi, SQL Editor,
+-- maupun API lain. Ini sengaja dipasang di database (bukan hanya di
+-- script.js) supaya aturan "proyek ikut hilang" tidak bisa "bocor"/
+-- terlewat walau ada jalur hapus yang lain di masa depan.
+--
+-- CATATAN: relasi riwayat_stok.proyek_id & riwayat_stok.pelanggan_id
+-- SENGAJA TETAP "ON DELETE SET NULL" (tidak ikut diubah di sini), karena
+-- riwayat_stok adalah catatan mutasi stok (kartu stok/audit trail) yang
+-- semestinya tetap tersimpan apa adanya untuk keperluan audit walau
+-- proyek/pelanggan yang menjadi rujukannya sudah dihapus — hanya
+-- tautannya yang dikosongkan, datanya sendiri tidak boleh ikut lenyap.
+--
+-- Aman dijalankan berulang kali / kapan pun.
+-- =========================================================
+
+alter table proyek drop constraint if exists proyek_pelanggan_id_fkey;
+alter table proyek add constraint proyek_pelanggan_id_fkey
+  foreign key (pelanggan_id) references pelanggan(id) on delete cascade;
