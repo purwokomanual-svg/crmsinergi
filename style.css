@@ -653,6 +653,33 @@ button{font-family:inherit;}
   max-height:88vh;display:flex;flex-direction:column;overflow:hidden;
 }
 .modal-box.modal-box-lebar{max-width:640px;}
+.modal-box.modal-box-impor{max-width:900px;}
+
+/* ============ MODAL: IMPORT DATA (CSV) ============ */
+.impor-langkah{display:flex;align-items:flex-start;gap:10px;margin:4px 0 8px;}
+.impor-langkah-nomor{
+  flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--accent-bright);
+  color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;
+}
+.impor-langkah-teks{font-size:13.5px;color:var(--ink);line-height:1.5;padding-top:2px;}
+.impor-preview-card{max-height:280px;overflow-y:auto;margin-bottom:12px;}
+.impor-ringkasan{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;}
+.impor-badge{
+  font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:20px;
+  display:flex;align-items:center;gap:6px;
+}
+.impor-badge.ok{background:rgba(46,196,120,.14);color:var(--green);}
+.impor-badge.error{background:rgba(239,63,77,.14);color:var(--red);}
+.impor-badge.total{background:var(--overlay-1);color:var(--muted);}
+.impor-status-ok{color:var(--green);font-weight:600;}
+.impor-status-warn{color:#e0a336;font-weight:600;}
+.impor-status-error{color:var(--red);font-weight:600;}
+.impor-hasil-box{
+  background:var(--panel);border:1px solid var(--edge);border-radius:12px;padding:16px;
+  font-size:13.5px;line-height:1.7;
+}
+.impor-hasil-box .impor-error-list{margin:8px 0 0;padding-left:18px;color:var(--muted);max-height:160px;overflow-y:auto;}
+.impor-dropzone-hint{font-size:12px;color:var(--muted-2);margin:6px 0 16px;}
 .modal-box h3{
   margin:0 0 18px;font-size:16px;font-weight:700;flex-shrink:0;
 }

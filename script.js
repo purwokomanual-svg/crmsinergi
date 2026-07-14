@@ -200,17 +200,47 @@ async function prosesKeluar(){
   window.location.reload();
 }
 
+/* Label tampilan untuk setiap peran — satu sumber kebenaran dipakai di
+   seluruh aplikasi (panel akun, Pengawasan Tim, Kelola Pengguna, dst.)
+   supaya labelnya selalu konsisten begitu ada peran baru ditambahkan. */
+/* True jika peran pengguna saat ini boleh menghapus KARTU STOK (stok_item)
+   & RIWAYAT STOK (riwayat_stok) — Admin dan Purchasing, sesuai kebijakan
+   RLS migrasi v22 di schema.sql. SENGAJA TIDAK dipakai untuk Gudang/
+   Kategori/Merek — penghapusan struktur data tsb tetap khusus Admin
+   (lihat variabel `isAdmin` yang masih dipakai apa adanya di
+   hapusGudang/hapusKategori/hapusMerek). */
+function bolehKelolaStok(){
+  return !!(CURRENT_USER && (CURRENT_USER.peran === 'admin' || CURRENT_USER.peran === 'purchasing'));
+}
+
+function labelPeran(peran){
+  switch(peran){
+    case 'admin': return 'Administrator';
+    case 'marketing': return 'Marketing';
+    case 'purchasing': return 'Purchasing';
+    default: return 'Anggota Tim';
+  }
+}
+
 function terapkanPeran(){
-  const isAdmin = CURRENT_USER && CURRENT_USER.peran === 'admin';
-  document.querySelectorAll('[data-role="admin"]').forEach(el => {
-    el.style.display = isAdmin ? '' : 'none';
+  const peran = CURRENT_USER ? CURRENT_USER.peran : null;
+  const isAdmin = peran === 'admin';
+  // Sembunyikan/tampilkan menu & kartu Pengaturan berdasarkan atribut
+  // data-roles="admin,anggota,..." (daftar peran yang boleh melihat
+  // elemen tsb, dipisah koma). Elemen TANPA atribut ini selalu tampil
+  // untuk siapa pun yang sudah login (mis. menu Pengaturan, Pusat
+  // Bantuan, tombol Keluar) — lihat migrasi v22 di schema.sql untuk
+  // pembatasan hak TULIS yang sesungguhnya di level database.
+  document.querySelectorAll('[data-roles]').forEach(el => {
+    const rolesDiizinkan = el.dataset.roles.split(',').map(r => r.trim());
+    el.style.display = (peran && rolesDiizinkan.includes(peran)) ? '' : 'none';
   });
   document.getElementById('user-name').textContent = CURRENT_USER ? CURRENT_USER.nama : '—';
   document.getElementById('user-avatar').outerHTML = CURRENT_USER
     ? markupAvatar(CURRENT_USER).replace('class="user-avatar"', 'class="user-avatar" id="user-avatar"')
     : '<div class="user-avatar" id="user-avatar">?</div>';
   document.getElementById('panel-akun-nama').textContent = CURRENT_USER ? CURRENT_USER.nama : '—';
-  document.getElementById('panel-akun-peran').textContent = isAdmin ? 'Administrator' : 'Anggota Tim';
+  document.getElementById('panel-akun-peran').textContent = labelPeran(peran);
 }
 
 /* Dipanggil sekali saat login berhasil: muat profil pengguna & seluruh data aplikasi */
@@ -251,6 +281,13 @@ async function masukKeAplikasi(session){
   renderStatGudang();
   if(CURRENT_USER.peran === 'admin'){ renderPengawasanTim(); renderPenggunaAdmin(); }
   initRealtime();
+
+  // Menu "Ringkasan" (dashboard umum) disembunyikan untuk peran Marketing &
+  // Purchasing (lihat data-roles di index.html) — jadi begitu masuk,
+  // langsung arahkan ke satu-satunya menu yang relevan bagi peran tsb,
+  // bukan menampilkan halaman Ringkasan yang toh tidak bisa mereka lihat.
+  if(CURRENT_USER.peran === 'marketing') pindahTampilan('pelanggan');
+  else if(CURRENT_USER.peran === 'purchasing') pindahTampilan('gudang');
 }
 
 function initAuthUI(){
@@ -858,7 +895,7 @@ function renderDashTeamRow(){
   }
   wrap.innerHTML = DATA.profil.map(p => {
     const totalTugas = DATA.tugas.filter(t => t.ditugaskan_ke === p.id).length;
-    const peranLabel = p.jabatan ? esc(p.jabatan) : (p.peran === 'admin' ? 'Administrator' : 'Anggota Tim');
+    const peranLabel = p.jabatan ? esc(p.jabatan) : labelPeran(p.peran);
     return `
       <div class="dash-team-mini">
         ${markupAvatar(p)}
@@ -2028,6 +2065,12 @@ function renderGudang(){
 
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
         </div>
+        <div class="icon-btn" title="Edit Item" onclick="editItemStok('${i.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </div>
+        ${bolehKelolaStok() ? `<div class="icon-btn" title="Hapus Item" onclick="hapusItemStok('${i.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
+        </div>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -2264,7 +2307,7 @@ function renderTabelStokMasukDetail(){
         <div class="icon-btn" title="Edit" onclick="editStokMasuk('${r.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         </div>
-        ${isAdmin ? `<div class="icon-btn" title="Hapus" onclick="hapusStokMasuk('${r.id}')">
+        ${bolehKelolaStok() ? `<div class="icon-btn" title="Hapus" onclick="hapusStokMasuk('${r.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
         </div>` : ''}
       </td>
@@ -2505,7 +2548,7 @@ function renderTabelStokKeluarDetail(){
         <div class="icon-btn" title="Edit" onclick="editStokKeluar('${r.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         </div>
-        ${isAdmin ? `<div class="icon-btn" title="Hapus" onclick="hapusStokKeluar('${r.id}')">
+        ${bolehKelolaStok() ? `<div class="icon-btn" title="Hapus" onclick="hapusStokKeluar('${r.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
         </div>` : ''}
       </td>
@@ -2819,7 +2862,7 @@ function renderProdukMaster(){
         <div class="icon-btn" title="Tambahkan ke Gudang Lain" onclick="bukaModalTambahKeGudangLain('${esc(p.sku)}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/><path d="M12 12v5m-2.5-2.5h5"/></svg>
         </div>
-        ${isAdmin ? `<div class="icon-btn" title="Hapus dari semua gudang" onclick="hapusProdukMaster('${esc(p.sku)}')">
+        ${bolehKelolaStok() ? `<div class="icon-btn" title="Hapus dari semua gudang" onclick="hapusProdukMaster('${esc(p.sku)}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
         </div>` : ''}
       </td>
@@ -3257,7 +3300,7 @@ function renderPengawasanTim(){
       <div class="team-card">
         <div class="team-card-head">
           ${markupAvatar(p)}
-          <div><div class="team-card-name">${esc(p.nama)}</div><div class="team-card-role">${p.peran === 'admin' ? 'Administrator' : 'Anggota Tim'}</div></div>
+          <div><div class="team-card-name">${esc(p.nama)}</div><div class="team-card-role">${labelPeran(p.peran)}</div></div>
         </div>
         <div class="team-stat-row"><span>Total Tugas</span><b>${total}</b></div>
         <div class="team-stat-row"><span>Sedang Dikerjakan</span><b>${dikerjakan}</b></div>
@@ -3287,6 +3330,8 @@ function renderPenggunaAdmin(){
       <td>
         <select class="filter-select" onchange="ubahPeranPengguna('${p.id}', this.value)" ${p.id === CURRENT_USER.id ? 'disabled title="Tidak bisa mengubah peran sendiri"' : ''}>
           <option value="anggota" ${p.peran==='anggota'?'selected':''}>Anggota Tim</option>
+          <option value="marketing" ${p.peran==='marketing'?'selected':''}>Marketing</option>
+          <option value="purchasing" ${p.peran==='purchasing'?'selected':''}>Purchasing</option>
           <option value="admin" ${p.peran==='admin'?'selected':''}>Admin</option>
         </select>
       </td>
@@ -3301,7 +3346,7 @@ async function ubahPeranPengguna(id, peranBaru){
   p.peran = peranBaru;
   renderPenggunaAdmin();
   renderPengawasanTim();
-  await catatAktivitas('pengguna', `Peran <b>${esc(p.nama)}</b> diubah menjadi ${peranBaru === 'admin' ? 'Admin' : 'Anggota Tim'}`);
+  await catatAktivitas('pengguna', `Peran <b>${esc(p.nama)}</b> diubah menjadi ${labelPeran(peranBaru)}`);
   tampilkanToast('Peran pengguna diperbarui');
 }
 
@@ -3343,7 +3388,7 @@ function renderPengaturanAkun(){
   document.getElementById('profil-telepon').value = CURRENT_USER.telepon || '';
   document.getElementById('profil-email').textContent = CURRENT_USER.email || '—';
   const pill = document.getElementById('profil-peran-pill');
-  pill.textContent = CURRENT_USER.peran === 'admin' ? 'Administrator' : 'Anggota Tim';
+  pill.textContent = labelPeran(CURRENT_USER.peran);
   const preview = document.getElementById('avatar-preview');
   preview.innerHTML = CURRENT_USER.avatar_url
     ? `<img src="${esc(CURRENT_USER.avatar_url)}" alt="">`
@@ -4238,6 +4283,472 @@ function initEventListener(){
   document.querySelectorAll('.range-tab').forEach(tab => {
     tab.addEventListener('click', () => ubahRentangChart(tab.dataset.range));
   });
+}
+
+/* ---------------------------------------------------------
+   20. IMPORT DATA (CSV) — mesin generik dipakai di semua menu
+   yang punya tombol "Import Data" (Pelanggan, Proyek Pelanggan,
+   Tugas, Stock & Gudang, Kategori Merek, Kategori Produk, Gudang).
+
+   Alur: 1) Unduh Template CSV (header + 1 baris contoh sesuai
+   skema tabel tujuan) -> 2) Pengguna isi & unggah lagi -> 3) Setiap
+   baris divalidasi di sisi klien dulu (format, data wajib, relasi
+   ke master data yang sudah ada) & ditampilkan pratinjaunya sebelum
+   disimpan -> 4) Baris yang valid disimpan ke Supabase per-baris
+   (supaya satu baris gagal tidak menggagalkan baris lain), lalu
+   cache DATA & tampilan terkait disegarkan sama seperti alur
+   tambah data manual.
+--------------------------------------------------------- */
+let IMPOR_STATE = { tipe: null, mentah: [], hasil: [] };
+
+const IMPOR_SKEMA = {
+  pelanggan: {
+    judul: 'Import Data Pelanggan',
+    deskripsi: 'Tambah banyak pelanggan sekaligus lewat file CSV. Kode Pelanggan boleh dikosongkan (dibuat otomatis).',
+    labelSatuan: 'pelanggan',
+    tabel: 'pelanggan',
+    tipeAktivitas: 'pelanggan',
+    kolom: [
+      { key:'kode', label:'Kode Pelanggan', contoh:'CL-3001' },
+      { key:'nama', label:'Nama Pelanggan', wajib:true, contoh:'PT Contoh Sukses' },
+      { key:'industri', label:'Industri', contoh:'Retail' },
+      { key:'status', label:'Status (aktif/tertunda/nonaktif)', contoh:'aktif' },
+      { key:'alamat', label:'Alamat', contoh:'Jl. Raya No. 10, Surabaya' },
+      { key:'no_telepon', label:'No Telepon', contoh:'031-7654321' },
+      { key:'no_whatsapp', label:'No WhatsApp', contoh:'081234567890' },
+      { key:'nama_pic', label:'Nama PIC', contoh:'Sari Wulandari' },
+    ],
+    siapkanBaris(r){
+      const nama = (r.nama || '').trim();
+      if(!nama) return { ok:false, pesan:'Nama Pelanggan wajib diisi' };
+      let status = (r.status || 'aktif').trim().toLowerCase();
+      if(!['aktif','tertunda','nonaktif'].includes(status)) status = 'aktif';
+      const kode = (r.kode || '').trim() || kodeAcak('CL');
+      return { ok:true, baris:{
+        kode, nama, industri:(r.industri||'').trim() || 'Umum', status,
+        alamat:(r.alamat||'').trim() || null, no_telepon:(r.no_telepon||'').trim() || null,
+        no_whatsapp:(r.no_whatsapp||'').trim() || null, nama_pic:(r.nama_pic||'').trim() || null,
+        kontak_terakhir: new Date().toISOString().slice(0,10)
+      }};
+    },
+    setelahSimpan(rows){
+      DATA.pelanggan.unshift(...rows);
+      renderPelanggan(); isiDropdownPelangganProyek(); renderRingkasanTabelPelanggan();
+    }
+  },
+
+  proyek: {
+    judul: 'Import Data Proyek',
+    deskripsi: 'Tambah banyak proyek/PO sekaligus untuk pelanggan yang sedang dibuka ini. No PO boleh dikosongkan (dibuat otomatis).',
+    labelSatuan: 'proyek',
+    tabel: 'proyek',
+    tipeAktivitas: 'proyek',
+    kolom: [
+      { key:'no_po', label:'No PO', contoh:'PO-9001' },
+      { key:'nama', label:'Nama Proyek', wajib:true, contoh:'Instalasi Jaringan Kantor' },
+      { key:'status', label:'Status (berjalan/tertunda/selesai/dibatalkan)', contoh:'berjalan' },
+      { key:'tanggal', label:'Tanggal PO (YYYY-MM-DD)', contoh:'2026-07-14' },
+      { key:'tenggat', label:'Tenggat (YYYY-MM-DD)', contoh:'2026-08-30' },
+      { key:'sub_total', label:'Sub Total', contoh:'50000000' },
+      { key:'tax_persen', label:'Tax (%)', contoh:'11' },
+      { key:'dana_lainnya', label:'Dana Lainnya', contoh:'0' },
+      { key:'total_budget', label:'Total Budget', contoh:'40000000' },
+      { key:'budget_terpakai', label:'Budget Terpakai', contoh:'0' },
+    ],
+    siapkanBaris(r){
+      const nama = (r.nama || '').trim();
+      if(!nama) return { ok:false, pesan:'Nama Proyek wajib diisi' };
+      const pelanggan = DATA.pelanggan.find(p => p.id === PELANGGAN_AKTIF_ID);
+      if(!pelanggan) return { ok:false, pesan:'Pelanggan aktif tidak ditemukan' };
+      let status = (r.status || 'berjalan').trim().toLowerCase();
+      if(!['berjalan','tertunda','selesai','dibatalkan'].includes(status)) status = 'berjalan';
+      const sub_total = parseInt(r.sub_total || '0', 10) || 0;
+      const tax_persen = parseFloat(r.tax_persen || '0') || 0;
+      const dana_lainnya = parseInt(r.dana_lainnya || '0', 10) || 0;
+      const total_budget = parseInt(r.total_budget || '0', 10) || 0;
+      const budget_terpakai = parseInt(r.budget_terpakai || '0', 10) || 0;
+      const grand_total = hitungGrandTotal(sub_total, tax_persen, dana_lainnya);
+      const progres = status === 'selesai' ? 100 : 0;
+      const kode = (r.no_po || '').trim() || kodeAcak('PO');
+      return { ok:true, baris:{
+        kode, nama, pelanggan_id: pelanggan.id, pelanggan_nama: pelanggan.nama,
+        tanggal: (r.tanggal||'').trim() || new Date().toISOString().slice(0,10),
+        tenggat: (r.tenggat||'').trim() || null,
+        status, progres, sub_total, tax_persen, dana_lainnya, grand_total,
+        total_budget, budget_terpakai, nilai: grand_total,
+        dibuat_oleh_id: CURRENT_USER ? CURRENT_USER.id : null,
+        dibuat_oleh_nama: CURRENT_USER ? CURRENT_USER.nama : null,
+        diupdate_pada: new Date().toISOString()
+      }};
+    },
+    setelahSimpan(rows){
+      DATA.proyek.unshift(...rows);
+      segarkanDetailPelangganJikaAktif(); renderFunnel(); renderPelanggan(); renderRingkasan();
+    }
+  },
+
+  tugas: {
+    judul: 'Import Data Tugas',
+    deskripsi: 'Tambah banyak tugas sekaligus. Kolom "Ditugaskan Ke" harus persis sama dengan nama anggota di menu Kelola Pengguna, atau dikosongkan.',
+    labelSatuan: 'tugas',
+    tabel: 'tugas',
+    tipeAktivitas: 'tugas',
+    kolom: [
+      { key:'judul', label:'Judul Tugas', wajib:true, contoh:'Follow up penawaran' },
+      { key:'deskripsi', label:'Deskripsi', contoh:'Hubungi klien terkait status penawaran' },
+      { key:'ditugaskan_ke', label:'Ditugaskan Ke (nama anggota)', contoh:'Budi Santoso' },
+      { key:'prioritas', label:'Prioritas (rendah/normal/tinggi)', contoh:'normal' },
+      { key:'tenggat', label:'Tenggat', contoh:'20 Jul' },
+    ],
+    siapkanBaris(r){
+      const judul = (r.judul || '').trim();
+      if(!judul) return { ok:false, pesan:'Judul Tugas wajib diisi' };
+      let prioritas = (r.prioritas || 'normal').trim().toLowerCase();
+      if(!['rendah','normal','tinggi'].includes(prioritas)) prioritas = 'normal';
+      let ditugaskan_ke = null, peringatan = null;
+      const namaAssignee = (r.ditugaskan_ke || '').trim();
+      if(namaAssignee){
+        const profilCocok = DATA.profil.find(p => (p.nama||'').toLowerCase() === namaAssignee.toLowerCase());
+        if(profilCocok) ditugaskan_ke = profilCocok.id;
+        else peringatan = `Anggota "${namaAssignee}" tidak ditemukan — dibiarkan belum ditugaskan`;
+      }
+      return { ok:true, peringatan, baris:{
+        judul, deskripsi:(r.deskripsi||'').trim() || null, ditugaskan_ke, prioritas,
+        tenggat:(r.tenggat||'').trim() || null,
+        ditugaskan_oleh: CURRENT_USER ? CURRENT_USER.id : null,
+        status_kerja:'belum', selesai:false
+      }};
+    },
+    setelahSimpan(rows){
+      DATA.tugas.unshift(...rows);
+      renderTugas(); renderDashTeamRow();
+      if(CURRENT_USER && CURRENT_USER.peran === 'admin') renderPengawasanTim();
+    }
+  },
+
+  stok_item: {
+    judul: 'Import Data Stock & Gudang',
+    deskripsi: 'Tambah banyak item stok sekaligus. Nama Gudang harus sudah terdaftar di menu Manajemen Produk & Kategori. Kategori/Merek yang belum ada otomatis dipakaikan "Umum".',
+    labelSatuan: 'item stok',
+    tabel: 'stok_item',
+    tipeAktivitas: 'gudang',
+    kolom: [
+      { key:'gudang', label:'Nama Gudang', wajib:true, contoh:'Gudang Pusat Surabaya' },
+      { key:'sku', label:'SKU', wajib:true, contoh:'SKU-3001' },
+      { key:'nama_produk', label:'Nama Produk', wajib:true, contoh:'Kabel HDMI 2 Meter' },
+      { key:'variant', label:'Variant', contoh:'Hitam' },
+      { key:'kategori', label:'Kategori', contoh:'Elektronik' },
+      { key:'merek', label:'Merek', contoh:'Anker' },
+      { key:'satuan', label:'Satuan', contoh:'Pcs' },
+      { key:'stok_minimum', label:'Stok Minimum', contoh:'10' },
+      { key:'stok_awal', label:'Stok Awal (Stok Masuk)', contoh:'50' },
+      { key:'status', label:'Status (aktif/nonaktif)', contoh:'aktif' },
+    ],
+    validasiSebelumImpor(){
+      if(!DATA.gudang.length) return 'Tambah gudang terlebih dahulu lewat "Manajemen Produk & Kategori" sebelum import item stok.';
+      return null;
+    },
+    siapkanBaris(r){
+      const sku = (r.sku || '').trim();
+      const nama_produk = (r.nama_produk || '').trim();
+      if(!sku || !nama_produk) return { ok:false, pesan:'SKU dan Nama Produk wajib diisi' };
+      const namaGudangDicari = (r.gudang || '').trim();
+      const gudangObj = DATA.gudang.find(g => g.nama.toLowerCase() === namaGudangDicari.toLowerCase());
+      if(!gudangObj) return { ok:false, pesan:`Gudang "${namaGudangDicari}" tidak ditemukan` };
+      if(DATA.stokItem.some(i => i.gudang_id === gudangObj.id && (i.sku||'').toLowerCase() === sku.toLowerCase()))
+        return { ok:false, pesan:`SKU "${sku}" sudah ada di gudang "${gudangObj.nama}"` };
+
+      let peringatan = null;
+      let kategori = (r.kategori || '').trim() || 'Umum';
+      const kategoriObj = DATA.kategoriProduk.find(k => k.nama.toLowerCase() === kategori.toLowerCase());
+      if(!kategoriObj && kategori.toLowerCase() !== 'umum'){ peringatan = `Kategori "${kategori}" tidak ditemukan, dipakai "Umum"`; kategori = 'Umum'; }
+      let merek = (r.merek || '').trim() || 'Umum';
+      const merekObj = DATA.kategoriMerek.find(m => m.nama.toLowerCase() === merek.toLowerCase());
+      if(!merekObj && merek.toLowerCase() !== 'umum'){ peringatan = (peringatan ? peringatan + '; ' : '') + `Merek "${merek}" tidak ditemukan, dipakai "Umum"`; merek = 'Umum'; }
+
+      const stok_minimum = Number(r.stok_minimum) || 0;
+      const stokAwal = Number(r.stok_awal) || 0;
+      const satuan = (r.satuan || '').trim() || 'Pcs';
+      let status = (r.status || 'aktif').trim().toLowerCase();
+      if(!['aktif','nonaktif'].includes(status)) status = 'aktif';
+
+      return { ok:true, peringatan, stokAwal, baris:{
+        gudang_id: gudangObj.id, sku, nama_produk, variant:(r.variant||'').trim() || null,
+        kategori, kategori_id: kategoriObj ? kategoriObj.id : ((DATA.kategoriProduk.find(k=>k.nama==='Umum')||{}).id || null),
+        merek, merek_id: merekObj ? merekObj.id : ((DATA.kategoriMerek.find(m=>m.nama==='Umum')||{}).id || null),
+        stok_minimum, satuan, status, stok_masuk: stokAwal, stok_keluar: 0,
+        diupdate_oleh_id: CURRENT_USER ? CURRENT_USER.id : null,
+        diupdate_oleh_nama: CURRENT_USER ? CURRENT_USER.nama : null
+      }};
+    },
+    async setelahBarisDisimpan(hasilAsli, dataTersimpan){
+      // Catat stok awal (jika ada) sebagai satu baris riwayat stok masuk, sama seperti alur Tambah Item Stok manual
+      if(hasilAsli.stokAwal > 0){
+        await supabaseClient.from('riwayat_stok').insert({
+          item_id: dataTersimpan.id, tipe:'masuk', stok_baru: hasilAsli.stokAwal, jumlah: hasilAsli.stokAwal,
+          catatan:'Stok awal saat item dibuat (Import CSV)',
+          dibuat_oleh_id: CURRENT_USER ? CURRENT_USER.id : null, dibuat_oleh_nama: CURRENT_USER ? CURRENT_USER.nama : null
+        });
+      }
+    },
+    setelahSimpan(rows){
+      DATA.stokItem.unshift(...rows);
+      renderGudang(); renderProdukMaster();
+    }
+  },
+
+  kategori_produk: {
+    judul: 'Import Data Kategori Produk',
+    deskripsi: 'Tambah banyak kategori produk sekaligus.',
+    labelSatuan: 'kategori',
+    tabel: 'kategori_produk',
+    tipeAktivitas: 'gudang',
+    kolom: [ { key:'nama', label:'Nama Kategori', wajib:true, contoh:'Aksesoris' } ],
+    siapkanBaris(r){
+      const nama = (r.nama || '').trim();
+      if(!nama) return { ok:false, pesan:'Nama Kategori wajib diisi' };
+      if(DATA.kategoriProduk.some(k => k.nama.toLowerCase() === nama.toLowerCase())) return { ok:false, pesan:'Kategori ini sudah ada' };
+      return { ok:true, baris:{ nama } };
+    },
+    setelahSimpan(rows){
+      DATA.kategoriProduk.push(...rows);
+      DATA.kategoriProduk.sort((a,b) => a.nama.localeCompare(b.nama));
+      renderKategoriMaster(); renderStatManajemenProduk();
+    }
+  },
+
+  kategori_merek: {
+    judul: 'Import Data Kategori Merek',
+    deskripsi: 'Tambah banyak merek/brand sekaligus.',
+    labelSatuan: 'merek',
+    tabel: 'kategori_merek',
+    tipeAktivitas: 'gudang',
+    kolom: [ { key:'nama', label:'Nama Merek', wajib:true, contoh:'Samsung' } ],
+    siapkanBaris(r){
+      const nama = (r.nama || '').trim();
+      if(!nama) return { ok:false, pesan:'Nama Merek wajib diisi' };
+      if(DATA.kategoriMerek.some(m => m.nama.toLowerCase() === nama.toLowerCase())) return { ok:false, pesan:'Merek ini sudah ada' };
+      return { ok:true, baris:{ nama } };
+    },
+    setelahSimpan(rows){
+      DATA.kategoriMerek.push(...rows);
+      DATA.kategoriMerek.sort((a,b) => a.nama.localeCompare(b.nama));
+      renderMerekMaster(); renderStatManajemenProduk();
+    }
+  },
+
+  gudang: {
+    judul: 'Import Data Gudang',
+    deskripsi: 'Tambah banyak gudang/lokasi penyimpanan sekaligus.',
+    labelSatuan: 'gudang',
+    tabel: 'gudang',
+    tipeAktivitas: 'gudang',
+    kolom: [
+      { key:'nama', label:'Nama Gudang', wajib:true, contoh:'Gudang Cabang Bandung' },
+      { key:'lokasi', label:'Lokasi', contoh:'Jl. Soekarno Hatta, Bandung' },
+    ],
+    siapkanBaris(r){
+      const nama = (r.nama || '').trim();
+      if(!nama) return { ok:false, pesan:'Nama Gudang wajib diisi' };
+      if(DATA.gudang.some(g => g.nama.toLowerCase() === nama.toLowerCase())) return { ok:false, pesan:'Gudang ini sudah ada' };
+      return { ok:true, baris:{ nama, lokasi:(r.lokasi||'').trim() || null } };
+    },
+    setelahSimpan(rows){
+      DATA.gudang.push(...rows);
+      renderListGudangKelola(); renderStatManajemenProduk(); isiDropdownGudang(); renderGudang();
+    }
+  },
+};
+
+function bukaModalImport(tipe){
+  const skema = IMPOR_SKEMA[tipe];
+  if(!skema) return;
+  if(tipe === 'proyek' && !PELANGGAN_AKTIF_ID){ tampilkanToast('Buka detail pelanggan terlebih dahulu', true); return; }
+  if(skema.validasiSebelumImpor){
+    const pesan = skema.validasiSebelumImpor();
+    if(pesan){ tampilkanToast(pesan, true); return; }
+  }
+  IMPOR_STATE = { tipe, mentah: [], hasil: [] };
+  document.getElementById('judul-modal-import').textContent = skema.judul;
+  document.getElementById('deskripsi-modal-import').textContent = skema.deskripsi;
+  document.getElementById('input-file-import').value = '';
+  document.getElementById('wrap-preview-import').classList.add('hidden');
+  document.getElementById('wrap-hasil-import').classList.add('hidden');
+  document.getElementById('wrap-hasil-import').innerHTML = '';
+  document.getElementById('btn-proses-import').disabled = true;
+  document.getElementById('btn-proses-import').textContent = 'Mulai Import';
+  bukaModal('modal-import');
+}
+
+/* Parser CSV sederhana namun tangguh: menangani nilai yang dibungkus tanda kutip
+   (termasuk yang berisi koma/baris baru/tanda kutip ganda "" untuk escape) —
+   dipakai supaya file yang diedit di Excel/Google Sheets tetap terbaca benar. */
+function parseCSV(teks){
+  if(teks.charCodeAt(0) === 0xFEFF) teks = teks.slice(1); // buang BOM jika ada
+  const semuaBaris = [];
+  let baris = [], field = '', dalamKutip = false;
+  for(let i = 0; i < teks.length; i++){
+    const c = teks[i];
+    if(dalamKutip){
+      if(c === '"'){
+        if(teks[i+1] === '"'){ field += '"'; i++; }
+        else dalamKutip = false;
+      } else field += c;
+    } else {
+      if(c === '"') dalamKutip = true;
+      else if(c === ','){ baris.push(field); field = ''; }
+      else if(c === '\r'){ /* lewati, ditangani bareng \n */ }
+      else if(c === '\n'){ baris.push(field); semuaBaris.push(baris); baris = []; field = ''; }
+      else field += c;
+    }
+  }
+  if(field.length || baris.length){ baris.push(field); semuaBaris.push(baris); }
+  return semuaBaris.filter(b => b.some(v => (v||'').trim() !== ''));
+}
+
+function unduhTemplateImport(){
+  const skema = IMPOR_SKEMA[IMPOR_STATE.tipe];
+  if(!skema) return;
+  unduhCSV(`template-import-${IMPOR_STATE.tipe}.csv`,
+    skema.kolom.map(k => k.label),
+    [ skema.kolom.map(k => k.contoh || '') ]);
+  tampilkanToast('Template CSV diunduh');
+}
+
+function bacaFileImport(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const skema = IMPOR_SKEMA[IMPOR_STATE.tipe];
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const semuaBaris = parseCSV(String(reader.result));
+      if(semuaBaris.length < 2){ tampilkanToast('File CSV kosong atau tidak berisi baris data', true); return; }
+      const headerMentah = semuaBaris[0].map(h => (h||'').trim());
+      const petaKolom = headerMentah.map(h => {
+        const idx = skema.kolom.findIndex(k => k.label.toLowerCase() === h.toLowerCase());
+        return idx > -1 ? skema.kolom[idx].key : null;
+      });
+      // Kalau header tidak cocok sama sekali dengan template (mis. diketik ulang manual),
+      // fallback ke urutan kolom template apa adanya supaya file tetap bisa dibaca.
+      const petaFinal = petaKolom.some(k => k) ? petaKolom : skema.kolom.map(k => k.key);
+
+      const dataMentah = semuaBaris.slice(1).map(sel => {
+        const obj = {};
+        petaFinal.forEach((key, i) => { if(key) obj[key] = sel[i] !== undefined ? sel[i] : ''; });
+        return obj;
+      }).filter(obj => Object.values(obj).some(v => (v||'').trim() !== ''));
+
+      if(!dataMentah.length){ tampilkanToast('Tidak ada baris data yang bisa dibaca dari file ini', true); return; }
+      IMPOR_STATE.mentah = dataMentah;
+      validasiDanTampilkanPreviewImport();
+    } catch(err){
+      console.error(err);
+      tampilkanToast('Gagal membaca file CSV. Pastikan formatnya benar.', true);
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function validasiDanTampilkanPreviewImport(){
+  const skema = IMPOR_SKEMA[IMPOR_STATE.tipe];
+  IMPOR_STATE.hasil = IMPOR_STATE.mentah.map(r => skema.siapkanBaris(r));
+
+  const jumlahValid = IMPOR_STATE.hasil.filter(h => h.ok).length;
+  const jumlahError = IMPOR_STATE.hasil.length - jumlahValid;
+
+  document.getElementById('ringkasan-preview-import').innerHTML = `
+    <span class="impor-badge total">${IMPOR_STATE.hasil.length} baris terbaca</span>
+    <span class="impor-badge ok">${jumlahValid} siap diimport</span>
+    ${jumlahError ? `<span class="impor-badge error">${jumlahError} bermasalah</span>` : ''}`;
+
+  document.getElementById('thead-preview-import').innerHTML =
+    skema.kolom.map(k => `<th>${esc(k.label)}</th>`).join('') + '<th>Status</th>';
+
+  document.getElementById('tbody-preview-import').innerHTML = IMPOR_STATE.mentah.map((r, i) => {
+    const h = IMPOR_STATE.hasil[i];
+    const kolomHtml = skema.kolom.map(k => `<td>${esc(r[k.key]) || '<span class="cell-muted">—</span>'}</td>`).join('');
+    let statusHtml;
+    if(!h.ok) statusHtml = `<td class="impor-status-error">Gagal: ${esc(h.pesan)}</td>`;
+    else if(h.peringatan) statusHtml = `<td class="impor-status-warn">Siap (${esc(h.peringatan)})</td>`;
+    else statusHtml = `<td class="impor-status-ok">Siap diimport</td>`;
+    return `<tr>${kolomHtml}${statusHtml}</tr>`;
+  }).join('');
+
+  document.getElementById('wrap-preview-import').classList.remove('hidden');
+  document.getElementById('wrap-hasil-import').classList.add('hidden');
+  document.getElementById('btn-proses-import').disabled = jumlahValid === 0;
+}
+
+/* Membagi array jadi beberapa potongan kecil supaya satu request insert
+   tidak terlalu besar, dan supaya kalau ada masalah, cakupan baris yang
+   perlu diulang per-baris (fallback) tidak terlalu banyak. */
+function potongArray(arr, ukuran){
+  const hasil = [];
+  for(let i = 0; i < arr.length; i += ukuran) hasil.push(arr.slice(i, i + ukuran));
+  return hasil;
+}
+
+async function prosesImportSekarang(){
+  const skema = IMPOR_SKEMA[IMPOR_STATE.tipe];
+  const btn = document.getElementById('btn-proses-import');
+  btn.disabled = true;
+  btn.textContent = 'Memproses...';
+
+  const validEntries = IMPOR_STATE.hasil
+    .map((h, i) => ({ h, i }))
+    .filter(x => x.h.ok);
+
+  const tersimpan = []; // { hasilAsli, data }
+  const gagal = []; // { nomorBaris, pesan }
+
+  for(const potongan of potongArray(validEntries, 40)){
+    const { data, error } = await supabaseClient.from(skema.tabel).insert(potongan.map(x => x.h.baris)).select();
+    if(!error){
+      data.forEach((d, idx) => tersimpan.push({ hasilAsli: potongan[idx].h, data: d }));
+      continue;
+    }
+    // Batch gagal (mis. ada 1 baris duplikat) — coba ulang satu-satu supaya baris yang
+    // valid tetap tersimpan dan hanya baris bermasalah yang dilaporkan gagal.
+    for(const x of potongan){
+      const { data: d1, error: e1 } = await supabaseClient.from(skema.tabel).insert(x.h.baris).select().single();
+      if(e1) gagal.push({ nomorBaris: x.i + 2, pesan: pesanErrorKode(e1, null) || e1.message || 'Gagal menyimpan baris ini' });
+      else tersimpan.push({ hasilAsli: x.h, data: d1 });
+    }
+  }
+
+  if(skema.setelahBarisDisimpan){
+    for(const t of tersimpan) await skema.setelahBarisDisimpan(t.hasilAsli, t.data);
+  }
+  if(tersimpan.length) skema.setelahSimpan(tersimpan.map(t => t.data));
+
+  const jumlahDitolakValidasi = IMPOR_STATE.hasil.filter(h => !h.ok).length;
+  const totalGagal = gagal.length + jumlahDitolakValidasi;
+
+  if(tersimpan.length){
+    await catatAktivitas(skema.tipeAktivitas, `Import CSV: ${tersimpan.length} ${escB(skema.labelSatuan)} baru ditambahkan`);
+  }
+  tampilkanToast(
+    tersimpan.length
+      ? `${tersimpan.length} data berhasil diimport${totalGagal ? ', ' + totalGagal + ' gagal' : ''}`
+      : 'Tidak ada data yang berhasil diimport',
+    tersimpan.length === 0
+  );
+
+  const daftarErrorGagalSimpan = gagal.map(g => `<li>Baris ${g.nomorBaris}: ${esc(g.pesan)}</li>`).join('');
+  document.getElementById('wrap-hasil-import').innerHTML = `
+    <div class="impor-hasil-box">
+      <div class="impor-ringkasan" style="margin-bottom:${totalGagal ? '8px':'0'};">
+        <span class="impor-badge ok">${tersimpan.length} berhasil disimpan</span>
+        ${totalGagal ? `<span class="impor-badge error">${totalGagal} gagal</span>` : ''}
+      </div>
+      ${daftarErrorGagalSimpan ? `<ul class="impor-error-list">${daftarErrorGagalSimpan}</ul>` : ''}
+    </div>`;
+  document.getElementById('wrap-hasil-import').classList.remove('hidden');
+  document.getElementById('wrap-preview-import').classList.add('hidden');
+  btn.textContent = 'Mulai Import';
+  btn.disabled = true;
+  document.getElementById('input-file-import').value = '';
 }
 
 function mulai(){

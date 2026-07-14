@@ -1083,3 +1083,137 @@ $$;
 
 revoke all on function reset_semua_data() from public;
 grant execute on function reset_semua_data() to authenticated;
+
+-- =========================================================
+-- TAMBAHAN v22 — PERAN BARU: MARKETING & PURCHASING
+-- Jalankan blok ini SEKALI di SQL Editor Supabase untuk mengaktifkan
+-- dua peran baru yang bisa dipilih Admin di menu "Kelola Pengguna":
+--
+--   • Marketing   — hanya untuk menu Pelanggan: boleh menambah &
+--                    mengubah data pelanggan, dan tetap bisa MELIHAT
+--                    riwayat proyek/deal pelanggan tsb (perlu untuk
+--                    menilai histori transaksi pelanggan). TIDAK bisa
+--                    menghapus pelanggan (tetap khusus Admin), dan
+--                    TIDAK bisa menambah/mengubah Proyek, Tugas,
+--                    Stock & Gudang, Catatan Tim, atau menu lain.
+--
+--   • Purchasing  — hanya untuk menu Stock & Gudang: boleh mengelola
+--                    gudang, kartu stok, kategori produk/merek, serta
+--                    transaksi stok masuk & keluar — termasuk MENGHAPUS
+--                    kartu stok/transaksi yang salah input. TIDAK bisa
+--                    menghapus GUDANG, KATEGORI PRODUK, atau KATEGORI
+--                    MEREK itu sendiri (tetap khusus Admin, karena itu
+--                    keputusan struktural yang berdampak ke banyak
+--                    transaksi sekaligus) dan TIDAK bisa mengakses
+--                    Pelanggan, Proyek, Tugas, atau menu lain.
+--
+-- Admin & Anggota Tim TIDAK berubah sama sekali oleh migrasi ini.
+--
+-- DESAIN HAK AKSES (least privilege — hak akses minimum yang cukup):
+--   - Baca (SELECT) pada tabel operasional TETAP terbuka untuk semua
+--     pengguna yang login, seperti sebelumnya — supaya fitur lintas-
+--     menu yang masih dibutuhkan tidak ikut rusak (mis. dropdown
+--     pelanggan/proyek di form Stok Keluar, avatar & nama pengguna di
+--     seluruh aplikasi). Yang benar-benar dibatasi per peran adalah
+--     hak TULIS (INSERT/UPDATE/DELETE) — di situlah risiko sesungguhnya
+--     (salah ubah/hapus data di luar tanggung jawab peran tsb).
+--   - Menu yang tidak relevan bagi Marketing & Purchasing (Ringkasan,
+--     Proyek, Tugas, Kalender, Aktivitas, Laporan, Pesan, dst.)
+--     disembunyikan di tampilan lewat atribut data-roles di index.html
+--     + terapkanPeran() di script.js — TAPI hak TULIS ke tabel di
+--     baliknya tetap ditutup di level database lewat RLS di bawah ini,
+--     supaya pembatasannya sungguhan (bukan sekadar disembunyikan di
+--     UI) dan tetap berlaku walau ada yang memanggil API Supabase
+--     langsung di luar aplikasi.
+--
+-- Aman dijalankan berulang kali / kapan pun.
+-- =========================================================
+
+-- ---- Izinkan nilai peran baru di tabel profil ----
+alter table profil drop constraint if exists profil_peran_check;
+alter table profil add constraint profil_peran_check check (peran in ('admin','anggota','marketing','purchasing'));
+
+-- ---- PELANGGAN: + Marketing boleh tambah/ubah (Hapus tetap khusus Admin, tidak berubah) ----
+drop policy if exists "pengguna login dapat menambah pelanggan" on pelanggan;
+create policy "admin anggota marketing dapat menambah pelanggan" on pelanggan for insert with check (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','marketing')));
+
+drop policy if exists "pengguna login dapat mengubah pelanggan" on pelanggan;
+create policy "admin anggota marketing dapat mengubah pelanggan" on pelanggan for update using (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','marketing')));
+
+-- ---- PROYEK: Marketing & Purchasing TIDAK boleh menambah/mengubah proyek ----
+drop policy if exists "pengguna login dapat menambah proyek" on proyek;
+create policy "admin anggota dapat menambah proyek" on proyek for insert with check (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota')));
+
+drop policy if exists "pengguna login dapat mengubah proyek" on proyek;
+create policy "admin anggota dapat mengubah proyek" on proyek for update using (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota')));
+
+-- ---- TUGAS: Marketing & Purchasing TIDAK boleh menambah tugas baru ----
+drop policy if exists "pengguna login dapat menambah tugas" on tugas;
+create policy "admin anggota dapat menambah tugas" on tugas for insert with check (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota')));
+
+-- ---- CATATAN TIM (menu Pesan): Marketing & Purchasing tidak ikut menu ini ----
+drop policy if exists "pengguna login dapat menambah catatan tim" on catatan_tim;
+create policy "admin anggota dapat menambah catatan tim" on catatan_tim for insert with check (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota')));
+
+drop policy if exists "pengguna login dapat menghapus catatan tim" on catatan_tim;
+create policy "admin anggota dapat menghapus catatan tim" on catatan_tim for delete using (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota')));
+
+-- ---- GUDANG: + Purchasing boleh tambah/ubah gudang (Hapus tetap khusus Admin) ----
+drop policy if exists "pengguna login dapat menambah gudang" on gudang;
+create policy "admin anggota purchasing dapat menambah gudang" on gudang for insert with check (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','purchasing')));
+
+drop policy if exists "pengguna login dapat mengubah gudang" on gudang;
+create policy "admin anggota purchasing dapat mengubah gudang" on gudang for update using (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','purchasing')));
+
+-- ---- STOK ITEM (kartu stok): + Purchasing boleh tambah/ubah/HAPUS kartu stok ----
+drop policy if exists "pengguna login dapat menambah stok item" on stok_item;
+create policy "admin anggota purchasing dapat menambah stok item" on stok_item for insert with check (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','purchasing')));
+
+drop policy if exists "pengguna login dapat mengubah stok item" on stok_item;
+create policy "admin anggota purchasing dapat mengubah stok item" on stok_item for update using (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','purchasing')));
+
+drop policy if exists "hanya admin dapat menghapus stok item" on stok_item;
+create policy "admin purchasing dapat menghapus stok item" on stok_item for delete using (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','purchasing')));
+
+-- ---- RIWAYAT STOK (transaksi stok masuk/keluar): + Purchasing boleh kelola penuh termasuk hapus ----
+drop policy if exists "pengguna login dapat menambah riwayat stok" on riwayat_stok;
+create policy "admin anggota purchasing dapat menambah riwayat stok" on riwayat_stok for insert with check (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','purchasing')));
+
+drop policy if exists "pengguna login dapat mengubah riwayat stok" on riwayat_stok;
+create policy "admin anggota purchasing dapat mengubah riwayat stok" on riwayat_stok for update using (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','purchasing')));
+
+drop policy if exists "hanya admin dapat menghapus riwayat stok" on riwayat_stok;
+create policy "admin purchasing dapat menghapus riwayat stok" on riwayat_stok for delete using (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','purchasing')));
+
+-- ---- KATEGORI PRODUK: + Purchasing boleh tambah/ubah (Hapus tetap khusus Admin) ----
+drop policy if exists "pengguna login dapat menambah kategori produk" on kategori_produk;
+create policy "admin anggota purchasing dapat menambah kategori produk" on kategori_produk for insert with check (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','purchasing')));
+
+drop policy if exists "pengguna login dapat mengubah kategori produk" on kategori_produk;
+create policy "admin anggota purchasing dapat mengubah kategori produk" on kategori_produk for update using (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','purchasing')));
+
+-- ---- KATEGORI MEREK: + Purchasing boleh tambah/ubah (Hapus tetap khusus Admin) ----
+drop policy if exists "pengguna login dapat menambah kategori merek" on kategori_merek;
+create policy "admin anggota purchasing dapat menambah kategori merek" on kategori_merek for insert with check (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','purchasing')));
+
+drop policy if exists "pengguna login dapat mengubah kategori merek" on kategori_merek;
+create policy "admin anggota purchasing dapat mengubah kategori merek" on kategori_merek for update using (
+  exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','purchasing')));
