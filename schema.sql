@@ -1217,3 +1217,31 @@ create policy "admin anggota purchasing dapat menambah kategori merek" on katego
 drop policy if exists "pengguna login dapat mengubah kategori merek" on kategori_merek;
 create policy "admin anggota purchasing dapat mengubah kategori merek" on kategori_merek for update using (
   exists (select 1 from profil where id = auth.uid() and peran in ('admin','anggota','purchasing')));
+
+-- =========================================================
+-- TAMBAHAN v23 — STATUS & KONDISI BARANG PADA STOK KELUAR
+-- Jalankan blok ini di SQL Editor setelah v16 aktif. Menambahkan
+-- ke form "Tambah Stok Keluar" (menu Stock & Gudang):
+--   - Status  : 'terjual' atau 'dipinjam' — supaya pengeluaran
+--     barang yang sifatnya DIPINJAM (bisa balik lagi) bisa
+--     dibedakan dari yang benar-benar TERJUAL (habis terpakai).
+--   - Jumlah per Kondisi Barang (Baru/Bekas/Rusak) — barang yang
+--     keluar tidak selalu baru; kadang yang dikirim/dipinjamkan
+--     adalah unit bekas atau bahkan rusak (retur ke vendor, dsb).
+--
+-- Kolom stok_baru/stok_bekas/stok_rusak SUDAH ADA sejak v16 tapi
+-- sebelumnya hanya diisi untuk tipe='masuk' — mulai v23 kolom yang
+-- sama ini juga dipakai untuk tipe='keluar', supaya tidak perlu
+-- kolom kuantitas duplikat. Kolom "jumlah" (total) tetap dihitung
+-- sebagai stok_baru + stok_bekas + stok_rusak untuk kedua tipe.
+-- Aman dijalankan berulang / di database yang sudah berisi data.
+-- =========================================================
+
+alter table riwayat_stok add column if not exists status_keluar text check (status_keluar in ('terjual','dipinjam'));
+create index if not exists idx_riwayat_stok_status_keluar on riwayat_stok (status_keluar);
+
+-- ---- Data lama (sebelum v23): tandai semua riwayat keluar yang sudah ada
+-- sebagai 'terjual' secara default, dan pindahkan qty lama ke stok_baru
+-- (asumsi barang keluar sebelumnya semua dianggap kondisi baru) ----
+update riwayat_stok set status_keluar = 'terjual' where tipe = 'keluar' and status_keluar is null;
+update riwayat_stok set stok_baru = jumlah where tipe = 'keluar' and stok_baru = 0 and stok_bekas = 0 and stok_rusak = 0 and jumlah > 0;

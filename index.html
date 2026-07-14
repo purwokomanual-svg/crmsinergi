@@ -809,82 +809,8 @@
       </div>
     </section>
 
-    <!-- ===================== VIEW: DETAIL STOK MASUK (per item, per gudang) ===================== -->
-    <section class="view" id="view-stok-masuk-detail">
-      <button class="btn btn-secondary btn-kembali" onclick="pindahTampilan('gudang')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
-        Kembali ke Stock &amp; Gudang
-      </button>
-
-      <div class="cust-header">
-        <div class="cust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/></svg></div>
-        <div class="cust-titles">
-          <h1 id="detail-stok-masuk-nama-produk">—</h1>
-          <div class="cust-tags">
-            <span class="tag" id="detail-stok-masuk-sku">SKU: —</span>
-            <span class="tag" id="detail-stok-masuk-variant">—</span>
-            <span class="tag" id="detail-stok-masuk-gudang">Gudang: —</span>
-          </div>
-          <div class="cust-tags" style="margin-top:8px;">
-            <span class="tag status"><span class="dot"></span><span id="detail-stok-masuk-sisa">Sisa Stok: 0</span></span>
-            <span class="tag" id="detail-stok-masuk-status">—</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="view-head">
-        <div>
-          <h2>Detail Stok Masuk</h2>
-          <p>Riwayat penerimaan produk ini ke gudang, lengkap dengan No DO, vendor, No PO, dan kondisi barang.</p>
-        </div>
-        <button class="btn btn-primary" onclick="bukaModalTambahStokMasuk()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-          Tambah Stok Masuk
-        </button>
-      </div>
-
-      <div class="toolbar">
-        <div class="search-box">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          <input type="text" id="cari-stok-masuk-detail" placeholder="Cari No DO, vendor, atau No PO...">
-        </div>
-        <select class="filter-select" id="filter-kondisi-stok-masuk-detail" title="Tampilkan hanya transaksi yang mengandung kondisi barang ini">
-          <option value="semua">Semua Kondisi</option>
-          <option value="baru">Ada Stok Baru</option>
-          <option value="bekas">Ada Stok Bekas</option>
-          <option value="rusak">Ada Stok Rusak</option>
-        </select>
-        <div class="toolbar-spacer"></div>
-        <button class="btn btn-secondary" onclick="unduhStokMasukDetailCSV()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
-          Unduh CSV
-        </button>
-      </div>
-
-      <div class="table-card">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Tanggal Masuk</th>
-              <th>Nama Vendor</th>
-              <th>No DO</th>
-              <th>No PO</th>
-              <th>Stok Baru</th>
-              <th>Stok Bekas</th>
-              <th>Stok Rusak</th>
-              <th>Total Stok</th>
-              <th>Satuan</th>
-              <th>Catatan</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="tbody-stok-masuk-detail"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- ===================== VIEW: DETAIL STOK KELUAR (per item, per gudang) ===================== -->
-    <section class="view" id="view-stok-keluar-detail">
+    <!-- ===================== VIEW: DETAIL STOK (Stok Masuk & Stok Keluar digabung, per item per gudang) ===================== -->
+    <section class="view" id="view-stok-detail">
       <button class="btn btn-secondary btn-kembali" onclick="pindahTampilan('gudang')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
         Kembali ke Stock &amp; Gudang
@@ -906,46 +832,116 @@
         </div>
       </div>
 
-      <div class="view-head">
-        <div>
-          <h2>Detail Stok Keluar</h2>
-          <p>Riwayat pengiriman produk ini keluar dari gudang, lengkap dengan No DO, pelanggan, No PO, dan proyek terkait.</p>
-        </div>
-        <button class="btn btn-primary" onclick="bukaModalTambahStokKeluar()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-          Tambah Stok Keluar
-        </button>
+      <div class="mp-tabs">
+        <button class="mp-tab-btn active" data-stok-tab="masuk" onclick="pindahTabStokDetail('masuk')">Stok Masuk</button>
+        <button class="mp-tab-btn" data-stok-tab="keluar" onclick="pindahTabStokDetail('keluar')">Stok Keluar</button>
       </div>
 
-      <div class="toolbar">
-        <div class="search-box">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          <input type="text" id="cari-stok-keluar-detail" placeholder="Cari No DO, pelanggan, No PO, atau proyek...">
+      <!-- ---- Tab: Stok Masuk ---- -->
+      <div class="mp-tab-panel active" id="stok-tab-masuk">
+        <div class="view-head">
+          <div>
+            <h2>Detail Stok Masuk</h2>
+            <p>Riwayat penerimaan produk ini ke gudang, lengkap dengan No DO, vendor, No PO, dan kondisi barang.</p>
+          </div>
+          <button class="btn btn-primary" onclick="bukaModalTambahStokMasuk()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+            Tambah Stok Masuk
+          </button>
         </div>
-        <div class="toolbar-spacer"></div>
-        <button class="btn btn-secondary" onclick="unduhStokKeluarDetailCSV()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
-          Unduh CSV
-        </button>
+
+        <div class="toolbar">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="cari-stok-masuk-detail" placeholder="Cari No DO, vendor, atau No PO...">
+          </div>
+          <select class="filter-select" id="filter-kondisi-stok-masuk-detail" title="Tampilkan hanya transaksi yang mengandung kondisi barang ini">
+            <option value="semua">Semua Kondisi</option>
+            <option value="baru">Ada Stok Baru</option>
+            <option value="bekas">Ada Stok Bekas</option>
+            <option value="rusak">Ada Stok Rusak</option>
+          </select>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-secondary" onclick="unduhStokMasukDetailCSV()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
+            Unduh CSV
+          </button>
+        </div>
+
+        <div class="table-card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tanggal Masuk</th>
+                <th>Nama Vendor</th>
+                <th>No DO</th>
+                <th>No PO</th>
+                <th>Stok Baru</th>
+                <th>Stok Bekas</th>
+                <th>Stok Rusak</th>
+                <th>Total Stok</th>
+                <th>Satuan</th>
+                <th>Catatan</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tbody-stok-masuk-detail"></tbody>
+          </table>
+        </div>
       </div>
 
-      <div class="table-card">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Tanggal Keluar</th>
-              <th>No DO</th>
-              <th>Nama Pelanggan</th>
-              <th>No PO</th>
-              <th>Nama Proyek</th>
-              <th>Qty</th>
-              <th>Satuan</th>
-              <th>Catatan</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="tbody-stok-keluar-detail"></tbody>
-        </table>
+      <!-- ---- Tab: Stok Keluar ---- -->
+      <div class="mp-tab-panel" id="stok-tab-keluar">
+        <div class="view-head">
+          <div>
+            <h2>Detail Stok Keluar</h2>
+            <p>Riwayat pengiriman produk ini keluar dari gudang, lengkap dengan No DO, pelanggan, No PO, proyek, status (Terjual/Dipinjam), dan kondisi barang.</p>
+          </div>
+          <button class="btn btn-primary" onclick="bukaModalTambahStokKeluar()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+            Tambah Stok Keluar
+          </button>
+        </div>
+
+        <div class="toolbar">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="cari-stok-keluar-detail" placeholder="Cari No DO, pelanggan, No PO, atau proyek...">
+          </div>
+          <select class="filter-select" id="filter-status-keluar-stok-keluar-detail" title="Tampilkan hanya transaksi dengan status ini">
+            <option value="semua">Semua Status</option>
+            <option value="terjual">Terjual</option>
+            <option value="dipinjam">Dipinjam</option>
+          </select>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-secondary" onclick="unduhStokKeluarDetailCSV()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
+            Unduh CSV
+          </button>
+        </div>
+
+        <div class="table-card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tanggal Keluar</th>
+                <th>No DO</th>
+                <th>Nama Pelanggan</th>
+                <th>No PO</th>
+                <th>Nama Proyek</th>
+                <th>Status</th>
+                <th>Stok Baru</th>
+                <th>Stok Bekas</th>
+                <th>Stok Rusak</th>
+                <th>Total Qty</th>
+                <th>Satuan</th>
+                <th>Catatan</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tbody-stok-keluar-detail"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -1737,13 +1733,34 @@
         </div>
         <div class="settings-form-grid">
           <div class="form-group">
-            <label>Qty</label>
-            <input type="number" id="input-qty-stok-keluar" placeholder="Contoh: 10" min="1" required>
+            <label>Status</label>
+            <select id="input-status-keluar-stok-keluar">
+              <option value="terjual">Terjual</option>
+              <option value="dipinjam">Dipinjam</option>
+            </select>
           </div>
           <div class="form-group">
             <label>Satuan</label>
             <input type="text" id="input-satuan-stok-keluar" placeholder="Contoh: Pcs">
           </div>
+        </div>
+        <div class="form-group">
+          <label>Jumlah per Kondisi Barang</label>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label class="form-sublabel">Stok Baru</label>
+              <input type="number" id="input-stok-baru-keluar" placeholder="0" min="0" oninput="hitungTotalStokKeluarForm()">
+            </div>
+            <div class="form-group">
+              <label class="form-sublabel">Stok Bekas</label>
+              <input type="number" id="input-stok-bekas-keluar" placeholder="0" min="0" oninput="hitungTotalStokKeluarForm()">
+            </div>
+            <div class="form-group">
+              <label class="form-sublabel">Stok Rusak</label>
+              <input type="number" id="input-stok-rusak-keluar" placeholder="0" min="0" oninput="hitungTotalStokKeluarForm()">
+            </div>
+          </div>
+          <p class="modal-note" id="total-stok-keluar-form">Total Stok: 0</p>
         </div>
         <div class="form-group">
           <label>Catatan (opsional)</label>
