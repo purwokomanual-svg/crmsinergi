@@ -1183,6 +1183,21 @@
           </form>
         </div>
 
+        <!-- ---- ZONA BERBAHAYA: RESET SEMUA DATA (khusus Admin) ---- -->
+        <div class="settings-card danger-zone" data-role="admin">
+          <h3>Zona Berbahaya</h3>
+          <p class="settings-sub">Tindakan di bawah ini bersifat permanen dan tidak dapat dibatalkan. Pastikan Anda benar-benar yakin sebelum melanjutkan.</p>
+
+          <div class="danger-zone-warning">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span><b>Reset Semua Data</b> akan menghapus PERMANEN seluruh data pelanggan, proyek, tugas, catatan tim, gudang, kartu stok &amp; riwayat stok dari database. Akun login (termasuk akun Anda sendiri) dan pengaturan profil perusahaan <b>tidak</b> ikut terhapus.</span>
+          </div>
+
+          <div class="modal-actions settings-actions" style="justify-content:flex-start">
+            <button type="button" class="btn btn-danger" onclick="bukaModalResetData()">Reset Semua Data</button>
+          </div>
+        </div>
+
       </div>
     </section>
 
@@ -1672,6 +1687,30 @@
       <button type="button" class="btn btn-secondary" onclick="tutupModal('modal-keluar')">Batal</button>
       <button type="button" class="btn btn-danger" onclick="prosesKeluar()">Ya, Keluar</button>
     </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: RESET SEMUA DATA (khusus Admin) ===================== -->
+<div class="modal-overlay hidden" id="modal-reset-data">
+  <div class="modal-box">
+    <h3>Reset Semua Data?</h3>
+    <p class="modal-note">Tindakan ini akan <b>menghapus PERMANEN</b> seluruh data pelanggan, proyek, tugas, catatan tim, gudang, kartu stok &amp; riwayat stok dari database. Akun login &amp; pengaturan profil perusahaan tidak ikut terhapus. <b>Tindakan ini tidak bisa dibatalkan.</b></p>
+
+    <form id="form-reset-data">
+      <div class="form-group">
+        <label>Ketik <b>HAPUS SEMUA DATA</b> untuk konfirmasi</label>
+        <input type="text" id="reset-data-frasa" autocomplete="off" placeholder="HAPUS SEMUA DATA" required>
+      </div>
+      <div class="form-group">
+        <label>Kata Sandi Admin (konfirmasi identitas Anda)</label>
+        <input type="password" id="reset-data-password" autocomplete="current-password" required placeholder="••••••••">
+      </div>
+      <div class="auth-msg error" id="reset-data-msg" style="display:none"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="tutupModalResetData()">Batal</button>
+        <button type="submit" class="btn btn-danger" id="btn-konfirmasi-reset-data">Ya, Hapus Semua Data</button>
+      </div>
+    </form>
   </div>
 </div>
 

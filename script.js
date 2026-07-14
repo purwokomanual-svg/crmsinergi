@@ -3638,6 +3638,91 @@ function initRealtime(){
 function bukaModal(id){ document.getElementById(id).classList.remove('hidden'); }
 function tutupModal(id){ document.getElementById(id).classList.add('hidden'); }
 
+/* ---------------------------------------------------------
+   RESET SEMUA DATA (khusus Admin) — menu Pengaturan
+   Alur: ketik frasa konfirmasi -> verifikasi kata sandi lewat
+   re-login diam-diam (signInWithPassword) -> panggil fungsi
+   database reset_semua_data() (RPC, security definer, dengan
+   pengecekan peran admin di sisi database — lihat migrasi v21
+   di schema.sql) -> muat ulang aplikasi dari awal.
+--------------------------------------------------------- */
+function bukaModalResetData(){
+  tutupSemuaDropdown();
+  document.getElementById('form-reset-data').reset();
+  const msg = document.getElementById('reset-data-msg');
+  msg.style.display = 'none';
+  msg.textContent = '';
+  const tombol = document.getElementById('btn-konfirmasi-reset-data');
+  tombol.disabled = false;
+  tombol.textContent = 'Ya, Hapus Semua Data';
+  bukaModal('modal-reset-data');
+}
+
+function tutupModalResetData(){
+  document.getElementById('form-reset-data').reset();
+  tutupModal('modal-reset-data');
+}
+
+async function prosesResetData(e){
+  e.preventDefault();
+  // Jaga-jaga di sisi klien (tombolnya memang sudah disembunyikan lewat
+  // data-role="admin" utk non-admin) — keamanan sesungguhnya tetap
+  // ditegakkan di database lewat pengecekan peran di dalam fungsi
+  // reset_semua_data() itu sendiri.
+  if(!CURRENT_USER || CURRENT_USER.peran !== 'admin') return;
+
+  const frasa = document.getElementById('reset-data-frasa').value.trim();
+  const password = document.getElementById('reset-data-password').value;
+  const msg = document.getElementById('reset-data-msg');
+  const tombol = document.getElementById('btn-konfirmasi-reset-data');
+  const tampilkanError = (teks) => { msg.textContent = teks; msg.style.display = 'block'; };
+
+  if(frasa !== 'HAPUS SEMUA DATA'){
+    tampilkanError('Ketik persis "HAPUS SEMUA DATA" (huruf besar semua) untuk melanjutkan.');
+    return;
+  }
+  if(!password){
+    tampilkanError('Masukkan kata sandi Anda untuk konfirmasi.');
+    return;
+  }
+
+  msg.style.display = 'none';
+  tombol.disabled = true;
+  tombol.textContent = 'Memverifikasi kata sandi...';
+
+  // Konfirmasi identitas: coba masuk ulang dengan email akun yang sedang
+  // aktif + kata sandi yang baru dimasukkan. Kalau salah, permintaan ini
+  // gagal dan sesi yang sedang berjalan tidak terpengaruh sama sekali.
+  const { error: errAuth } = await supabaseClient.auth.signInWithPassword({
+    email: CURRENT_USER.email,
+    password
+  });
+  if(errAuth){
+    tampilkanError('Kata sandi salah. Reset dibatalkan.');
+    tombol.disabled = false;
+    tombol.textContent = 'Ya, Hapus Semua Data';
+    return;
+  }
+
+  tombol.textContent = 'Menghapus seluruh data...';
+  const { error: errReset } = await supabaseClient.rpc('reset_semua_data');
+  if(errReset){
+    console.error(errReset);
+    tampilkanError('Gagal mereset data: ' + errReset.message + '. Sudahkah migrasi v21 (schema.sql) dijalankan di SQL Editor?');
+    tombol.disabled = false;
+    tombol.textContent = 'Ya, Hapus Semua Data';
+    return;
+  }
+
+  tutupModal('modal-reset-data');
+  tampilkanToast('Semua data berhasil direset');
+  // Seluruh state DATA.* & tampilan berubah total setelah ini — memuat
+  // ulang aplikasi dari awal adalah cara paling aman & konsisten (pola
+  // yang sama dipakai di prosesKeluar()), daripada menyinkronkan puluhan
+  // array & render function satu per satu secara manual.
+  setTimeout(() => window.location.reload(), 700);
+}
+
 function toggleSidebarMobile(){
   document.querySelector('.sidebar').classList.toggle('sidebar-open');
   document.getElementById('sidebar-backdrop').classList.toggle('sidebar-open');
@@ -4113,6 +4198,8 @@ function initEventListener(){
   document.getElementById('form-ubah-sandi').addEventListener('submit', simpanUbahSandi);
   const formPerusahaan = document.getElementById('form-perusahaan');
   if(formPerusahaan) formPerusahaan.addEventListener('submit', simpanPerusahaan);
+  const formResetData = document.getElementById('form-reset-data');
+  if(formResetData) formResetData.addEventListener('submit', prosesResetData);
 
   document.getElementById('cari-aktivitas').addEventListener('input', renderAktivitas);
   document.getElementById('filter-tipe-aktivitas').addEventListener('change', renderAktivitas);

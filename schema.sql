@@ -1006,3 +1006,80 @@ where pr.pelanggan_id is null
 alter table proyek drop constraint if exists proyek_pelanggan_id_fkey;
 alter table proyek add constraint proyek_pelanggan_id_fkey
   foreign key (pelanggan_id) references pelanggan(id) on delete cascade;
+
+-- =========================================================
+-- TAMBAHAN v21 — RESET SEMUA DATA (menu Pengaturan > Admin)
+-- Jalankan blok ini SEKALI di SQL Editor Supabase untuk mengaktifkan
+-- tombol "Reset Semua Data" di menu Pengaturan (khusus Admin, dengan
+-- konfirmasi kata sandi) di aplikasi.
+--
+-- APA YANG DIHAPUS: seluruh data OPERASIONAL —
+--   pelanggan, proyek, tugas, aktivitas, catatan tim,
+--   gudang, kartu stok (stok_item), riwayat stok,
+--   kategori produk, kategori merek.
+--
+-- APA YANG TIDAK DIHAPUS (sengaja dipertahankan) —
+--   - profil & akun login (tabel profil / auth.users): supaya Admin
+--     dan seluruh anggota tim TIDAK ikut ter-logout / kehilangan akun.
+--   - pengaturan_perusahaan (nama & logo perusahaan): ini pengaturan
+--     tampilan, bukan "data" operasional, jadi tetap dipertahankan.
+--
+-- KENAPA PAKAI FUNGSI DATABASE (bukan sekadar tombol .delete() di JS):
+--   1. TRUNCATE butuh hak akses lebih tinggi daripada yang dimiliki
+--      role "authenticated" biasa, sehingga fungsi ini perlu berjalan
+--      sebagai SECURITY DEFINER (meminjam hak pembuat fungsi).
+--   2. Karena SECURITY DEFINER melewati RLS, fungsi ini WAJIB mengecek
+--      sendiri bahwa pemanggilnya benar Admin — jadi walau tombolnya di
+--      aplikasi hanya tampil utk Admin, keamanan sesungguhnya tetap
+--      ditegakkan di database (bukan hanya "disembunyikan" di UI).
+--   3. Satu pemanggilan RPC = satu transaksi atomik: kalau salah satu
+--      langkah gagal, semuanya dibatalkan (tidak ada kondisi "separuh
+--      terhapus").
+--
+-- Konfirmasi kata sandi Admin dilakukan di sisi aplikasi (re-login
+-- singkat lewat Supabase Auth) SEBELUM RPC ini dipanggil — fungsi ini
+-- sendiri tidak menerima/menyimpan kata sandi.
+-- Aman dijalankan berulang kali / kapan pun.
+-- =========================================================
+
+create or replace function reset_semua_data()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  nama_admin text;
+begin
+  -- Jaga-jaga di level database: hanya Admin yang login yang boleh
+  -- menjalankan fungsi ini, apa pun jalur pemanggilannya.
+  select nama into nama_admin from profil where id = auth.uid() and peran = 'admin';
+  if nama_admin is null then
+    raise exception 'Hanya Admin yang dapat mereset seluruh data.';
+  end if;
+
+  -- CASCADE di sini menangani tabel-tabel turunan (mis. proyek ikut
+  -- kosong lewat cascade dari pelanggan sejak v20; stok_item & riwayat_stok
+  -- ikut kosong lewat cascade dari gudang) — profil & pengaturan_perusahaan
+  -- SENGAJA tidak disebut di sini sehingga tidak ikut terhapus.
+  truncate table
+    riwayat_stok, stok_item, gudang,
+    kategori_produk, kategori_merek,
+    proyek, pelanggan,
+    tugas, catatan_tim, aktivitas
+  cascade;
+
+  -- Baris log pertama setelah tabel aktivitas ikut dikosongkan, supaya
+  -- tetap ada jejak audit siapa & kapan reset ini dilakukan.
+  insert into aktivitas (tipe, teks, pelaku_id, pelaku_nama)
+  values (
+    'pengguna',
+    'Seluruh data pelanggan, proyek, tugas, catatan tim, gudang & stok telah <b>DIRESET TOTAL</b> oleh Admin <b>' || nama_admin || '</b>',
+    auth.uid(),
+    nama_admin
+  );
+end;
+$$;
+
+revoke all on function reset_semua_data() from public;
+grant execute on function reset_semua_data() to authenticated;
