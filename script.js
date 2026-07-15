@@ -1150,40 +1150,27 @@ function renderStatPelanggan(daftarPelanggan, awal, akhir){
   });
   const margin = hitungMarginPersen(total.totalSubTotal, total.totalSubTotal - total.profit);
 
-  wrap.innerHTML = `
-    <div class="stat-mini-card">
-      <span class="stat-mini-label">Total Nilai Proyek Berjalan</span>
-      <span class="stat-mini-value">${formatRupiah(total.berjalan)}</span>
-    </div>
-    <div class="stat-mini-card">
-      <span class="stat-mini-label">Total Nilai Proyek Tertunda</span>
-      <span class="stat-mini-value">${formatRupiah(total.tertunda)}</span>
-    </div>
-    <div class="stat-mini-card">
-      <span class="stat-mini-label">Total Nilai Proyek Selesai</span>
-      <span class="stat-mini-value">${formatRupiah(total.selesai)}</span>
-    </div>
-    <div class="stat-mini-card">
-      <span class="stat-mini-label">Sub Total</span>
-      <span class="stat-mini-value">${formatRupiah(total.totalSubTotal)}</span>
-    </div>
-    <div class="stat-mini-card">
-      <span class="stat-mini-label">Total Tax</span>
-      <span class="stat-mini-value">${formatRupiah(total.totalTax)}</span>
-    </div>
-    <div class="stat-mini-card">
-      <span class="stat-mini-label">Grand Total</span>
-      <span class="stat-mini-value">${formatRupiah(total.grandTotal)}</span>
-    </div>
-    <div class="stat-mini-card ${total.profit < 0 ? 'danger' : 'ok'}">
-      <span class="stat-mini-label">Profit</span>
-      <span class="stat-mini-value">${formatRupiah(total.profit)}</span>
-    </div>
-    <div class="stat-mini-card ${margin < 0 ? 'danger' : 'ok'}">
-      <span class="stat-mini-label">Margin</span>
-      <span class="stat-mini-value">${margin}%</span>
-    </div>
-  `;
+  // Kartu memakai struktur & ukuran kartu KPI yang sama dengan menu Ringkasan
+  // (kpi-card cmd-stat-card, lihat juga renderLaporan/laporan-kpi) supaya
+  // bahasa desain "Command Center" konsisten di seluruh dashboard. Warna
+  // gradien mengikuti palet kpi-card, sedangkan Profit & Margin memakai
+  // gradien hijau (positif/ok) atau merah-muda (negatif/danger) menggantikan
+  // modifier .ok/.danger yang dulu dipakai pada kartu stat-mini polos.
+  const kartu = [
+    ['Total Nilai Proyek Berjalan', formatRupiah(total.berjalan), 'cmd-grad-blue'],
+    ['Total Nilai Proyek Tertunda', formatRupiah(total.tertunda), 'cmd-grad-purple'],
+    ['Total Nilai Proyek Selesai', formatRupiah(total.selesai), 'cmd-grad-green'],
+    ['Sub Total', formatRupiah(total.totalSubTotal), 'cmd-grad-cyan'],
+    ['Total Tax', formatRupiah(total.totalTax), 'cmd-grad-blue'],
+    ['Grand Total', formatRupiah(total.grandTotal), 'cmd-grad-purple'],
+    ['Profit', formatRupiah(total.profit), total.profit < 0 ? 'cmd-grad-purple' : 'cmd-grad-green'],
+    ['Margin', margin + '%', margin < 0 ? 'cmd-grad-purple' : 'cmd-grad-green'],
+  ];
+  wrap.innerHTML = kartu.map(([label, val, grad]) => `
+    <div class="kpi-card cmd-stat-card ${grad}">
+      <div class="kpi-top"><span class="kpi-label">${label}</span></div>
+      <div class="kpi-bottom"><div class="kpi-value">${val}</div></div>
+    </div>`).join('');
 }
 
 function renderPelanggan(){
@@ -2036,23 +2023,17 @@ function renderStatGudang(){
     else { badge.style.display = 'none'; }
   }
   if(!wrap) return;
-  wrap.innerHTML = `
-    <div class="stat-mini-card">
-      <span class="stat-mini-label">Total Item (SKU x Gudang)</span>
-      <span class="stat-mini-value">${items.length}</span>
-    </div>
-    <div class="stat-mini-card">
-      <span class="stat-mini-label">Jumlah Gudang</span>
-      <span class="stat-mini-value">${DATA.gudang.length}</span>
-    </div>
-    <div class="stat-mini-card ${jumlahMenipis ? 'warn' : 'ok'}">
-      <span class="stat-mini-label">Stok Menipis</span>
-      <span class="stat-mini-value">${jumlahMenipis}</span>
-    </div>
-    <div class="stat-mini-card ${jumlahHabis ? 'danger' : 'ok'}">
-      <span class="stat-mini-label">Stok Habis</span>
-      <span class="stat-mini-value">${jumlahHabis}</span>
-    </div>`;
+  const kartu = [
+    ['Total Item (SKU x Gudang)', items.length, 'cmd-grad-blue'],
+    ['Jumlah Gudang', DATA.gudang.length, 'cmd-grad-cyan'],
+    ['Stok Menipis', jumlahMenipis, jumlahMenipis ? 'cmd-grad-yellow' : 'cmd-grad-green'],
+    ['Stok Habis', jumlahHabis, jumlahHabis ? 'cmd-grad-purple' : 'cmd-grad-green'],
+  ];
+  wrap.innerHTML = kartu.map(([label, val, grad]) => `
+    <div class="kpi-card cmd-stat-card ${grad}">
+      <div class="kpi-top"><span class="kpi-label">${label}</span></div>
+      <div class="kpi-bottom"><div class="kpi-value">${val}</div></div>
+    </div>`).join('');
 }
 
 function renderGudang(){
