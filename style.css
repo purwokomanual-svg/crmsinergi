@@ -1257,3 +1257,344 @@ select option{ background-color:#000000; color:var(--ink); }
 .icon-btn.theme-quick-toggle .ic-moon{opacity:1;transform:rotate(0) scale(1);}
 [data-theme="light"] .icon-btn.theme-quick-toggle .ic-sun{opacity:1;transform:rotate(0) scale(1);}
 [data-theme="light"] .icon-btn.theme-quick-toggle .ic-moon{opacity:0;transform:rotate(90deg) scale(.5);}
+
+/* =========================================================================
+   ================  REDESAIN GLASSMORPHISM FUTURISTIK  ====================
+   Lapisan override di bawah ini menimpa gaya "flat monokrom" di atas dan
+   mengubah seluruh permukaan (sidebar, kartu, modal, tombol, input) menjadi
+   kaca buram (frosted glass) mengambang di atas gradien lembut keluarga
+   merah/rose. Variabel warna didefinisikan ulang, backdrop-filter blur
+   dinyalakan kembali, dan sudut dibuat membulat untuk kesan futuristik.
+   ========================================================================= */
+
+:root{
+  --ink:#fdf3f5;
+  --muted:#e7c3cb;
+  --muted-2:#c98d9b;
+  --green:#4ee8b0;
+  --red:#ff5876;
+  --yellow:#ffd166;
+  --blue:#7fd8ff;
+
+  --glass-blur:blur(10px);
+  --glass-bg:rgba(255,255,255,.08);
+  --glass-bg-strong:rgba(255,255,255,.13);
+  --glass-bg-soft:rgba(255,255,255,.05);
+  --glass-border:rgba(255,255,255,.28);
+  --glass-border-bright:rgba(255,120,150,.55);
+  --glass-shadow:0 8px 32px rgba(90,0,25,.35);
+  --glass-shadow-lg:0 24px 64px rgba(60,0,20,.45);
+
+  --edge:var(--glass-border);
+  --edge-strong:var(--glass-border-bright);
+  --accent:#ff6b81;
+  --accent-bright:#ff8fa3;
+  --accent-2:#ffb199;
+  --accent-2-bright:#ffd2c2;
+  --accent-dim:rgba(255,107,129,.16);
+  --accent-ink:#2a0512;
+
+  --radius:20px;
+  --radius-sharp:14px;
+
+  --grad-primary:linear-gradient(135deg,#ff6b81 0%,#c81d4a 55%,#7a1030 100%);
+  --grad-primary-hover:linear-gradient(135deg,#ff8a9c 0%,#e0244f 55%,#93163d 100%);
+  --grad-soft:linear-gradient(135deg,rgba(255,107,129,.30),rgba(200,29,74,.10));
+  --grad-border:linear-gradient(135deg,rgba(255,180,190,.9),rgba(255,90,120,.25));
+  --page-gradient:radial-gradient(circle at 12% 0%, rgba(130,15,45,.30) 0%, transparent 32%),
+                  radial-gradient(circle at 100% 15%, rgba(90,10,32,.22) 0%, transparent 30%),
+                  radial-gradient(circle at 50% 105%, rgba(110,12,40,.26) 0%, transparent 38%),
+                  linear-gradient(180deg,#050203 0%,#08040a 45%,#020102 100%);
+
+  --overlay-1:rgba(255,255,255,.05);
+  --overlay-2:rgba(255,255,255,.09);
+  --overlay-3:rgba(255,255,255,.16);
+  --glass-highlight:rgba(255,255,255,.5);
+  --topbar-bg:rgba(255,255,255,.07);
+  --sidebar:rgba(255,255,255,.06);
+  --panel:rgba(255,255,255,.07);
+  --panel-2:rgba(255,255,255,.05);
+}
+
+[data-theme="light"]{
+  --ink:#3a0716;
+  --muted:#8a4a58;
+  --muted-2:#b57887;
+  --green:#0ea678;
+  --red:#e11d48;
+  --yellow:#b45309;
+  --blue:#0369a1;
+
+  --glass-bg:rgba(255,255,255,.55);
+  --glass-bg-strong:rgba(255,255,255,.72);
+  --glass-bg-soft:rgba(255,255,255,.40);
+  --glass-border:rgba(255,255,255,.75);
+  --glass-border-bright:rgba(225,29,72,.45);
+  --glass-shadow:0 8px 28px rgba(190,20,60,.14);
+  --glass-shadow-lg:0 20px 50px rgba(190,20,60,.18);
+
+  --edge:var(--glass-border);
+  --edge-strong:var(--glass-border-bright);
+  --accent:#e11d48;
+  --accent-bright:#c81440;
+  --accent-2:#fb7185;
+  --accent-2-bright:#e11d48;
+  --accent-dim:rgba(225,29,72,.10);
+  --accent-ink:#ffffff;
+
+  --grad-primary:linear-gradient(135deg,#fb7185 0%,#e11d48 55%,#9f1239 100%);
+  --grad-primary-hover:linear-gradient(135deg,#fda4af 0%,#f43f5e 55%,#be123c 100%);
+  --grad-soft:linear-gradient(135deg,rgba(251,113,133,.28),rgba(225,29,72,.06));
+  --grad-border:linear-gradient(135deg,rgba(225,29,72,.55),rgba(251,113,133,.15));
+  --page-gradient:radial-gradient(circle at 12% 8%, #ffd7de 0%, transparent 45%),
+                  radial-gradient(circle at 88% 12%, #ffe4e9 0%, transparent 45%),
+                  radial-gradient(circle at 50% 95%, #ffc9d3 0%, transparent 55%),
+                  linear-gradient(135deg,#fff6f7 0%,#ffeef1 50%,#fff8f8 100%);
+
+  --overlay-1:rgba(225,29,72,.04);
+  --overlay-2:rgba(225,29,72,.08);
+  --overlay-3:rgba(225,29,72,.14);
+  --glass-highlight:rgba(255,255,255,.8);
+  --topbar-bg:rgba(255,255,255,.55);
+  --sidebar:rgba(255,255,255,.5);
+  --panel:rgba(255,255,255,.5);
+  --panel-2:rgba(255,255,255,.4);
+}
+
+/* ============ LATAR BELAKANG: gradien lembut merah + blobs kaca ============ */
+html,body{
+  background:var(--page-gradient);
+  background-attachment:fixed;
+}
+.ambient-glow{background:transparent;}
+.ambient-glow::before,.ambient-glow::after{
+  display:block;content:'';position:absolute;border-radius:50%;filter:blur(110px);opacity:.22;
+}
+.ambient-glow::before{width:520px;height:520px;top:-160px;left:-120px;background:radial-gradient(circle,#ff6b81,transparent 70%);}
+.ambient-glow::after{width:620px;height:620px;bottom:-220px;right:-160px;background:radial-gradient(circle,#c81d4a,transparent 70%);}
+.ambient-glow .glow-blob{
+  display:block;position:absolute;top:38%;left:55%;width:460px;height:460px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,145,170,.28),transparent 70%);filter:blur(100px);opacity:.2;
+}
+[data-theme="light"] .ambient-glow::before,
+[data-theme="light"] .ambient-glow::after,
+[data-theme="light"] .ambient-glow .glow-blob{opacity:.35;}
+
+/* ============ SIDEBAR / TOPBAR / AUTH — kaca utama ============ */
+.sidebar{
+  background:var(--sidebar);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  border-right:1px solid var(--glass-border);box-shadow:var(--glass-shadow);
+}
+.topbar{
+  background:var(--topbar-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  border-bottom:1px solid var(--glass-border);
+}
+.auth-screen{background:transparent;}
+.auth-box{
+  background:var(--glass-bg-strong);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:1px solid var(--glass-border);border-radius:26px;box-shadow:var(--glass-shadow-lg);
+}
+.auth-tabs{background:var(--glass-bg-soft);border:1px solid var(--glass-border);border-radius:14px;overflow:hidden;}
+.auth-tab{border-right:1px solid var(--glass-border);}
+.auth-tab.active{background:var(--grad-primary);color:#fff;}
+.brand-mark,.cust-icon{background:var(--grad-primary)!important;border:1px solid var(--glass-border-bright);box-shadow:0 6px 18px rgba(200,20,70,.4);}
+
+/* ============ KARTU KACA — semua panel datar jadi kaca buram ============ */
+.kpi-card,.chart-card,.table-card,.funnel-card,.timeline,.task-card,.cal-agenda-card,
+.team-card,.message-composer,.message-item,.integration-card,.faq-item,
+.search-box,.cal-cell,.settings-card,.stat-mini-card,.donut-card,.stock-alert-card,
+.cmd-activity-tile,.dash-team-mini,.chart-card-main{
+  background:var(--glass-bg)!important;
+  backdrop-filter:var(--glass-blur)!important;-webkit-backdrop-filter:var(--glass-blur)!important;
+  border:1px solid var(--glass-border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--glass-shadow);
+  transition:border-color .25s ease,background-color .25s ease,box-shadow .25s ease,transform .2s ease;
+}
+.kpi-card:hover,.chart-card:hover,.table-card:hover,.funnel-card:hover,.task-card:hover,
+.cal-agenda-card:hover,.team-card:hover,.integration-card:hover,.settings-card:hover,
+.stat-mini-card:hover,.donut-card:hover,.stock-alert-card:hover,
+.cmd-activity-tile:hover{
+  border-color:var(--glass-border-bright)!important;
+  box-shadow:0 10px 40px rgba(200,20,70,.28);
+  transform:translateY(-2px);
+}
+.kpi-grid,.stat-mini-grid,.team-grid,.dash-row,.dash-team-row,.cmd-activity-bento,
+.cmd-bento-mini,.cal-grid,.message-list,.faq-list,.settings-grid{background:transparent!important;}
+.kpi-grid,.stat-mini-grid,.team-grid,.dash-team-row,.cal-grid.cal-days,
+.cmd-activity-bento,.cmd-bento-mini,.message-list,.faq-list,.settings-grid{
+  border:none!important;border-top:none!important;gap:16px!important;
+}
+.dash-row,.dash-row-chart{
+  border:none!important;gap:22px!important;
+}
+.kpi-card,.stat-mini-card,.team-card,.dash-team-mini,.cmd-activity-tile{border-radius:16px!important;}
+
+/* .cmd-bento-tile selalu bersarang di dalam .donut-card yang sudah kaca — jadi TIDAK
+   diberi backdrop-filter/border kaca sendiri lagi (mencegah kotak dobel/garis tegas
+   di dalam kartu "Statistik Proyek"). Cukup latar sedikit lebih pekat + garis tipis. */
+.cmd-bento-tile{
+  background:var(--overlay-1)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+  border:1px solid var(--glass-border)!important;border-radius:14px!important;box-shadow:none!important;
+}
+.cmd-bento-tile:hover{border-color:var(--glass-border-bright)!important;box-shadow:none!important;transform:none!important;}
+
+/* Kotak-kotak ini selalu berada di dalam kartu/modal kaca lain, jadi tidak diberi
+   backdrop-filter sendiri (mencegah efek dobel/berbayang). */
+.brush-wrap,.impor-hasil-box{
+  background:var(--overlay-1);backdrop-filter:none;-webkit-backdrop-filter:none;
+  border:1px solid var(--glass-border);border-radius:14px;
+}
+.tooltip-box,.date-caption{
+  background:var(--glass-bg-strong)!important;backdrop-filter:blur(14px)!important;-webkit-backdrop-filter:blur(14px)!important;
+  border:1px solid var(--glass-border-bright)!important;border-radius:12px!important;box-shadow:var(--glass-shadow);
+}
+
+/* ============ CEGAH KACA-DALAM-KACA — kartu yang bersarang di dalam modal
+   (mis. tabel pratinjau impor CSV) tidak diberi blur/border kaca sendiri lagi,
+   supaya tidak terlihat sebagai kotak kaca dobel/berbayang di dalam modal. ============ */
+.modal-box .kpi-card,.modal-box .chart-card,.modal-box .table-card,.modal-box .funnel-card,
+.modal-box .timeline,.modal-box .task-card,.modal-box .cal-agenda-card,.modal-box .team-card,
+.modal-box .message-composer,.modal-box .message-item,.modal-box .integration-card,
+.modal-box .faq-item,.modal-box .settings-card,.modal-box .stat-mini-card,.modal-box .donut-card{
+  background:var(--overlay-1)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+
+/* ============ MODAL / DROPDOWN / TOAST — kaca lebih pekat ============ */
+.modal-overlay{background:rgba(30,4,14,.45)!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+[data-theme="light"] .modal-overlay{background:rgba(80,10,30,.20)!important;}
+.modal-box{
+  background:var(--glass-bg-strong)!important;backdrop-filter:blur(20px)!important;-webkit-backdrop-filter:blur(20px)!important;
+  border:1px solid var(--glass-border)!important;border-radius:24px!important;box-shadow:var(--glass-shadow-lg);
+}
+.dropdown-panel{
+  background:var(--glass-bg-strong)!important;backdrop-filter:blur(18px)!important;-webkit-backdrop-filter:blur(18px)!important;
+  border:1px solid var(--glass-border)!important;border-radius:18px!important;box-shadow:var(--glass-shadow-lg);
+}
+.toast{
+  background:var(--grad-primary)!important;border:1px solid var(--glass-border-bright)!important;
+  border-radius:16px!important;box-shadow:var(--glass-shadow-lg);color:#fff;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+}
+.toast .dot{background:#fff;}
+
+/* ============ TOMBOL — isi gradien / kaca bergaris cerah ============ */
+.btn{border-radius:14px!important;}
+.btn-primary{
+  background:var(--grad-primary)!important;color:#fff!important;border:1px solid var(--glass-border-bright)!important;
+  box-shadow:0 8px 24px rgba(200,20,70,.35);
+}
+.btn-primary:hover{
+  background:var(--grad-primary-hover)!important;opacity:1!important;box-shadow:0 10px 30px rgba(200,20,70,.5);
+  transform:translateY(-1px);
+}
+.btn-secondary{
+  background:var(--glass-bg-soft)!important;border:1px solid var(--glass-border)!important;color:var(--ink)!important;
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+}
+.btn-secondary:hover{
+  background:var(--grad-soft)!important;border-color:var(--glass-border-bright)!important;
+  box-shadow:0 6px 20px rgba(200,20,70,.2);
+}
+.btn-danger{
+  background:var(--glass-bg-soft)!important;border:1px solid rgba(255,90,120,.55)!important;color:var(--red)!important;
+}
+.btn-danger:hover{
+  background:linear-gradient(135deg,rgba(255,88,118,.28),rgba(255,88,118,.08))!important;
+  border-color:var(--red)!important;font-weight:700;box-shadow:0 6px 20px rgba(255,88,118,.28);
+}
+.icon-btn{border-radius:12px!important;}
+.icon-btn:hover{
+  background:var(--grad-soft)!important;border-color:var(--glass-border-bright)!important;color:var(--ink)!important;
+}
+.range-tab.active{background:var(--grad-primary)!important;color:#fff!important;}
+
+/* ============ INPUT / SELECT — kaca berdiri sendiri (mis. filter di toolbar) ============
+   Elemen ini TIDAK berada di dalam kartu kaca lain, jadi aman diberi kaca penuh
+   (background + border + blur) sendiri. */
+.filter-select,.periode-date-input{
+  background:var(--glass-bg-soft)!important;border:1px solid var(--glass-border)!important;
+  border-radius:12px!important;color:var(--ink)!important;
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+}
+.filter-select:focus{
+  border-color:var(--glass-border-bright)!important;
+  box-shadow:0 0 0 4px rgba(255,107,129,.16)!important;
+  background:var(--glass-bg)!important;
+}
+
+/* ============ INPUT / SELECT / TEXTAREA DI DALAM KARTU KACA (modal, settings, auth,
+   message-composer) — TANPA backdrop-filter/border kaca sendiri. Memberi elemen ini
+   kaca penuh lagi (di atas kartu yang sudah kaca) menghasilkan efek "kotak dobel/blur
+   ganda" yang terlihat seperti garis pinggir berbayang. Cukup beri latar sedikit lebih
+   gelap/pekat dari kartunya + garis tipis, tanpa blur tambahan. */
+.form-group input,.form-group select,
+.message-composer textarea,.message-composer-row input{
+  background:var(--overlay-1)!important;border:1px solid var(--glass-border)!important;
+  border-radius:12px!important;color:var(--ink)!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+.form-group input:focus,.form-group select:focus,
+.message-composer textarea:focus,.message-composer-row input:focus{
+  border-color:var(--glass-border-bright)!important;
+  box-shadow:0 0 0 4px rgba(255,107,129,.16)!important;
+  background:var(--overlay-2)!important;
+}
+
+/* ============ SEARCH BOX — kotak luar sudah kaca; input di dalamnya dibuat polos
+   transparan tanpa border/blur sendiri, supaya tidak ada dua kotak kaca bertumpuk. ============ */
+.search-box{border-radius:14px!important;}
+.search-box:focus-within{border-color:var(--glass-border-bright)!important;box-shadow:0 0 0 4px rgba(255,107,129,.14);}
+.search-box input{
+  background:transparent!important;border:none!important;box-shadow:none!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-radius:0!important;
+}
+
+select option{background-color:#3a0f1e;color:var(--ink);}
+[data-theme="light"] select option{background-color:#fff5f6;color:var(--ink);}
+
+/* ============ NAV ITEM — highlight kaca dgn gradien lembut ============ */
+.nav-item{border-radius:12px!important;border-left:none!important;padding-left:14px!important;}
+.nav-item:hover{
+  background:var(--glass-bg-soft)!important;color:var(--ink)!important;
+  box-shadow:inset 3px 0 0 var(--accent-bright);
+}
+.nav-item.active{
+  background:var(--grad-soft)!important;color:var(--ink)!important;font-weight:700;
+  box-shadow:inset 3px 0 0 var(--accent),0 4px 16px rgba(200,20,70,.15);
+}
+.nav-badge{border:1px solid var(--glass-border-bright)!important;background:var(--grad-primary)!important;color:#fff!important;}
+
+/* ============ TABEL — hover kaca lembut ============ */
+.data-table tbody tr:hover{background:var(--overlay-1)!important;}
+.data-table th{background:transparent!important;}
+
+/* ============ TAG / BADGE / PILL — pinggiran cerah ============ */
+.tag,.badge,.badge-prioritas,.gudang-badge,.status-keluar-badge,.stok-status,
+.role-pill,.impor-badge,.cal-tag,.filter-select{border-radius:999px!important;}
+.tag,.badge,.role-pill{
+  background:var(--glass-bg-soft)!important;border:1px solid var(--glass-border)!important;
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+}
+
+/* ============ PROGRESS / BAR ============ */
+.kpi-bar,.progress-mini,.team-progress,.funnel-track{background:var(--overlay-2)!important;border-radius:999px!important;overflow:hidden;}
+.kpi-bar-fill,.progress-mini-fill,.team-progress-fill,.funnel-fill{background:var(--grad-primary)!important;}
+
+/* ============ SCROLLBAR / SELEKSI ============ */
+::-webkit-scrollbar-thumb{background:var(--grad-primary);border-radius:8px;}
+::selection{background:rgba(255,107,129,.35);}
+
+/* ============ THEME SWITCH — knob & track kaca ============ */
+.theme-switch{
+  background:var(--glass-bg-soft)!important;border:1px solid var(--glass-border)!important;border-radius:999px!important;
+}
+.theme-switch .knob{
+  background:var(--grad-primary)!important;border-radius:50%!important;box-shadow:0 4px 12px rgba(200,20,70,.4)!important;
+}
+
+/* ============ RESPONSIVE: sidebar mobile tetap kaca ============ */
+@media (max-width:760px){
+  .sidebar{box-shadow:var(--glass-shadow-lg);}
+}
