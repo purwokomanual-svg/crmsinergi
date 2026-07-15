@@ -202,24 +202,73 @@
         </div>
       </div>
 
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-top"><span class="kpi-label">Total Nilai Transaksi</span><span class="kpi-range">Hari ini<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span></div>
+      <div class="toolbar">
+        <div class="dash-toolbar-label card-title-row">
+          <span class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></span>
+          <span>Tampilkan data untuk periode:</span>
+        </div>
+        <select class="filter-select" id="filter-periode-ringkasan" title="Saring seluruh data Ringkasan (KPI, grafik, tabel) berdasarkan periode" onchange="toggleInputPeriodeCustom('ringkasan')">
+          <option value="semua">Periode: Semua Waktu</option>
+          <option value="harian">Periode: Hari Ini</option>
+          <option value="bulanan" selected>Periode: Bulan Ini</option>
+          <option value="semester">Periode: Semester Ini</option>
+          <option value="tahunan">Periode: Tahun Ini</option>
+          <option value="custom">Periode: Custom...</option>
+        </select>
+        <div class="periode-custom-wrap hidden" id="wrap-periode-custom-ringkasan">
+          <input type="date" class="periode-date-input" id="periode-dari-ringkasan">
+          <span>s/d</span>
+          <input type="date" class="periode-date-input" id="periode-sampai-ringkasan">
+        </div>
+        <div class="toolbar-spacer"></div>
+      </div>
+
+      <div class="kpi-grid cmd-stat-grid">
+        <div class="kpi-card cmd-stat-card cmd-grad-cyan">
+          <svg class="cmd-spark" viewBox="0 0 160 50" preserveAspectRatio="none"><polyline points="0,38 20,32 40,35 60,22 80,26 100,14 120,18 140,6 160,10"/></svg>
+          <div class="kpi-top">
+            <div class="kpi-icon-label">
+              <span class="kpi-mini-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></span>
+              <span class="kpi-label">Total Nilai Transaksi</span>
+            </div>
+            <span class="kpi-range"><span id="kpi-range-total-nilai">Hari ini</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span>
+          </div>
           <div class="kpi-bar"><div class="kpi-bar-fill" style="width:78%"></div></div>
           <div class="kpi-bottom"><div class="kpi-value" id="kpi-total-nilai">—</div><div class="kpi-delta up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 15l6-6 6 6"/></svg>8.27%</div></div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-top"><span class="kpi-label">Nilai Rata-rata</span><span class="kpi-range">Minggu lalu<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="kpi-card cmd-stat-card cmd-grad-purple">
+          <svg class="cmd-spark" viewBox="0 0 160 50" preserveAspectRatio="none"><polyline points="0,14 20,20 40,16 60,28 80,24 100,34 120,30 140,40 160,36"/></svg>
+          <div class="kpi-top">
+            <div class="kpi-icon-label">
+              <span class="kpi-mini-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg></span>
+              <span class="kpi-label">Nilai Rata-rata</span>
+            </div>
+            <span class="kpi-range"><span id="kpi-range-rata-rata">Minggu lalu</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span>
+          </div>
           <div class="kpi-bar"><div class="kpi-bar-fill" style="width:46%"></div></div>
           <div class="kpi-bottom"><div class="kpi-value" id="kpi-rata-rata">—</div><div class="kpi-delta down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>3.63%</div></div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-top"><span class="kpi-label">Tingkat Menang</span><span class="kpi-range">Minggu lalu<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="kpi-card cmd-stat-card cmd-grad-blue">
+          <svg class="cmd-spark" viewBox="0 0 160 50" preserveAspectRatio="none"><polyline points="0,30 20,26 40,32 60,18 80,22 100,12 120,20 140,8 160,16"/></svg>
+          <div class="kpi-top">
+            <div class="kpi-icon-label">
+              <span class="kpi-mini-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l2.6 5.9 6.4.6-4.8 4.3 1.4 6.3L12 17l-5.6 3.1 1.4-6.3-4.8-4.3 6.4-.6z"/></svg></span>
+              <span class="kpi-label">Tingkat Menang</span>
+            </div>
+            <span class="kpi-range"><span id="kpi-range-win-rate">Minggu lalu</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span>
+          </div>
           <div class="kpi-bar"><div class="kpi-bar-fill" style="width:68%"></div></div>
           <div class="kpi-bottom"><div class="kpi-value" id="kpi-win-rate">—</div><div class="kpi-delta down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>1.42%</div></div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-top"><span class="kpi-label">Jumlah Proyek</span><span class="kpi-range">Bulan lalu<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span></div>
+        <div class="kpi-card cmd-stat-card cmd-grad-green">
+          <svg class="cmd-spark" viewBox="0 0 160 50" preserveAspectRatio="none"><polyline points="0,40 20,34 40,36 60,24 80,28 100,16 120,20 140,10 160,4"/></svg>
+          <div class="kpi-top">
+            <div class="kpi-icon-label">
+              <span class="kpi-mini-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 21V10M10 21V4M16 21v-7M22 21H2"/></svg></span>
+              <span class="kpi-label">Jumlah Proyek</span>
+            </div>
+            <span class="kpi-range"><span id="kpi-range-jumlah-proyek">Bulan lalu</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span>
+          </div>
           <div class="kpi-bar"><div class="kpi-bar-fill" style="width:14%"></div></div>
           <div class="kpi-bottom"><div class="kpi-value" id="kpi-jumlah-proyek">—</div><div class="kpi-delta up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 15l6-6 6 6"/></svg>4.12%</div></div>
         </div>
@@ -239,10 +288,23 @@
           <div class="chart-tools">
             <div class="icon-btn" title="Layar penuh" onclick="toggleFullscreenChart()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></div>
             <div class="icon-btn" title="Reset tampilan" onclick="resetZoomChart()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V6a2 2 0 012-2h2M20 8V6a2 2 0 00-2-2h-2M4 16v2a2 2 0 002 2h2M20 16v2a2 2 0 01-2 2h-2"/><circle cx="12" cy="12" r="3.2"/></svg></div>
-            <div class="icon-btn" title="Tampilkan garis kisi" onclick="toggleGridChart()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9M4.6 9a1.7 1.7 0 00-.3-1.9"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
-            <div class="divider"></div>
-            <div class="icon-btn" title="Bandingkan periode sebelumnya" onclick="toggleCompareChart()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V10M10 21V4M16 21v-7M22 21H2"/></svg></div>
-            <div class="icon-btn" title="Unduh grafik (PNG)" onclick="unduhGrafik()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/></svg></div>
+            <div class="dropdown-wrap">
+              <div class="icon-btn" title="Alat lainnya" onclick="toggleDropdown('panel-alat-grafik')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></div>
+              <div class="dropdown-panel chart-tools-panel hidden" id="panel-alat-grafik">
+                <button class="dropdown-item" onclick="tutupSemuaDropdown();toggleGridChart()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9M4.6 9a1.7 1.7 0 00-.3-1.9"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+                  Tampilkan Garis Kisi
+                </button>
+                <button class="dropdown-item" onclick="tutupSemuaDropdown();toggleCompareChart()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V10M10 21V4M16 21v-7M22 21H2"/></svg>
+                  Bandingkan Periode Sebelumnya
+                </button>
+                <button class="dropdown-item" onclick="tutupSemuaDropdown();unduhGrafik()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/></svg>
+                  Unduh Grafik (PNG)
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -262,9 +324,9 @@
         </div>
       </div>
 
-      <div class="donut-card">
+      <div class="donut-card cmd-bento-parent">
         <div class="donut-card-head">
-          <h3>Statistik Proyek</h3>
+          <div class="card-title-row"><span class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l3.5-4 3 3L19 7"/></svg></span><h3>Statistik Proyek</h3></div>
           <div class="icon-btn" title="Segarkan" onclick="renderRingkasanDonut()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V6a2 2 0 012-2h2M20 8V6a2 2 0 00-2-2h-2M4 16v2a2 2 0 002 2h2M20 16v2a2 2 0 01-2 2h-2"/><circle cx="12" cy="12" r="3.2"/></svg></div>
         </div>
         <div class="donut-wrap">
@@ -275,18 +337,71 @@
           </div>
         </div>
         <div class="donut-legend" id="donut-legend"></div>
+
+        <div class="cmd-bento-mini">
+          <div class="cmd-bento-tile cmd-bento-wide cmd-grad-cyan">
+            <span class="cmd-bento-tile-label">Proyek Aktif Bulan Ini</span>
+            <span class="cmd-bento-tile-value" id="cmd-proyek-aktif-bulan">—</span>
+          </div>
+          <div class="cmd-bento-tile cmd-grad-purple">
+            <span class="cmd-bento-tile-label">Rata² Durasi</span>
+            <span class="cmd-bento-tile-value" id="cmd-rata-durasi">—</span>
+          </div>
+          <div class="cmd-bento-tile cmd-grad-blue">
+            <span class="cmd-bento-tile-label">Berisiko</span>
+            <span class="cmd-bento-tile-value" id="cmd-proyek-berisiko">—</span>
+          </div>
+        </div>
       </div>
       </div><!-- /dash-row-chart -->
 
       <div class="dash-section-head">
-        <h3>Peringatan Stok Gudang</h3>
+        <div class="card-title-row"><span class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></span><h3>Aktivitas Terakhir</h3></div>
+        <span class="dash-section-sub">Denyut nadi tim &amp; transaksi secara real-time</span>
+        <button class="btn btn-secondary btn-sm dash-section-action" onclick="pindahTampilan('aktivitas')">Lihat Semua Aktivitas</button>
+      </div>
+      <div class="cmd-activity-bento" id="cmd-activity-bento">
+        <div class="cmd-activity-tile cmd-grad-cyan">
+          <div class="cmd-activity-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2l2.6 5.9 6.4.6-4.8 4.3 1.4 6.3L12 17l-5.6 3.1 1.4-6.3-4.8-4.3 6.4-.6z"/></svg></div>
+          <span class="cmd-activity-tag">Kesepakatan Ditutup</span>
+          <h4 class="cmd-activity-title">Proyek PT Cahaya Nusantara senilai Rp482jt resmi disetujui</h4>
+          <span class="cmd-activity-time">2 menit lalu · oleh Dimas A.</span>
+        </div>
+        <div class="cmd-activity-tile cmd-grad-blue">
+          <div class="cmd-activity-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4h16v13H8l-4 4V4z"/></svg></div>
+          <span class="cmd-activity-tag">Pesan Baru</span>
+          <h4 class="cmd-activity-title">3 pesan tim menunggu tanggapan</h4>
+          <span class="cmd-activity-time">12 menit lalu</span>
+        </div>
+        <div class="cmd-activity-tile cmd-grad-green">
+          <div class="cmd-activity-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l2.5 2.5L16 9"/></svg></div>
+          <span class="cmd-activity-tag">Tugas Selesai</span>
+          <h4 class="cmd-activity-title">Survey lokasi gudang Jakarta rampung</h4>
+          <span class="cmd-activity-time">40 menit lalu · oleh Rina S.</span>
+        </div>
+        <div class="cmd-activity-tile cmd-grad-purple">
+          <div class="cmd-activity-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0113 0"/></svg></div>
+          <span class="cmd-activity-tag">Pelanggan Baru</span>
+          <h4 class="cmd-activity-title">CV Baja Perkasa terdaftar sebagai lead</h4>
+          <span class="cmd-activity-time">1 jam lalu</span>
+        </div>
+        <div class="cmd-activity-tile cmd-grad-blue">
+          <div class="cmd-activity-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/></svg></div>
+          <span class="cmd-activity-tag">Stok Gudang</span>
+          <h4 class="cmd-activity-title">12 SKU di Gudang Surabaya mencapai batas stok minimum</h4>
+          <span class="cmd-activity-time">2 jam lalu</span>
+        </div>
+      </div>
+
+      <div class="dash-section-head">
+        <div class="card-title-row"><span class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg></span><h3>Peringatan Stok Gudang</h3></div>
         <span class="dash-section-sub">Item berstatus stok menipis atau habis di gudang Surabaya &amp; Jakarta</span>
         <button class="btn btn-secondary btn-sm dash-section-action" onclick="pindahTampilan('gudang')">Buka Stock &amp; Gudang</button>
       </div>
       <div class="dash-row dash-row-stok" id="dash-row-stok-gudang"></div>
 
       <div class="dash-section-head">
-        <h3>Anggota Tim</h3>
+        <div class="card-title-row"><span class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0114 0"/></svg></span><h3>Anggota Tim</h3></div>
         <span class="dash-section-sub">Beban tugas tiap anggota tim saat ini</span>
       </div>
       <div class="dash-team-row" id="dash-team-row"></div>
@@ -294,7 +409,7 @@
       <div class="dash-row dash-row-bottom">
         <div class="table-card dash-table-card">
           <div class="dash-table-head">
-            <h3>Pelanggan Teratas</h3>
+            <div class="card-title-row"><span class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><circle cx="18" cy="9" r="2.5"/><path d="M15.5 20a5 5 0 018.5-3.2"/></svg></span><h3>Pelanggan Teratas</h3></div>
             <button class="btn btn-secondary btn-sm" onclick="pindahTampilan('pelanggan')">Lihat Semua</button>
           </div>
           <div class="dash-table-scroll">
@@ -306,7 +421,7 @@
         </div>
         <div class="table-card dash-table-card">
           <div class="dash-table-head">
-            <h3>Proyek Bernilai Tertinggi</h3>
+            <div class="card-title-row"><span class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></span><h3>Proyek Bernilai Tertinggi</h3></div>
             <button class="btn btn-secondary btn-sm" onclick="pindahTampilan('laporan')">Lihat Laporan</button>
           </div>
           <div class="dash-table-scroll">

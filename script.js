@@ -670,24 +670,44 @@ function pindahTampilan(namaView){
 /* ---------------------------------------------------------
    4. RENDER: KPI RINGKASAN (dihitung dari data proyek)
 --------------------------------------------------------- */
+/* Label singkat yang ditampilkan di badge kanan-atas tiap kartu KPI
+   (mis. "Bulan Ini"), mengikuti mode filter "Periode Data" yang sedang
+   dipilih di dropdown Ringkasan — supaya badge selalu jujur menunjukkan
+   periode data yang benar-benar sedang ditampilkan, bukan teks statis. */
+function labelPeriodeRingkasSingkat(mode){
+  return { semua:'Semua Waktu', harian:'Hari Ini', bulanan:'Bulan Ini', semester:'Semester Ini', tahunan:'Tahun Ini', custom:'Periode Custom' }[mode] || 'Bulan Ini';
+}
 function renderKPI(){
   // Disamakan dengan aturan Grand Total di menu Pelanggan & Laporan: proyek
   // tertunda/dibatalkan dikecualikan dari nilai, dan pakai grand_total
   // (fallback ke field lama "nilai") supaya angka di Dashboard, Laporan,
   // dan menu Pelanggan selalu sinkron satu sama lain.
-  const proyekAktif = DATA.proyek.filter(p => !['tertunda','dibatalkan'].includes(p.status));
+  // Seluruh perhitungan di bawah ini disaring dulu berdasarkan filter
+  // "Periode Data" yang dipilih di menu Ringkasan (lihat toolbar periode),
+  // supaya KPI selalu mencerminkan periode yang sedang dipilih pengguna.
+  const { awal, akhir } = dapatkanRentangPeriode('ringkasan');
+  const modePeriode = document.getElementById('filter-periode-ringkasan')?.value || 'bulanan';
+  const proyekPeriode = DATA.proyek.filter(p => tanggalDalamRentang(p.tanggal, awal, akhir));
+
+  const proyekAktif = proyekPeriode.filter(p => !['tertunda','dibatalkan'].includes(p.status));
   const totalNilai = proyekAktif.reduce((s,p) => s + (p.grand_total || p.nilai || 0), 0);
   const rataRata = proyekAktif.length ? totalNilai / proyekAktif.length : 0;
-  const selesai = DATA.proyek.filter(p => p.status === 'selesai').length;
-  const dibatalkan = DATA.proyek.filter(p => p.status === 'dibatalkan').length;
+  const selesai = proyekPeriode.filter(p => p.status === 'selesai').length;
+  const dibatalkan = proyekPeriode.filter(p => p.status === 'dibatalkan').length;
   const totalDitutup = selesai + dibatalkan;
   const winRate = totalDitutup ? Math.round((selesai/totalDitutup)*100) : 0;
-  const jumlahProyek = DATA.proyek.length;
+  const jumlahProyek = proyekPeriode.length;
 
   document.getElementById('kpi-total-nilai').textContent = formatRupiah(totalNilai);
   document.getElementById('kpi-rata-rata').textContent = formatRupiah(Math.round(rataRata));
   document.getElementById('kpi-win-rate').textContent = winRate + '%';
   document.getElementById('kpi-jumlah-proyek').textContent = jumlahProyek;
+
+  const labelSingkat = labelPeriodeRingkasSingkat(modePeriode);
+  ['kpi-range-total-nilai','kpi-range-rata-rata','kpi-range-win-rate','kpi-range-jumlah-proyek'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = labelSingkat;
+  });
 }
 
 /* BUGFIX (sinkronisasi dashboard): sebelumnya setiap fungsi yang mengubah
@@ -737,14 +757,17 @@ function renderRingkasanDonut(){
   const centerValue = document.getElementById('donut-center-value');
   if(!svg || !legend) return;
 
+  const { awal, akhir } = dapatkanRentangPeriode('ringkasan');
+  const proyekPeriode = DATA.proyek.filter(p => tanggalDalamRentang(p.tanggal, awal, akhir));
+
   const statuses = [
     { key:'berjalan',   label:'Berjalan',   color:'var(--blue)' },
     { key:'selesai',    label:'Selesai',    color:'var(--accent-bright)' },
     { key:'tertunda',   label:'Tertunda',   color:'var(--yellow)' },
     { key:'dibatalkan', label:'Dibatalkan', color:'var(--red)' },
   ];
-  const total = DATA.proyek.length;
-  const counts = statuses.map(s => DATA.proyek.filter(p => p.status === s.key).length);
+  const total = proyekPeriode.length;
+  const counts = statuses.map(s => proyekPeriode.filter(p => p.status === s.key).length);
   if(centerValue) centerValue.textContent = total;
 
   const r = 80, cx = 100, cy = 100, strokeWidth = 22, circumference = 2 * Math.PI * r;
@@ -914,10 +937,20 @@ function renderRingkasanTabelPelanggan(){
     tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><p>Belum ada data pelanggan.</p></div></td></tr>`;
     return;
   }
+  const { awal, akhir } = dapatkanRentangPeriode('ringkasan');
   const data = DATA.pelanggan
-    .map(p => ({ p, totalNilai: hitungTotalNilaiProyek(p.id, 'semua'), jumlahProyek: DATA.proyek.filter(pr => proyekMilikPelanggan(pr, p.id)).length }))
+    .map(p => ({
+      p,
+      totalNilai: hitungAgregatProyekPelanggan(p.id, awal, akhir).grandTotal,
+      jumlahProyek: DATA.proyek.filter(pr => proyekMilikPelanggan(pr, p.id) && tanggalDalamRentang(pr.tanggal, awal, akhir)).length
+    }))
+    .filter(({ jumlahProyek }) => jumlahProyek > 0)
     .sort((a, b) => b.totalNilai - a.totalNilai)
     .slice(0, 5);
+  if(!data.length){
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><p>Tidak ada proyek pelanggan pada periode ini.</p></div></td></tr>`;
+    return;
+  }
   tbody.innerHTML = data.map(({ p, totalNilai, jumlahProyek }) => `
     <tr>
       <td class="cell-name">${esc(p.nama)}</td>
@@ -954,7 +987,15 @@ function renderRingkasanTabelProyek(){
     tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><p>Belum ada data proyek.</p></div></td></tr>`;
     return;
   }
-  const data = [...DATA.proyek].sort((a, b) => (b.grand_total || b.nilai || 0) - (a.grand_total || a.nilai || 0)).slice(0, 5);
+  const { awal, akhir } = dapatkanRentangPeriode('ringkasan');
+  const data = DATA.proyek
+    .filter(p => tanggalDalamRentang(p.tanggal, awal, akhir))
+    .sort((a, b) => (b.grand_total || b.nilai || 0) - (a.grand_total || a.nilai || 0))
+    .slice(0, 5);
+  if(!data.length){
+    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><p>Tidak ada proyek pada periode ini.</p></div></td></tr>`;
+    return;
+  }
   tbody.innerHTML = data.map(p => `
     <tr>
       <td class="cell-name">${esc(p.kode)}</td>
@@ -4142,14 +4183,15 @@ function renderLaporan(){
   const winRate = totalDitutup ? Math.round((selesai/totalDitutup)*100) : 0;
 
   const laporanKpi = document.getElementById('laporan-kpi');
+  const gradienKpi = ['cmd-grad-cyan', 'cmd-grad-purple', 'cmd-grad-blue', 'cmd-grad-green'];
   const kartu = [
     ['Total Nilai Proyek Aktif', formatRupiah(totalNilai)],
     ['Proyek Selesai', selesai],
     ['Proyek Dibatalkan', dibatalkan],
     ['Tingkat Menang', winRate + '%'],
   ];
-  laporanKpi.innerHTML = kartu.map(([label,val]) => `
-    <div class="kpi-card">
+  laporanKpi.innerHTML = kartu.map(([label,val], i) => `
+    <div class="kpi-card cmd-stat-card ${gradienKpi[i % gradienKpi.length]}">
       <div class="kpi-top"><span class="kpi-label">${label}</span></div>
       <div class="kpi-bottom"><div class="kpi-value">${val}</div></div>
     </div>`).join('');
@@ -4287,6 +4329,10 @@ function initNavigasi(){
   });
 }
 function initEventListener(){
+  document.getElementById('filter-periode-ringkasan').addEventListener('change', renderRingkasan);
+  document.getElementById('periode-dari-ringkasan').addEventListener('change', renderRingkasan);
+  document.getElementById('periode-sampai-ringkasan').addEventListener('change', renderRingkasan);
+
   document.getElementById('cari-pelanggan').addEventListener('input', renderPelanggan);
   document.getElementById('form-pelanggan').addEventListener('submit', simpanPelanggan);
   document.getElementById('filter-periode-pelanggan').addEventListener('change', renderPelanggan);
@@ -4816,6 +4862,40 @@ async function prosesImportSekarang(){
   btn.disabled = true;
   document.getElementById('input-file-import').value = '';
 }
+
+/* ===================== ENHANCER: KARTU TABEL DI MOBILE =====================
+   Menambahkan atribut data-label ke setiap <td> berdasarkan teks <th> yang
+   sepadan, supaya CSS (lihat style.css @media max-width:760px) bisa menyusun
+   tiap baris tabel sebagai kartu "label: nilai" di layar kecil. Dipasang lewat
+   MutationObserver supaya otomatis berlaku ke SEMUA tabel .data-table di
+   aplikasi (Pelanggan, Proyek, Tugas, Gudang, dll) — tidak perlu menyentuh
+   setiap fungsi renderXxx() satu per satu. */
+function terapkanLabelTabelResponsif(root){
+  (root || document).querySelectorAll('.data-table').forEach(table => {
+    const headThs = table.querySelectorAll('thead th');
+    if(!headThs.length) return;
+    const label = Array.from(headThs).map(th => th.textContent.trim());
+    table.querySelectorAll('tbody tr').forEach(tr => {
+      Array.from(tr.children).forEach((td, i) => {
+        if(td.colSpan && td.colSpan > 1) return; // baris "tidak ada data" dsb — biarkan tampil apa adanya
+        if(label[i] !== undefined && td.getAttribute('data-label') !== label[i]){
+          td.setAttribute('data-label', label[i]);
+        }
+      });
+    });
+  });
+}
+(function(){
+  let timeoutId = null;
+  const observer = new MutationObserver(() => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => terapkanLabelTabelResponsif(document), 60);
+  });
+  document.addEventListener('DOMContentLoaded', () => {
+    terapkanLabelTabelResponsif(document);
+    observer.observe(document.body, { childList:true, subtree:true });
+  });
+})();
 
 function mulai(){
   if(typeof supabaseClient === 'undefined'){
