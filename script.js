@@ -49,19 +49,17 @@ let _channelStatusAkunSendiri = null;
 /* Pengaturan tampilan yang dipilih pengguna, disimpan di localStorage
    (browser lokal saja, bukan di database) supaya tetap tersimpan
    antar kunjungan tanpa perlu login. */
-let PENGATURAN = { rupiahRingkas: true, notifAktif: true, ringkasanFavorit: false };
+let PENGATURAN = { notifAktif: true, ringkasanFavorit: false };
 function muatPengaturan(){
   try{
     const raw = localStorage.getItem('dealstack_pengaturan');
     if(raw) PENGATURAN = Object.assign(PENGATURAN, JSON.parse(raw));
   }catch(e){ console.error(e); }
-  document.getElementById('setting-rupiah-ringkas').checked = PENGATURAN.rupiahRingkas;
   document.getElementById('setting-notif-aktif').checked = PENGATURAN.notifAktif;
   const btnFavorit = document.getElementById('btn-favorit-ringkasan');
   if(btnFavorit) btnFavorit.style.color = PENGATURAN.ringkasanFavorit ? 'var(--accent-bright)' : '';
 }
 function simpanPengaturan(){
-  PENGATURAN.rupiahRingkas = document.getElementById('setting-rupiah-ringkas').checked;
   PENGATURAN.notifAktif = document.getElementById('setting-notif-aktif').checked;
   localStorage.setItem('dealstack_pengaturan', JSON.stringify(PENGATURAN));
   renderKPI(); renderPelanggan(); segarkanDetailPelangganJikaAktif(); renderLaporan();
@@ -445,10 +443,7 @@ function initAuthUI(){
 --------------------------------------------------------- */
 function formatRupiah(v){
   v = Number(v) || 0;
-  if(!PENGATURAN.rupiahRingkas) return 'Rp' + v.toLocaleString('id-ID');
-  if(v >= 1000000) return 'Rp' + (v/1000000).toFixed(1).replace('.0','') + 'Jt';
-  if(v >= 1000) return 'Rp' + (v/1000).toFixed(0) + 'rb';
-  return 'Rp' + v;
+  return 'Rp' + v.toLocaleString('id-ID');
 }
 function formatTanggal(iso){
   if(!iso) return '—';

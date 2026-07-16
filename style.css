@@ -297,13 +297,16 @@ button{font-family:inherit;}
 /* ============ STAT MINI CARDS ============
    Layout dasar di sini; permukaan kaca & warna aksen final diterapkan
    lewat blok GLASSMORPHISM FUTURISTIK di bawah. */
-.stat-mini-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;margin-bottom:24px;background:var(--edge);border:1px solid var(--edge);}
+.stat-mini-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;margin-bottom:24px;background:var(--edge);border:1px solid var(--edge);}
 .stat-mini-card{
   position:relative;background:var(--bg);border:none;border-radius:0;
-  padding:18px 20px;display:flex;flex-direction:column;gap:7px;
+  padding:18px 20px;display:flex;flex-direction:column;gap:7px;min-width:0;
 }
 .stat-mini-label{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;}
-.stat-mini-value{font-size:22px;font-weight:600;letter-spacing:-.01em;}
+.stat-mini-value{
+  font-size:clamp(15px,1.3vw,22px);font-weight:600;letter-spacing:-.01em;
+  overflow-wrap:anywhere;word-break:break-word;line-height:1.25;
+}
 .stat-mini-card.warn{border-top:2px solid var(--muted-2);}
 .stat-mini-card.warn .stat-mini-value{color:var(--ink);}
 .stat-mini-card.danger{border-top:2px solid var(--ink);}
@@ -394,6 +397,7 @@ button{font-family:inherit;}
   border:none;
   backdrop-filter:none;
   -webkit-backdrop-filter:none;
+  min-width:0;
 }
 [data-theme="light"] .kpi-card{
   background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none;
@@ -411,13 +415,17 @@ button{font-family:inherit;}
   background:var(--ink);
 }
 .kpi-bar-fill::after{content:none;}
-.kpi-bottom{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
-.kpi-value{font-size:26px;font-weight:600;letter-spacing:-.02em;}
-.kpi-value small{font-size:17px;font-weight:500;color:var(--muted);}
+.kpi-bottom{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:6px 10px;}
+.kpi-value{
+  font-size:clamp(17px,1.55vw,26px);font-weight:600;letter-spacing:-.02em;
+  overflow-wrap:anywhere;word-break:break-word;min-width:0;flex:1 1 auto;line-height:1.2;
+}
+.kpi-value small{font-size:.65em;font-weight:500;color:var(--muted);}
 /* Indikator tren: dibedakan lewat panah + berat huruf, bukan warna */
 .kpi-delta{
   font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;
   padding:4px 9px;border-radius:0;line-height:1;border:1px solid var(--edge-strong);color:var(--ink);
+  flex-shrink:0;
 }
 .kpi-delta svg{width:11px;height:11px;stroke-width:2.5;}
 .kpi-delta.up{color:var(--ink);background:none;}
@@ -812,7 +820,10 @@ button{font-family:inherit;}
 .funnel-track{flex:1;height:24px;border-radius:0;background:var(--overlay-2);position:relative;overflow:hidden;}
 .funnel-fill{height:100%;border-radius:0;background:var(--ink);display:flex;align-items:center;padding:0 12px;}
 .funnel-fill span{font-size:11.5px;font-weight:700;color:var(--bg);white-space:nowrap;}
-.funnel-value{width:110px;flex-shrink:0;text-align:right;font-size:12.5px;font-weight:700;}
+.funnel-value{
+  width:132px;flex-shrink:0;text-align:right;font-size:clamp(11px,1vw,12.5px);font-weight:700;
+  overflow-wrap:anywhere;line-height:1.3;
+}
 
 /* ============ TIMELINE AKTIVITAS ============ */
 .timeline{background:var(--bg);border:1px solid var(--edge);border-radius:0;padding:8px 24px;}
@@ -1257,7 +1268,7 @@ td.assignee-cell .user-avatar{display:inline-flex;vertical-align:middle;margin-r
   .sidebar-backdrop.sidebar-open{display:block;}
   .kpi-grid{grid-template-columns:1fr;}
   .funnel-name{width:90px;}
-  .funnel-value{width:80px;}
+  .funnel-value{width:96px;}
 
   .table-card{overflow-x:visible;}
   .data-table thead{display:none;}
@@ -1612,14 +1623,19 @@ html,body{
 .search-box,.settings-card,.stat-mini-card,.donut-card,.stock-alert-card,
 .cmd-activity-tile,.dash-team-mini,.chart-card-main,
 .modal-box{
-  position:relative;
+  /* position:relative + z-index:0 membentuk stacking context sendiri untuk
+     setiap kartu, sehingga glow ::after (z-index:-1) di bawah ini benar-benar
+     terkurung DI BELAKANG kartunya sendiri saja — tidak lagi bisa "bocor"
+     menembus tabel/baris/kartu lain di sekitarnya (bug shadow merah yang
+     tembus ke kolom Status di tabel Gudang & Pelanggan). */
+  position:relative;isolation:isolate;
 }
 .kpi-card::after,.chart-card::after,.table-card::after,.funnel-card::after,
 .stat-mini-card::after,.donut-card::after,.stock-alert-card::after,
 .cmd-activity-tile::after,.chart-card-main::after,
 .cal-agenda-card::after,.integration-card::after,.settings-card::after{
   content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;z-index:-1;
-  box-shadow:0 0 40px -6px rgba(168,12,34,.45),0 0 90px -20px rgba(200,16,32,.35);
+  box-shadow:0 0 22px -4px rgba(168,12,34,.40),0 0 44px -12px rgba(200,16,32,.28);
   opacity:.55;transition:opacity .25s ease;
 }
 [data-theme="light"] .kpi-card::after,[data-theme="light"] .chart-card::after,
@@ -1629,7 +1645,7 @@ html,body{
 [data-theme="light"] .chart-card-main::after,
 [data-theme="light"] .cal-agenda-card::after,[data-theme="light"] .integration-card::after,
 [data-theme="light"] .settings-card::after{
-  box-shadow:0 0 30px -8px rgba(200,16,32,.20),0 0 60px -16px rgba(200,16,32,.14);opacity:.4;
+  box-shadow:0 0 16px -5px rgba(200,16,32,.18),0 0 32px -10px rgba(200,16,32,.12);opacity:.4;
 }
 .kpi-card:hover::after,.chart-card:hover::after,.table-card:hover::after,
 .funnel-card:hover::after,.stat-mini-card:hover::after,.donut-card:hover::after,
