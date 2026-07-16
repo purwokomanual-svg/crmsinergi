@@ -39,6 +39,12 @@ function escB(nilai){
 /* Pengguna yang sedang login (diisi setelah autentikasi berhasil) */
 let CURRENT_USER = null; // { id, nama, email, peran }
 let APLIKASI_SUDAH_DIMUAT = false;
+/* Channel Realtime yang dipakai langgananStatusAkunSendiri() untuk memantau
+   status_akun milik diri sendiri selagi menunggu persetujuan Admin — dibuat
+   modul-level (bukan lokal di dalam fungsi) supaya tidak berlangganan
+   dobel kalau masukKeAplikasi() terpanggil ulang (mis. saat Supabase
+   memicu event TOKEN_REFRESHED), dan supaya bisa dibersihkan saat logout. */
+let _channelStatusAkunSendiri = null;
 
 /* Pengaturan tampilan yang dipilih pengguna, disimpan di localStorage
    (browser lokal saja, bukan di database) supaya tetap tersimpan
@@ -184,9 +190,9 @@ async function tanganiDaftar(e){
     return;
   }
   if(data.session){
-    tampilkanPesanAuth('daftar-msg', 'Akun dibuat, masuk otomatis...', false);
+    tampilkanPesanAuth('daftar-msg', 'Akun dibuat! Menunggu persetujuan Admin sebelum bisa mengakses aplikasi...', false);
   } else {
-    tampilkanPesanAuth('daftar-msg', 'Akun dibuat! Jika verifikasi email diaktifkan di project Anda, cek kotak masuk sebelum masuk.', false);
+    tampilkanPesanAuth('daftar-msg', 'Akun dibuat! Jika verifikasi email diaktifkan di project Anda, cek kotak masuk dulu — akun tetap perlu disetujui Admin sebelum bisa mengakses aplikasi.', false);
   }
 }
 
@@ -222,6 +228,35 @@ function labelPeran(peran){
   }
 }
 
+/* Label & kelas badge untuk status_akun (SEJAK v24) — satu sumber
+   kebenaran dipakai di menu Kelola Pengguna supaya konsisten. Baris
+   profil dari SEBELUM migrasi v24 tidak punya status_akun sama sekali
+   (undefined) — dianggap 'aktif' supaya tidak ada yang tiba-tiba
+   terkunci keluar begitu migrasi dijalankan. */
+function labelStatusAkun(status){
+  switch(status){
+    case 'menunggu': return 'Menunggu Persetujuan';
+    case 'ditolak': return 'Ditolak';
+    default: return 'Aktif';
+  }
+}
+function kelasBadgeStatusAkun(status){
+  switch(status){
+    case 'menunggu': return 'tertunda';
+    case 'ditolak': return 'dibatalkan';
+    default: return 'aktif';
+  }
+}
+/* Hanya akun berstatus 'aktif' (disetujui Admin) yang boleh muncul
+   sebagai anggota tim yang bisa ditugaskan/ditampilkan beban kerjanya —
+   dipakai di dropdown assignee Tugas, baris "Anggota Tim" di Ringkasan,
+   & "Pengawasan Tim". Menu Kelola Pengguna SENGAJA TIDAK memakai fungsi
+   ini karena Admin justru perlu melihat & memproses akun 'menunggu'/
+   'ditolak' di sana (lihat renderPenggunaAdmin). */
+function profilAktif(){
+  return DATA.profil.filter(p => (p.status_akun || 'aktif') === 'aktif');
+}
+
 function terapkanPeran(){
   const peran = CURRENT_USER ? CURRENT_USER.peran : null;
   const isAdmin = peran === 'admin';
@@ -243,14 +278,17 @@ function terapkanPeran(){
   document.getElementById('panel-akun-peran').textContent = labelPeran(peran);
 }
 
-/* Dipanggil sekali saat login berhasil: muat profil pengguna & seluruh data aplikasi */
+/* Dipanggil sekali saat login berhasil: muat profil pengguna & seluruh data aplikasi.
+   SEJAK v24: sebelum memuat APA PUN, dicek dulu profil.status_akun pengguna —
+   akun yang belum disetujui ('menunggu') atau ditolak ('ditolak') Admin TIDAK
+   diberi akses ke #app-shell sama sekali (bukan cuma disembunyikan via CSS,
+   tapi memang tidak ada satu pun query data bisnis yang dijalankan), dan
+   ditampilkan layar #layar-status-akun sebagai gantinya. Ini konsisten dengan
+   RLS di database (lihat migrasi v24 di schema.sql) yang juga menolak akun
+   tsb membaca data apa pun — jadi pembatasannya sungguhan di dua lapis. */
 async function masukKeAplikasi(session){
-  document.getElementById('auth-screen').classList.add('hidden');
-  document.getElementById('app-shell').classList.remove('hidden');
-  if(APLIKASI_SUDAH_DIMUAT) return;
-  APLIKASI_SUDAH_DIMUAT = true;
-
   const { data: profil, error } = await supabaseClient.from('profil').select('*').eq('id', session.user.id).single();
+  let profilPengguna;
   if(error || !profil){
     console.warn('Profil belum ditemukan (migrasi v3 mungkin belum dijalankan). Menggunakan data dasar dari akun.', error);
     // BUGFIX (audit): sebelumnya jika profil GAGAL dimuat (migrasi belum
@@ -258,12 +296,35 @@ async function masukKeAplikasi(session){
     // 'admin' di sisi klien — menampilkan menu/tombol khusus Admin
     // (Kelola Pengguna, Hapus, Pengawasan Tim) ke pengguna biasa. Default
     // yang aman untuk kondisi gagal/tidak diketahui adalah hak paling
-    // rendah ('anggota'), bukan hak tertinggi.
-    CURRENT_USER = { id: session.user.id, nama: session.user.email.split('@')[0], email: session.user.email, peran: 'anggota' };
+    // rendah ('anggota'), bukan hak tertinggi. status_akun juga diasumsikan
+    // 'aktif' di kondisi gagal ini SUPAYA project yang belum menjalankan
+    // migrasi v24 (kolom status_akun belum ada) tidak mendadak terkunci.
+    profilPengguna = { id: session.user.id, nama: session.user.email.split('@')[0], email: session.user.email, peran: 'anggota', status_akun: 'aktif' };
   } else {
-    CURRENT_USER = profil;
+    profilPengguna = profil;
   }
 
+  // Kolom status_akun baru ada sejak migrasi v24 — kalau project belum
+  // menjalankan migrasi tsb, field ini akan undefined pada baris profil
+  // lama; anggap 'aktif' supaya tidak ada yang tiba-tiba terkunci keluar
+  // sebelum Admin sempat menjalankan migrasi v24 di schema.sql.
+  const statusAkun = profilPengguna.status_akun || 'aktif';
+
+  if(statusAkun !== 'aktif'){
+    document.getElementById('auth-screen').classList.add('hidden');
+    document.getElementById('app-shell').classList.add('hidden');
+    tampilkanLayarStatusAkun(statusAkun, profilPengguna.email);
+    langgananStatusAkunSendiri(session.user.id);
+    return; // STOP — jangan muat data bisnis apa pun sebelum disetujui Admin
+  }
+
+  document.getElementById('layar-status-akun').classList.add('hidden');
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('app-shell').classList.remove('hidden');
+  if(APLIKASI_SUDAH_DIMUAT) return;
+  APLIKASI_SUDAH_DIMUAT = true;
+
+  CURRENT_USER = profilPengguna;
   muatPengaturan();
   terapkanPeran();
   initNavigasi();
@@ -282,12 +343,79 @@ async function masukKeAplikasi(session){
   if(CURRENT_USER.peran === 'admin'){ renderPengawasanTim(); renderPenggunaAdmin(); }
   initRealtime();
 
-  // Menu "Ringkasan" (dashboard umum) disembunyikan untuk peran Marketing &
-  // Purchasing (lihat data-roles di index.html) — jadi begitu masuk,
-  // langsung arahkan ke satu-satunya menu yang relevan bagi peran tsb,
-  // bukan menampilkan halaman Ringkasan yang toh tidak bisa mereka lihat.
+  // Menu "Ringkasan" (dashboard umum) disembunyikan untuk peran Marketing
+  // (lihat data-roles di index.html) — jadi begitu masuk, langsung arahkan
+  // ke satu-satunya menu yang relevan bagi peran tsb, bukan menampilkan
+  // halaman Ringkasan yang toh tidak bisa mereka lihat. Purchasing SEKARANG
+  // juga bisa membuka Ringkasan (versi terbatas: hanya kartu Statistik
+  // Proyek & Peringatan Stok Gudang yang tampil, lihat data-roles di
+  // index.html), tapi tetap diarahkan ke Stock & Gudang lebih dulu karena
+  // itu menu utama pekerjaan sehari-hari peran ini.
   if(CURRENT_USER.peran === 'marketing') pindahTampilan('pelanggan');
   else if(CURRENT_USER.peran === 'purchasing') pindahTampilan('gudang');
+}
+
+/* Menampilkan #layar-status-akun dengan konten sesuai status akun —
+   'menunggu' (default) menampilkan blok #status-akun-menunggu, 'ditolak'
+   menampilkan blok #status-akun-ditolak. Dipanggil pertama kali dari
+   masukKeAplikasi() begitu status akun diketahui BUKAN 'aktif', dan
+   dipanggil ULANG oleh langgananStatusAkunSendiri() di bawah jika Admin
+   mengubah status akun ini ke 'ditolak' selagi pengguna masih menunggu
+   di layar ini (transisi ke 'aktif' TIDAK lewat sini — lihat catatan di
+   langgananStatusAkunSendiri, itu langsung masuk ke aplikasi). */
+function tampilkanLayarStatusAkun(status, email){
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('app-shell').classList.add('hidden');
+  document.getElementById('layar-status-akun').classList.remove('hidden');
+  const blokMenunggu = document.getElementById('status-akun-menunggu');
+  const blokDitolak = document.getElementById('status-akun-ditolak');
+  if(status === 'ditolak'){
+    blokMenunggu.classList.add('hidden');
+    blokDitolak.classList.remove('hidden');
+    document.getElementById('status-akun-email-ditolak').textContent = email || '—';
+  } else {
+    blokDitolak.classList.add('hidden');
+    blokMenunggu.classList.remove('hidden');
+    document.getElementById('status-akun-email').textContent = email || '—';
+  }
+}
+
+/* Tombol "Keluar" di layar status akun — logout penuh & reload, sama
+   seperti prosesKeluar() (lihat fungsi itu), supaya channel Realtime
+   langgananStatusAkunSendiri() ikut bersih tanpa perlu dilepas manual. */
+async function keluarDariLayarStatusAkun(){
+  await supabaseClient.auth.signOut();
+  window.location.reload();
+}
+
+/* Dipanggil dari masukKeAplikasi() SETIAP KALI status akun pengguna
+   BUKAN 'aktif' (baru mendaftar / ditolak) — berlangganan perubahan
+   pada baris profil miliknya sendiri, supaya begitu Admin menyetujui
+   atau menolak pendaftarannya, layar #layar-status-akun langsung
+   bereaksi TANPA perlu memuat ulang halaman secara manual:
+     • status_akun -> 'aktif'   : sesi yang sama dipakai memanggil ulang
+       masukKeAplikasi(), yang kali ini akan lolos dari gerbang status
+       akun & langsung memuat seluruh aplikasi seperti login normal.
+     • status_akun -> 'ditolak' : layar diperbarui di tempat menjadi
+       tampilan "Pendaftaran Ditolak", tanpa reload.
+   Dijaga dengan _channelStatusAkunSendiri supaya TIDAK berlangganan
+   dobel jika fungsi ini terpanggil lagi (mis. event TOKEN_REFRESHED
+   dari Supabase memicu masukKeAplikasi() ulang selagi masih menunggu). */
+function langgananStatusAkunSendiri(userId){
+  if(typeof supabaseClient.channel !== 'function') return; // versi supabase-js lama tanpa Realtime v2
+  if(_channelStatusAkunSendiri) return; // sudah berlangganan, jangan buat channel baru
+  _channelStatusAkunSendiri = supabaseClient.channel('status-akun-' + userId)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profil', filter: `id=eq.${userId}` }, (payload) => {
+      const statusBaru = payload.new.status_akun;
+      if(statusBaru === 'aktif'){
+        supabaseClient.removeChannel(_channelStatusAkunSendiri);
+        _channelStatusAkunSendiri = null;
+        supabaseClient.auth.getSession().then(({ data }) => { if(data.session) masukKeAplikasi(data.session); });
+      } else {
+        tampilkanLayarStatusAkun(statusBaru, payload.new.email);
+      }
+    })
+    .subscribe();
 }
 
 function initAuthUI(){
@@ -300,7 +428,9 @@ function initAuthUI(){
     } else if(event === 'SIGNED_OUT'){
       APLIKASI_SUDAH_DIMUAT = false;
       CURRENT_USER = null;
+      _channelStatusAkunSendiri = null; // channel-nya sudah otomatis diputus Supabase saat sign-out
       document.getElementById('app-shell').classList.add('hidden');
+      document.getElementById('layar-status-akun').classList.add('hidden');
       document.getElementById('auth-screen').classList.remove('hidden');
     }
   });
@@ -516,8 +646,14 @@ function hariMenujuTenggat(iso){
 }
 function hitungNotifikasi(){
   const hasil = [];
+  // Purchasing hanya menerima notifikasi proyek/tugas yang terkait dengan
+  // dirinya sendiri (bukan seluruh proyek/tugas perusahaan). Notifikasi
+  // Stock & Gudang tetap ditampilkan apa adanya karena itu memang inti
+  // tanggung jawab peran Purchasing.
+  const isPurchasing = CURRENT_USER && CURRENT_USER.peran === 'purchasing';
   DATA.proyek.forEach(p => {
     if(p.status === 'selesai' || p.status === 'dibatalkan') return;
+    if(isPurchasing && p.dibuat_oleh_id !== CURRENT_USER.id) return;
     const sisa = hariMenujuTenggat(p.tenggat);
     if(sisa !== null && sisa <= 3){
       hasil.push({
@@ -526,7 +662,7 @@ function hitungNotifikasi(){
       });
     }
   });
-  DATA.tugas.filter(t => statusKerjaTugas(t) !== 'selesai').forEach(t => {
+  DATA.tugas.filter(t => statusKerjaTugas(t) !== 'selesai').filter(t => !isPurchasing || t.ditugaskan_ke === CURRENT_USER.id || t.ditugaskan_oleh === CURRENT_USER.id).forEach(t => {
     const d = tenggatKeTanggal(t.tenggat);
     if(d){
       const sisa = hariMenujuTenggat(d.toISOString().slice(0,10));
@@ -911,11 +1047,12 @@ function renderRingkasanStokGudang(){
 function renderDashTeamRow(){
   const wrap = document.getElementById('dash-team-row');
   if(!wrap) return;
-  if(!DATA.profil.length){
+  const anggota = profilAktif();
+  if(!anggota.length){
     wrap.innerHTML = `<div class="empty-state"><p>Belum ada anggota tim terdaftar.</p></div>`;
     return;
   }
-  wrap.innerHTML = DATA.profil.map(p => {
+  wrap.innerHTML = anggota.map(p => {
     const totalTugas = DATA.tugas.filter(t => t.ditugaskan_ke === p.id).length;
     const peranLabel = p.jabatan ? esc(p.jabatan) : labelPeran(p.peran);
     return `
@@ -1787,10 +1924,12 @@ function renderTugas(){
   const filterStatus = document.getElementById('filter-status-tugas').value;
   const isAdmin = CURRENT_USER && CURRENT_USER.peran === 'admin';
 
-  // Isi ulang opsi filter anggota berdasarkan profil yang tersedia
+  // Isi ulang opsi filter anggota berdasarkan profil yang tersedia — hanya
+  // akun berstatus 'aktif' (akun 'menunggu'/'ditolak' belum/tidak bisa
+  // mengerjakan tugas apa pun, jadi tidak relevan sebagai pilihan assignee).
   const opsiSaatIni = filterAssignee.value;
   filterAssignee.innerHTML = '<option value="semua">Semua Anggota</option>' +
-    DATA.profil.map(p => `<option value="${p.id}">${esc(p.nama)}</option>`).join('') +
+    profilAktif().map(p => `<option value="${p.id}">${esc(p.nama)}</option>`).join('') +
     '<option value="kosong">Belum Ditugaskan</option>';
   filterAssignee.value = opsiSaatIni || 'semua';
 
@@ -1821,7 +1960,7 @@ function renderTugas(){
           ${isAdmin ? `
           <select class="filter-select" style="font-size:12px;padding:5px 8px;" onchange="ubahAssigneeTugas('${t.id}', this.value)">
             <option value="">Belum ditugaskan</option>
-            ${DATA.profil.map(p => `<option value="${p.id}" ${p.id===t.ditugaskan_ke?'selected':''}>${esc(p.nama)}</option>`).join('')}
+            ${profilAktif().map(p => `<option value="${p.id}" ${p.id===t.ditugaskan_ke?'selected':''}>${esc(p.nama)}</option>`).join('')}
           </select>` : (assignee ? `${markupAvatar(assignee)}<span>${esc(assignee.nama)}</span>` : `<span class="cell-muted">Belum ditugaskan</span>`)}
         </div>
       </td>
@@ -1845,7 +1984,7 @@ function renderTugas(){
 function bukaModalTugas(){
   const select = document.getElementById('input-assignee-tugas');
   select.innerHTML = '<option value="">Belum ditugaskan</option>' +
-    DATA.profil.map(p => `<option value="${p.id}">${esc(p.nama)}</option>`).join('');
+    profilAktif().map(p => `<option value="${p.id}">${esc(p.nama)}</option>`).join('');
   bukaModal('modal-tugas');
 }
 
@@ -3367,11 +3506,12 @@ function unduhStokKeluarDetailCSV(){
 function renderPengawasanTim(){
   const wrap = document.getElementById('team-grid');
   if(!wrap) return;
-  if(!DATA.profil.length){
+  const anggota = profilAktif();
+  if(!anggota.length){
     wrap.innerHTML = `<div class="empty-state"><p>Belum ada anggota tim terdaftar. Minta anggota mendaftar lewat layar Masuk/Daftar.</p></div>`;
     return;
   }
-  wrap.innerHTML = DATA.profil.map(p => {
+  wrap.innerHTML = anggota.map(p => {
     const tugasnya = DATA.tugas.filter(t => t.ditugaskan_ke === p.id);
     const total = tugasnya.length;
     const selesai = tugasnya.filter(t => statusKerjaTugas(t) === 'selesai').length;
@@ -3403,28 +3543,94 @@ function renderPengawasanTim(){
 /* ---------------------------------------------------------
    19. KELOLA PENGGUNA (khusus Admin)
 --------------------------------------------------------- */
+/* SEJAK v24: menu Kelola Pengguna punya DUA tabel —
+   1) "Menunggu Persetujuan" (id tbody-pengguna-menunggu) — akun baru
+      mendaftar (status_akun='menunggu'), Admin memilih peran lalu
+      menekan Setujui/Tolak. Tabel & badge-nya disembunyikan total kalau
+      tidak ada yang menunggu, supaya menu ini tidak terasa ramai/riuh
+      saat memang tidak ada pendaftar baru.
+   2) "Semua Pengguna" (id tbody-pengguna) — akun yang sudah 'aktif' atau
+      pernah 'ditolak', lengkap dengan kolom Status & aksi "Hapus
+      Permanen" khusus akun yang ditolak (lihat hapusPenggunaDitolak). */
 function renderPenggunaAdmin(){
   const tbody = document.getElementById('tbody-pengguna');
   if(!tbody) return;
-  if(!DATA.profil.length){
-    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><p>Belum ada pengguna terdaftar.</p></div></td></tr>`;
+
+  const menunggu = DATA.profil.filter(p => (p.status_akun || 'aktif') === 'menunggu');
+  const lainnya = DATA.profil.filter(p => (p.status_akun || 'aktif') !== 'menunggu');
+
+  // ---- 1) Tabel & badge "Menunggu Persetujuan" ----
+  const headMenunggu = document.getElementById('head-pengguna-menunggu');
+  const cardMenunggu = document.getElementById('card-pengguna-menunggu');
+  const tbodyMenunggu = document.getElementById('tbody-pengguna-menunggu');
+  const badgeInline = document.getElementById('badge-pengguna-inline');
+  const badgeNav = document.getElementById('badge-pengguna');
+  if(headMenunggu && cardMenunggu && tbodyMenunggu){
+    if(menunggu.length){
+      headMenunggu.style.display = '';
+      cardMenunggu.style.display = '';
+      if(badgeInline){ badgeInline.textContent = menunggu.length; badgeInline.style.display = ''; }
+      tbodyMenunggu.innerHTML = menunggu.map(p => `
+        <tr>
+          <td class="assignee-cell cell-name">${markupAvatar(p)}${esc(p.nama)}</td>
+          <td class="cell-muted">${esc(p.email)}</td>
+          <td class="cell-muted">${waktuRelatif(p.dibuat_pada)}</td>
+          <td>
+            <select class="filter-select" id="peran-menunggu-${p.id}" title="Peran yang akan diberikan begitu disetujui">
+              <option value="anggota" selected>Anggota Tim</option>
+              <option value="marketing">Marketing</option>
+              <option value="purchasing">Purchasing</option>
+              <option value="admin">Admin</option>
+            </select>
+          </td>
+          <td class="cell-actions">
+            <button type="button" class="btn btn-primary btn-sm" onclick="setujuiPengguna('${p.id}')">Setujui</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="tolakPengguna('${p.id}')">Tolak</button>
+          </td>
+        </tr>`).join('');
+    } else {
+      headMenunggu.style.display = 'none';
+      cardMenunggu.style.display = 'none';
+      if(badgeInline) badgeInline.style.display = 'none';
+    }
+  }
+  // Badge di sidebar (nav "Kelola Pengguna") — sama seperti pola badge-pesan/badge-gudang.
+  if(badgeNav){
+    if(menunggu.length){ badgeNav.textContent = menunggu.length; badgeNav.style.display = ''; }
+    else badgeNav.style.display = 'none';
+  }
+
+  // ---- 2) Tabel "Semua Pengguna" (aktif & ditolak) ----
+  if(!lainnya.length){
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><p>Belum ada pengguna yang disetujui.</p></div></td></tr>`;
     return;
   }
-  tbody.innerHTML = DATA.profil.map(p => `
+  tbody.innerHTML = lainnya.map(p => {
+    const status = p.status_akun || 'aktif';
+    const bolehUbahPeran = status === 'aktif' && p.id !== CURRENT_USER.id;
+    return `
     <tr>
       <td class="assignee-cell cell-name">${markupAvatar(p)}${esc(p.nama)}</td>
       <td class="cell-muted">${esc(p.email)}</td>
       <td>
-        <select class="filter-select" onchange="ubahPeranPengguna('${p.id}', this.value)" ${p.id === CURRENT_USER.id ? 'disabled title="Tidak bisa mengubah peran sendiri"' : ''}>
+        <select class="filter-select" onchange="ubahPeranPengguna('${p.id}', this.value)" ${bolehUbahPeran ? '' : 'disabled'} title="${p.id === CURRENT_USER.id ? 'Tidak bisa mengubah peran sendiri' : (status !== 'aktif' ? 'Hanya akun aktif yang perannya bisa diubah' : '')}">
           <option value="anggota" ${p.peran==='anggota'?'selected':''}>Anggota Tim</option>
           <option value="marketing" ${p.peran==='marketing'?'selected':''}>Marketing</option>
           <option value="purchasing" ${p.peran==='purchasing'?'selected':''}>Purchasing</option>
           <option value="admin" ${p.peran==='admin'?'selected':''}>Admin</option>
         </select>
       </td>
+      <td><span class="badge badge-${kelasBadgeStatusAkun(status)}"><span class="dot"></span>${labelStatusAkun(status)}</span></td>
       <td class="cell-muted">${waktuRelatif(p.dibuat_pada)}</td>
-    </tr>`).join('');
+      <td class="cell-actions">
+        ${status === 'ditolak' ? `<div class="icon-btn" title="Hapus Permanen" onclick="hapusPenggunaDitolak('${p.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
+        </div>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
 }
+
 async function ubahPeranPengguna(id, peranBaru){
   const p = DATA.profil.find(x => x.id === id);
   if(!p) return;
@@ -3435,6 +3641,60 @@ async function ubahPeranPengguna(id, peranBaru){
   renderPengawasanTim();
   await catatAktivitas('pengguna', `Peran <b>${esc(p.nama)}</b> diubah menjadi ${labelPeran(peranBaru)}`);
   tampilkanToast('Peran pengguna diperbarui');
+}
+
+/* Admin menyetujui pendaftar baru: status_akun -> 'aktif' SEKALIGUS
+   menetapkan peran yang dipilih Admin di dropdown baris tsb (default
+   "Anggota Tim" kalau tidak diubah). Begitu baris ini ter-update,
+   channel realtime langgananStatusAkunSendiri() milik pengguna yang
+   bersangkutan otomatis memindahkannya dari layar "Menunggu
+   Persetujuan" langsung masuk ke aplikasi — tanpa perlu memuat ulang. */
+async function setujuiPengguna(id){
+  const p = DATA.profil.find(x => x.id === id);
+  if(!p) return;
+  const selectPeran = document.getElementById('peran-menunggu-' + id);
+  const peran = selectPeran ? selectPeran.value : 'anggota';
+  const { error } = await supabaseClient.from('profil').update({ status_akun: 'aktif', peran }).eq('id', id);
+  if(error){ console.error(error); tampilkanToast('Gagal menyetujui pengguna. Sudahkah migrasi v24 dijalankan?', true); return; }
+  p.status_akun = 'aktif';
+  p.peran = peran;
+  renderPenggunaAdmin();
+  renderPengawasanTim();
+  renderDashTeamRow();
+  await catatAktivitas('pengguna', `Pendaftaran <b>${esc(p.nama)}</b> disetujui sebagai ${labelPeran(peran)}`);
+  tampilkanToast(`${p.nama} disetujui & bisa mulai mengakses aplikasi`);
+}
+
+/* Admin menolak pendaftar baru: status_akun -> 'ditolak'. Akun tetap ada
+   di database (supaya tercatat & bisa dihapus permanen lewat
+   hapusPenggunaDitolak di bawah jika perlu), tapi tidak bisa mengakses
+   data apa pun (diperkuat lewat RLS peran_aktif_saya() di schema.sql). */
+async function tolakPengguna(id){
+  const p = DATA.profil.find(x => x.id === id);
+  if(!p) return;
+  if(!confirm(`Tolak pendaftaran "${p.nama}" (${p.email})? Akun ini tidak akan bisa mengakses Dealstack.`)) return;
+  const { error } = await supabaseClient.from('profil').update({ status_akun: 'ditolak' }).eq('id', id);
+  if(error){ console.error(error); tampilkanToast('Gagal menolak pengguna. Sudahkah migrasi v24 dijalankan?', true); return; }
+  p.status_akun = 'ditolak';
+  renderPenggunaAdmin();
+  await catatAktivitas('pengguna', `Pendaftaran <b>${esc(p.nama)}</b> ditolak`);
+  tampilkanToast('Pendaftaran ditolak', true);
+}
+
+/* Admin menghapus PERMANEN akun berstatus 'ditolak' lewat RPC
+   hapus_pengguna_ditolak (lihat migrasi v24 di schema.sql) — supaya
+   orang yang sama bisa mendaftar ulang dengan email tsb jika memang
+   penolakannya keliru/sudah tidak berlaku. */
+async function hapusPenggunaDitolak(id){
+  const p = DATA.profil.find(x => x.id === id);
+  if(!p) return;
+  if(!confirm(`Hapus PERMANEN akun "${p.nama}" (${p.email})? Tindakan ini tidak bisa dibatalkan.`)) return;
+  const { error } = await supabaseClient.rpc('hapus_pengguna_ditolak', { target_id: id });
+  if(error){ console.error(error); tampilkanToast('Gagal menghapus pengguna. Sudahkah migrasi v24 dijalankan?', true); return; }
+  DATA.profil = DATA.profil.filter(x => x.id !== id);
+  renderPenggunaAdmin();
+  await catatAktivitas('pengguna', `Akun ditolak <b>${esc(p.nama)}</b> dihapus permanen`);
+  tampilkanToast('Pengguna dihapus permanen');
 }
 
 /* ---------------------------------------------------------
@@ -3612,6 +3872,32 @@ function upsertKeArray(arr, item){
 }
 function initRealtime(){
   if(typeof supabaseClient.channel !== 'function') return; // versi supabase-js lama tanpa Realtime v2
+
+  // Khusus Admin: pantau tabel profil supaya begitu ada yang mendaftar
+  // (status_akun='menunggu'), Admin langsung diberi tahu (toast +
+  // notifikasi browser) dan tabel "Menunggu Persetujuan" di menu Kelola
+  // Pengguna otomatis terisi TANPA perlu memuat ulang halaman. Channel
+  // ini juga menjaga tabel tsb tetap sinkron kalau Admin lain (di
+  // tab/perangkat lain) yang memproses Setujui/Tolak/Hapus duluan.
+  if(CURRENT_USER && CURRENT_USER.peran === 'admin'){
+    supabaseClient.channel('dealstack-profil-admin')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profil' }, (payload) => {
+        if(payload.eventType === 'DELETE'){
+          DATA.profil = DATA.profil.filter(p => p.id !== payload.old.id);
+        } else {
+          const pendaftarBaru = payload.eventType === 'INSERT' && payload.new.status_akun === 'menunggu';
+          if(pendaftarBaru){
+            kirimNotifikasiBrowser('Pendaftar baru menunggu persetujuan', `${payload.new.nama} (${payload.new.email})`);
+            tampilkanToast(`Pendaftar baru: ${payload.new.nama} — menunggu persetujuan Anda`);
+          }
+          upsertKeArray(DATA.profil, payload.new);
+        }
+        renderPenggunaAdmin();
+        renderPengawasanTim();
+        renderDashTeamRow();
+      })
+      .subscribe();
+  }
 
   supabaseClient.channel('dealstack-tugas')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tugas' }, (payload) => {
@@ -4068,14 +4354,20 @@ function gantiBulanKalender(delta, keHariIni){
 
 function itemUntukTanggal(hari, bulan, tahun){
   const hasil = [];
+  // Purchasing hanya boleh melihat Kalender miliknya sendiri: proyek yang ia
+  // buat, dan tugas yang ditugaskan ke/oleh dirinya (lihat juga renderTugas
+  // yang menerapkan aturan serupa untuk menu Tugas non-admin).
+  const isPurchasing = CURRENT_USER && CURRENT_USER.peran === 'purchasing';
   DATA.proyek.forEach(p => {
     if(!p.tenggat) return;
+    if(isPurchasing && p.dibuat_oleh_id !== CURRENT_USER.id) return;
     const d = new Date(p.tenggat);
     if(d.getDate() === hari && d.getMonth() === bulan && d.getFullYear() === tahun){
       hasil.push({ tipe:'proyek', teks: p.nama, sub: p.pelanggan_nama, status: p.status });
     }
   });
   DATA.tugas.forEach(t => {
+    if(isPurchasing && t.ditugaskan_ke !== CURRENT_USER.id && t.ditugaskan_oleh !== CURRENT_USER.id) return;
     const tgl = parseTanggalIndo(t.tenggat) || (/^\d{4}-\d{2}-\d{2}/.test(t.tenggat||'') ? { hari: new Date(t.tenggat).getDate(), bulan: new Date(t.tenggat).getMonth() } : null);
     if(tgl && tgl.hari === hari && tgl.bulan === bulan){
       const status = statusKerjaTugas(t);

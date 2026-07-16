@@ -1245,3 +1245,344 @@ create index if not exists idx_riwayat_stok_status_keluar on riwayat_stok (statu
 -- (asumsi barang keluar sebelumnya semua dianggap kondisi baru) ----
 update riwayat_stok set status_keluar = 'terjual' where tipe = 'keluar' and status_keluar is null;
 update riwayat_stok set stok_baru = jumlah where tipe = 'keluar' and stok_baru = 0 and stok_bekas = 0 and stok_rusak = 0 and jumlah > 0;
+
+-- =========================================================
+-- TAMBAHAN v24 — PENDAFTARAN AKUN BARU WAJIB PERSETUJUAN ADMIN
+-- Jalankan blok ini SEKALI di SQL Editor Supabase.
+--
+-- MASALAH SEBELUM v24: begitu seseorang mendaftar lewat form "Daftar",
+-- trigger on_auth_user_created langsung membuat baris profil dengan
+-- peran 'anggota' DAN baris itu langsung punya sesi auth.uid() yang
+-- valid — artinya (selama "Confirm email" dimatikan, seperti disarankan
+-- di v3) orang tsb langsung bisa masuk & melihat seluruh data
+-- pelanggan/proyek/tugas/gudang tanpa ada yang menyaring siapa saja
+-- yang boleh bergabung ke tim.
+--
+-- SOLUSI v24 — kolom `status_akun` pada profil dengan 3 nilai:
+--   • 'menunggu' — BARU MENDAFTAR, belum disetujui Admin (default utk
+--     pendaftar baru). Tidak bisa melihat/mengubah data apa pun selain
+--     baris profilnya sendiri (untuk menampilkan layar "Menunggu
+--     Persetujuan" di aplikasi).
+--   • 'aktif'    — disetujui Admin, akses penuh sesuai perannya.
+--   • 'ditolak'  — ditolak Admin. Sama seperti 'menunggu': tidak bisa
+--     melihat/mengubah data apa pun.
+--
+-- PENTING — INI DIPERKUAT DI LEVEL DATABASE (RLS), BUKAN SEKADAR
+-- disembunyikan di tampilan: seluruh kebijakan RLS "pengguna login
+-- dapat membaca/menambah/mengubah ..." di tabel-tabel inti (pelanggan,
+-- proyek, tugas, aktivitas, catatan_tim, gudang, stok_item,
+-- riwayat_stok, kategori_produk, kategori_merek) diganti total di
+-- bagian bawah supaya mensyaratkan STATUS 'aktif', bukan cuma "sudah
+-- login". Jadi walau seseorang memanggil Supabase API langsung dari
+-- luar aplikasi (lewat sesi auth yang sah tapi statusnya masih
+-- 'menunggu'), dia tetap tidak akan mendapat satu baris data pun.
+--
+-- Aman dijalankan berulang kali / kapan pun, termasuk di database yang
+-- sudah berisi banyak pengguna & data (akun yang SUDAH ADA sebelum
+-- migrasi ini otomatis dianggap 'aktif' — lihat blok backfill di bawah
+-- — supaya tidak ada admin/anggota yang tiba-tiba terkunci keluar).
+-- =========================================================
+
+-- ---- 1. Kolom status_akun pada profil ----
+-- Ditambahkan TANPA default dulu, supaya bisa diisi 'aktif' untuk
+-- seluruh baris yang SUDAH ADA sebelum default 'menunggu' berlaku
+-- (default hanya dipakai untuk baris yang di-INSERT setelah ini).
+alter table profil add column if not exists status_akun text;
+update profil set status_akun = 'aktif' where status_akun is null;
+alter table profil alter column status_akun set default 'menunggu';
+alter table profil alter column status_akun set not null;
+alter table profil drop constraint if exists profil_status_akun_check;
+alter table profil add constraint profil_status_akun_check check (status_akun in ('menunggu','aktif','ditolak'));
+create index if not exists idx_profil_status_akun on profil (status_akun);
+
+-- ---- 2. Trigger pendaftaran: akun baru otomatis 'menunggu', BUKAN langsung aktif ----
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profil (id, nama, email, peran, status_akun)
+  values (new.id, coalesce(new.raw_user_meta_data->>'nama', split_part(new.email,'@',1)), new.email, 'anggota', 'menunggu');
+  return new;
+end;
+$$ language plpgsql security definer;
+-- (trigger on_auth_user_created dari v3 tidak perlu dibuat ulang — cukup
+-- fungsinya yang di-CREATE OR REPLACE di atas, triggernya tetap sama)
+
+-- ---- Jadikan diri Anda admin pertama (DIPERBARUI dari v3) ----
+-- Daftar dulu 1 akun lewat aplikasi (menu Daftar) — akun ini akan
+-- berstatus 'menunggu' seperti pendaftar lain, jadi belum bisa masuk.
+-- Jalankan baris di bawah ini SENDIRI (ganti email) untuk menjadikannya
+-- Admin pertama SEKALIGUS langsung mengaktifkannya:
+-- update profil set peran = 'admin', status_akun = 'aktif' where email = 'email_anda@contoh.com';
+
+-- ---- 3. Fungsi bantu: peran pengguna saat ini, HANYA jika akunnya 'aktif' ----
+-- SECURITY DEFINER & dipanggil di dalam kebijakan RLS di bawah supaya
+-- TIDAK terjadi rekursi tak berujung (query di dalam fungsi ini
+-- melewati RLS tabel profil, karena berjalan sebagai pemilik fungsi).
+-- Mengembalikan NULL jika belum login ATAU akunnya belum/tidak aktif —
+-- sehingga `peran_aktif_saya() in (...)` maupun `= 'admin'` otomatis
+-- bernilai salah (bukan error) untuk akun 'menunggu'/'ditolak'.
+create or replace function public.peran_aktif_saya()
+returns text
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select peran from profil where id = auth.uid() and status_akun = 'aktif' limit 1;
+$$;
+grant execute on function public.peran_aktif_saya() to authenticated, anon;
+
+-- ---- 4. Cegah pengguna biasa mengubah peran/status_akun milik sendiri ----
+-- Kebijakan UPDATE profil (lihat #6) mengizinkan seseorang mengubah
+-- BARIS miliknya sendiri (supaya bisa ubah nama/foto/jabatan di menu
+-- Pengaturan) — tapi RLS "using" hanya menyaring BARIS mana yang boleh
+-- disentuh, bukan KOLOM apa yang boleh diubah. Tanpa trigger ini,
+-- pengguna mana pun bisa memanggil `.update({peran:'admin'})` pada
+-- baris dirinya sendiri lewat DevTools/API dan menaikkan hak aksesnya
+-- sendiri — celah yang sudah ada sejak v5 dan ditutup di sini. Hanya
+-- Admin yang berstatus aktif (atau proses tanpa sesi auth sama sekali,
+-- mis. dijalankan lewat SQL Editor oleh pemilik project) yang boleh
+-- mengubah kolom peran/status_akun; selain itu perubahan pada dua
+-- kolom tsb otomatis dikembalikan diam-diam ke nilai semula.
+create or replace function public.cegah_perubahan_peran_status_tanpa_izin()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is not null
+     and (new.peran is distinct from old.peran or new.status_akun is distinct from old.status_akun)
+     and coalesce(public.peran_aktif_saya(), '') <> 'admin' then
+    new.peran := old.peran;
+    new.status_akun := old.status_akun;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_cegah_perubahan_peran_status on profil;
+create trigger trg_cegah_perubahan_peran_status
+  before update on profil
+  for each row execute procedure public.cegah_perubahan_peran_status_tanpa_izin();
+
+-- ---- 5. RPC: Admin menghapus PERMANEN akun yang sudah ditolak ----
+-- Opsional — dipakai tombol "Hapus Permanen" di menu Kelola Pengguna
+-- untuk akun berstatus 'ditolak' (supaya orang yang sama tidak bisa
+-- mendaftar ulang dengan email yang sama tanpa akun lamanya dibersihkan
+-- dulu). SECURITY DEFINER supaya bisa menghapus dari skema auth (yang
+-- normalnya tertutup untuk role authenticated). Jika project Supabase
+-- Anda membatasi hak fungsi ini menghapus dari auth.users, hapus akun
+-- tsb manual lewat Dashboard > Authentication > Users sebagai gantinya.
+create or replace function public.hapus_pengguna_ditolak(target_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+begin
+  if coalesce(public.peran_aktif_saya(), '') <> 'admin' then
+    raise exception 'Hanya Admin aktif yang boleh menghapus akun pengguna.';
+  end if;
+  if not exists (select 1 from profil where id = target_id and status_akun = 'ditolak') then
+    raise exception 'Hanya akun berstatus Ditolak yang boleh dihapus permanen lewat fungsi ini.';
+  end if;
+  delete from auth.users where id = target_id; -- baris profil ikut terhapus otomatis (on delete cascade)
+end;
+$$;
+grant execute on function public.hapus_pengguna_ditolak(uuid) to authenticated;
+
+-- ---- 6. PROFIL: perketat SELECT (akun sendiri selalu terlihat; profil
+-- pengguna lain hanya terlihat untuk akun yang sudah 'aktif') & rapikan
+-- UPDATE memakai peran_aktif_saya() ----
+drop policy if exists "pengguna login dapat membaca semua profil" on profil;
+create policy "profil sendiri selalu terlihat, aktif melihat semua" on profil for select using (
+  auth.uid() = id or public.peran_aktif_saya() is not null
+);
+
+drop policy if exists "pengguna memperbarui profil sendiri atau admin mengubah siapapun" on profil;
+create policy "pengguna memperbarui profil sendiri atau admin mengubah siapapun" on profil for update using (
+  auth.uid() = id or public.peran_aktif_saya() = 'admin'
+);
+
+-- ---- 7. PELANGGAN: syaratkan status 'aktif', bukan cuma "sudah login" ----
+drop policy if exists "pengguna login dapat membaca pelanggan" on pelanggan;
+create policy "akun aktif dapat membaca pelanggan" on pelanggan for select using (
+  public.peran_aktif_saya() is not null);
+
+drop policy if exists "admin anggota marketing dapat menambah pelanggan" on pelanggan;
+create policy "admin anggota marketing dapat menambah pelanggan" on pelanggan for insert with check (
+  public.peran_aktif_saya() in ('admin','anggota','marketing'));
+
+drop policy if exists "admin anggota marketing dapat mengubah pelanggan" on pelanggan;
+create policy "admin anggota marketing dapat mengubah pelanggan" on pelanggan for update using (
+  public.peran_aktif_saya() in ('admin','anggota','marketing'));
+
+drop policy if exists "hanya admin dapat menghapus pelanggan" on pelanggan;
+create policy "hanya admin dapat menghapus pelanggan" on pelanggan for delete using (
+  public.peran_aktif_saya() = 'admin');
+
+-- ---- 8. PROYEK ----
+drop policy if exists "pengguna login dapat membaca proyek" on proyek;
+create policy "akun aktif dapat membaca proyek" on proyek for select using (
+  public.peran_aktif_saya() is not null);
+
+drop policy if exists "admin anggota dapat menambah proyek" on proyek;
+create policy "admin anggota dapat menambah proyek" on proyek for insert with check (
+  public.peran_aktif_saya() in ('admin','anggota'));
+
+drop policy if exists "admin anggota dapat mengubah proyek" on proyek;
+create policy "admin anggota dapat mengubah proyek" on proyek for update using (
+  public.peran_aktif_saya() in ('admin','anggota'));
+
+drop policy if exists "hanya admin dapat menghapus proyek" on proyek;
+create policy "hanya admin dapat menghapus proyek" on proyek for delete using (
+  public.peran_aktif_saya() = 'admin');
+
+-- ---- 9. TUGAS ----
+drop policy if exists "lihat tugas sendiri atau semua jika admin" on tugas;
+create policy "lihat tugas sendiri atau semua jika admin" on tugas for select using (
+  public.peran_aktif_saya() is not null and (
+    ditugaskan_ke = auth.uid() or ditugaskan_oleh = auth.uid() or ditugaskan_ke is null or
+    public.peran_aktif_saya() = 'admin'
+  ));
+
+drop policy if exists "admin anggota dapat menambah tugas" on tugas;
+create policy "admin anggota dapat menambah tugas" on tugas for insert with check (
+  public.peran_aktif_saya() in ('admin','anggota'));
+
+drop policy if exists "pemilik tugas atau admin dapat mengubah tugas" on tugas;
+create policy "pemilik tugas atau admin dapat mengubah tugas" on tugas for update using (
+  public.peran_aktif_saya() is not null and (
+    ditugaskan_ke = auth.uid() or ditugaskan_oleh = auth.uid() or public.peran_aktif_saya() = 'admin'
+  ));
+
+drop policy if exists "hanya admin dapat menghapus tugas" on tugas;
+create policy "hanya admin dapat menghapus tugas" on tugas for delete using (
+  public.peran_aktif_saya() = 'admin');
+
+-- ---- 10. AKTIVITAS ----
+drop policy if exists "pengguna login dapat membaca aktivitas" on aktivitas;
+create policy "akun aktif dapat membaca aktivitas" on aktivitas for select using (
+  public.peran_aktif_saya() is not null);
+
+drop policy if exists "pengguna login dapat menambah aktivitas" on aktivitas;
+create policy "akun aktif dapat menambah aktivitas" on aktivitas for insert with check (
+  public.peran_aktif_saya() is not null);
+
+-- ---- 11. CATATAN TIM (menu Pesan) ----
+drop policy if exists "pengguna login dapat membaca catatan tim" on catatan_tim;
+create policy "akun aktif dapat membaca catatan tim" on catatan_tim for select using (
+  public.peran_aktif_saya() is not null);
+
+drop policy if exists "admin anggota dapat menambah catatan tim" on catatan_tim;
+create policy "admin anggota dapat menambah catatan tim" on catatan_tim for insert with check (
+  public.peran_aktif_saya() in ('admin','anggota'));
+
+drop policy if exists "admin anggota dapat menghapus catatan tim" on catatan_tim;
+create policy "admin anggota dapat menghapus catatan tim" on catatan_tim for delete using (
+  public.peran_aktif_saya() in ('admin','anggota'));
+
+-- ---- 12. PENGATURAN PERUSAHAAN (select tetap publik utk branding di layar masuk) ----
+drop policy if exists "hanya admin dapat mengubah pengaturan perusahaan" on pengaturan_perusahaan;
+create policy "hanya admin dapat mengubah pengaturan perusahaan" on pengaturan_perusahaan
+  for update using (public.peran_aktif_saya() = 'admin');
+drop policy if exists "hanya admin dapat menambah pengaturan perusahaan" on pengaturan_perusahaan;
+create policy "hanya admin dapat menambah pengaturan perusahaan" on pengaturan_perusahaan
+  for insert with check (public.peran_aktif_saya() = 'admin');
+
+-- ---- 13. GUDANG ----
+drop policy if exists "pengguna login dapat membaca gudang" on gudang;
+create policy "akun aktif dapat membaca gudang" on gudang for select using (
+  public.peran_aktif_saya() is not null);
+
+drop policy if exists "admin anggota purchasing dapat menambah gudang" on gudang;
+create policy "admin anggota purchasing dapat menambah gudang" on gudang for insert with check (
+  public.peran_aktif_saya() in ('admin','anggota','purchasing'));
+
+drop policy if exists "admin anggota purchasing dapat mengubah gudang" on gudang;
+create policy "admin anggota purchasing dapat mengubah gudang" on gudang for update using (
+  public.peran_aktif_saya() in ('admin','anggota','purchasing'));
+
+drop policy if exists "hanya admin dapat menghapus gudang" on gudang;
+create policy "hanya admin dapat menghapus gudang" on gudang for delete using (
+  public.peran_aktif_saya() = 'admin');
+
+-- ---- 14. STOK ITEM ----
+drop policy if exists "pengguna login dapat membaca stok item" on stok_item;
+create policy "akun aktif dapat membaca stok item" on stok_item for select using (
+  public.peran_aktif_saya() is not null);
+
+drop policy if exists "admin anggota purchasing dapat menambah stok item" on stok_item;
+create policy "admin anggota purchasing dapat menambah stok item" on stok_item for insert with check (
+  public.peran_aktif_saya() in ('admin','anggota','purchasing'));
+
+drop policy if exists "admin anggota purchasing dapat mengubah stok item" on stok_item;
+create policy "admin anggota purchasing dapat mengubah stok item" on stok_item for update using (
+  public.peran_aktif_saya() in ('admin','anggota','purchasing'));
+
+drop policy if exists "admin purchasing dapat menghapus stok item" on stok_item;
+create policy "admin purchasing dapat menghapus stok item" on stok_item for delete using (
+  public.peran_aktif_saya() in ('admin','purchasing'));
+
+-- ---- 15. RIWAYAT STOK ----
+drop policy if exists "pengguna login dapat membaca riwayat stok" on riwayat_stok;
+create policy "akun aktif dapat membaca riwayat stok" on riwayat_stok for select using (
+  public.peran_aktif_saya() is not null);
+
+drop policy if exists "admin anggota purchasing dapat menambah riwayat stok" on riwayat_stok;
+create policy "admin anggota purchasing dapat menambah riwayat stok" on riwayat_stok for insert with check (
+  public.peran_aktif_saya() in ('admin','anggota','purchasing'));
+
+drop policy if exists "admin anggota purchasing dapat mengubah riwayat stok" on riwayat_stok;
+create policy "admin anggota purchasing dapat mengubah riwayat stok" on riwayat_stok for update using (
+  public.peran_aktif_saya() in ('admin','anggota','purchasing'));
+
+drop policy if exists "admin purchasing dapat menghapus riwayat stok" on riwayat_stok;
+create policy "admin purchasing dapat menghapus riwayat stok" on riwayat_stok for delete using (
+  public.peran_aktif_saya() in ('admin','purchasing'));
+
+-- ---- 16. KATEGORI PRODUK & KATEGORI MEREK ----
+drop policy if exists "pengguna login dapat membaca kategori produk" on kategori_produk;
+create policy "akun aktif dapat membaca kategori produk" on kategori_produk for select using (
+  public.peran_aktif_saya() is not null);
+
+drop policy if exists "admin anggota purchasing dapat menambah kategori produk" on kategori_produk;
+create policy "admin anggota purchasing dapat menambah kategori produk" on kategori_produk for insert with check (
+  public.peran_aktif_saya() in ('admin','anggota','purchasing'));
+
+drop policy if exists "admin anggota purchasing dapat mengubah kategori produk" on kategori_produk;
+create policy "admin anggota purchasing dapat mengubah kategori produk" on kategori_produk for update using (
+  public.peran_aktif_saya() in ('admin','anggota','purchasing'));
+
+drop policy if exists "hanya admin dapat menghapus kategori produk" on kategori_produk;
+create policy "hanya admin dapat menghapus kategori produk" on kategori_produk for delete using (
+  public.peran_aktif_saya() = 'admin');
+
+drop policy if exists "pengguna login dapat membaca kategori merek" on kategori_merek;
+create policy "akun aktif dapat membaca kategori merek" on kategori_merek for select using (
+  public.peran_aktif_saya() is not null);
+
+drop policy if exists "admin anggota purchasing dapat menambah kategori merek" on kategori_merek;
+create policy "admin anggota purchasing dapat menambah kategori merek" on kategori_merek for insert with check (
+  public.peran_aktif_saya() in ('admin','anggota','purchasing'));
+
+drop policy if exists "admin anggota purchasing dapat mengubah kategori merek" on kategori_merek;
+create policy "admin anggota purchasing dapat mengubah kategori merek" on kategori_merek for update using (
+  public.peran_aktif_saya() in ('admin','anggota','purchasing'));
+
+drop policy if exists "hanya admin dapat menghapus kategori merek" on kategori_merek;
+create policy "hanya admin dapat menghapus kategori merek" on kategori_merek for delete using (
+  public.peran_aktif_saya() = 'admin');
+
+-- ---- 17. Realtime utk tabel profil — supaya (a) layar "Menunggu
+-- Persetujuan" pengguna otomatis berubah begitu Admin menyetujui, TANPA
+-- perlu refresh manual, dan (b) badge "Menunggu Persetujuan" di menu
+-- Kelola Pengguna Admin ikut ter-update live saat ada pendaftar baru ----
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table profil;
+  exception when duplicate_object then null;
+  end;
+end $$;

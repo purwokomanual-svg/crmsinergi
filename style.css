@@ -1,10 +1,16 @@
 /* =========================================================
    DEALSTACK CRM — STYLESHEET
-   Redesain total: futuristik & sangat minimalis, monokrom murni
-   (putih / abu-abu muda / abu-abu gelap / hitam). Tanpa kartu kaca,
-   tanpa glow neon, tanpa gradien warna. Konten dipisahkan lewat garis
-   tipis (hairline). Interaksi hover/fokus hanya mengubah warna garis
-   atau ketebalan teks — tidak ada perubahan latar yang mencolok.
+   Tema final: Glassmorphism futuristik dengan aksen gradien rose/pink
+   (lihat blok "GLASSMORPHISM FUTURISTIK" di bagian bawah file untuk
+   variabel warna, kaca buram, dan gradien yang benar-benar dipakai).
+
+   CATATAN STRUKTUR: bagian di bawah ini (sampai sebelum blok
+   glassmorphism) awalnya ditulis untuk konsep "flat monokrom" yang
+   SUDAH DIGANTIKAN. Bagian ini tetap dipertahankan karena menyediakan
+   layout dasar (grid, spacing, struktur komponen) yang masih dipakai;
+   hanya warna/permukaannya yang ditimpa oleh blok glassmorphism di
+   bawah. Saat menambah komponen baru, styling warna akhir harus selalu
+   mengikuti variabel dari blok glassmorphism, bukan bagian ini.
    ========================================================= */
 
 :root{
@@ -37,11 +43,6 @@
   --overlay-3:rgba(255,255,255,.10);
   --glass-highlight:rgba(255,255,255,0);
   --topbar-bg:#050505;
-
-  --neon-glow-sm:none;
-  --neon-glow-md:none;
-  --neon-glow-lg:none;
-  --neon-glow-purple:none;
 
   color-scheme:dark;
 }
@@ -77,10 +78,6 @@
   --overlay-3:rgba(0,0,0,.08);
   --glass-highlight:rgba(0,0,0,0);
   --topbar-bg:#ffffff;
-  --neon-glow-sm:none;
-  --neon-glow-md:none;
-  --neon-glow-lg:none;
-  --neon-glow-purple:none;
   color-scheme:light;
 }
 [data-theme="light"] ::-webkit-scrollbar-thumb{background:var(--overlay-3);}
@@ -111,9 +108,9 @@ body{
 ::-webkit-scrollbar-thumb{background:var(--overlay-3);border-radius:8px;}
 button{font-family:inherit;}
 
-/* ============ LATAR BELAKANG ============
-   Ambient glow dekoratif dimatikan total — latar polos, tanpa gerakan,
-   selaras dengan estetika minimalis. */
+/* ============ LATAR BELAKANG (dasar) ============
+   Nilai dasar di sini dinonaktifkan; ambient glow rose/pink yang benar-benar
+   tampil didefinisikan ulang di blok GLASSMORPHISM FUTURISTIK di bawah. */
 .ambient-glow{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;background:var(--bg);}
 .ambient-glow::before,
 .ambient-glow::after,
@@ -235,7 +232,7 @@ button{font-family:inherit;}
 .search-box input::placeholder{color:var(--muted);}
 .topbar-right{margin-left:auto;display:flex;align-items:center;gap:20px;}
 .icon-btn{
-  width:36px;height:36px;border-radius:0;display:flex;align-items:center;justify-content:center;
+  width:36px;height:36px;border-radius:0;display:inline-flex;align-items:center;justify-content:center;
   color:var(--muted);cursor:pointer;transition:color .15s ease;border:1px solid transparent;background:none;
 }
 .icon-btn:hover{background:none;color:var(--ink);border-color:var(--edge);}
@@ -297,9 +294,8 @@ button{font-family:inherit;}
 .view-head-actions{display:flex;gap:10px;flex-wrap:wrap;}
 
 /* ============ STAT MINI CARDS ============
-   Dulunya kartu; kini bidang bergaris tipis dgn satu aksen: ketebalan
-   font angka. Status dibedakan lewat berat huruf & garis bawah, bukan
-   warna, supaya tetap 100% monokrom. */
+   Layout dasar di sini; permukaan kaca & warna aksen final diterapkan
+   lewat blok GLASSMORPHISM FUTURISTIK di bawah. */
 .stat-mini-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;margin-bottom:24px;background:var(--edge);border:1px solid var(--edge);}
 .stat-mini-card{
   position:relative;background:var(--bg);border:none;border-radius:0;
@@ -507,7 +503,7 @@ button{font-family:inherit;}
 [data-theme="light"] .brush-window{background:rgba(0,0,0,.05);}
 
 /* ============ DASHBOARD ROWS ============ */
-.dash-row{display:flex;gap:1px;align-items:stretch;margin-bottom:26px;background:var(--edge);border:1px solid var(--edge);}
+.dash-row{display:flex;gap:22px;align-items:stretch;margin-bottom:26px;background:none;border:none;}
 .dash-row-chart{align-items:stretch;}
 .dash-row-chart .chart-card-main{flex:1.65;min-width:0;margin-bottom:0;border:none;background:var(--bg);}
 .dash-row-bottom{background:none;border:none;gap:22px;}
@@ -721,7 +717,9 @@ button{font-family:inherit;}
 .data-table tbody tr:hover td{border-bottom-color:var(--edge-strong);}
 .cell-muted{color:var(--muted);font-size:12px;}
 .cell-name{font-weight:600;}
-.cell-actions{display:flex;gap:6px;justify-content:flex-end;}
+.cell-actions{text-align:right;white-space:nowrap;}
+.cell-actions .icon-btn,.cell-actions .btn{margin-left:6px;}
+.cell-actions .icon-btn:first-child,.cell-actions .btn:first-child{margin-left:0;}
 .cell-actions .icon-btn{width:30px;height:30px;}
 .cell-actions .icon-btn svg{width:14px;height:14px;}
 @media(min-width:761px){
@@ -729,6 +727,45 @@ button{font-family:inherit;}
   .data-table tbody tr:hover .cell-actions .icon-btn,
   .data-table tbody tr:focus-within .cell-actions .icon-btn{opacity:1;}
 }
+
+/* ============ KELOLA PENGGUNA — SEJAJARKAN KOLOM ANTAR 2 TABEL ============
+   Halaman ini bisa menampilkan DUA <table> sekaligus (Menunggu Persetujuan +
+   Semua Pengguna), bertumpuk vertikal. Karena masing-masing <table> menghitung
+   lebar kolomnya sendiri-sendiri (berdasarkan isi tabel itu saja), kolom
+   "Nama" dan "Email" — yang seharusnya jadi acuan mata yang sama antar kedua
+   tabel — bisa berakhir dengan lebar berbeda dan terlihat tidak sejajar.
+
+   SETIAP kolom di kedua tabel diberi lebar tetap (bukan cuma sebagian) —
+   membiarkan sebagian kolom "otomatis" di dalam table-layout:fixed ternyata
+   bikin browser salah hitung sisa ruang dan menyisakan celah kosong di
+   tengah tabel. Dengan semua kolom dikunci dan totalnya pas 100%, tidak ada
+   lagi ruang yang tersisa untuk ditebak-tebak. */
+#view-pengguna .data-table{table-layout:fixed;}
+#view-pengguna .cell-muted{overflow:hidden;text-overflow:ellipsis;}
+
+#card-pengguna-semua .data-table th:nth-child(1),
+#card-pengguna-semua .data-table td:nth-child(1){width:27%;}
+#card-pengguna-semua .data-table th:nth-child(2),
+#card-pengguna-semua .data-table td:nth-child(2){width:23%;}
+#card-pengguna-semua .data-table th:nth-child(3),
+#card-pengguna-semua .data-table td:nth-child(3){width:20%;}
+#card-pengguna-semua .data-table th:nth-child(4),
+#card-pengguna-semua .data-table td:nth-child(4){width:15%;}
+#card-pengguna-semua .data-table th:nth-child(5),
+#card-pengguna-semua .data-table td:nth-child(5){width:10%;}
+#card-pengguna-semua .data-table th:nth-child(6),
+#card-pengguna-semua .data-table td:nth-child(6){width:5%;}
+
+#card-pengguna-menunggu .data-table th:nth-child(1),
+#card-pengguna-menunggu .data-table td:nth-child(1){width:27%;}
+#card-pengguna-menunggu .data-table th:nth-child(2),
+#card-pengguna-menunggu .data-table td:nth-child(2){width:23%;}
+#card-pengguna-menunggu .data-table th:nth-child(3),
+#card-pengguna-menunggu .data-table td:nth-child(3){width:15%;}
+#card-pengguna-menunggu .data-table th:nth-child(4),
+#card-pengguna-menunggu .data-table td:nth-child(4){width:20%;}
+#card-pengguna-menunggu .data-table th:nth-child(5),
+#card-pengguna-menunggu .data-table td:nth-child(5){width:15%;}
 
 /* status badges — dibedakan lewat isian titik & berat huruf, bukan warna */
 .badge{
@@ -859,13 +896,33 @@ button{font-family:inherit;}
 .modal-actions{
   display:flex;justify-content:flex-end;gap:10px;margin-top:22px;flex-shrink:0;
 }
-/* ============ FLOATING LABEL ============ */
+/* ============ LABEL INPUT — KONSISTEN DI SELURUH APLIKASI ============
+   BUGFIX (audit tampilan): sebelumnya label ini "melayang" (floating
+   label) — posisinya baru pindah ke atas (kecil, tebal) begitu input
+   diisi/difokus, dan sebelum itu duduk besar di tengah kotak. Masalahnya,
+   pemicu perpindahan itu memakai selector CSS :placeholder-shown, yang
+   HANYA berfungsi kalau elemen <input> punya atribut placeholder. Input
+   yang TIDAK diberi placeholder di HTML (mis. "Nama Lengkap" di menu
+   Pengaturan) otomatis dianggap "tidak sedang menampilkan placeholder"
+   oleh browser, sehingga labelnya SELALU berada di posisi kecil di atas
+   sejak awal — sedangkan input LAIN yang kebetulan diberi placeholder
+   (Jabatan, Telepon, Kata Sandi, Nama Perusahaan, dst.) tetap menampilkan
+   label besar di tengah sampai pengguna mengetik. Akibatnya, dalam satu
+   halaman/form yang sama, sebagian kotak input terlihat berbeda dari
+   yang lain — bukan karena disengaja, cuma karena ada/tidaknya atribut
+   placeholder di HTML.
+   SOLUSINYA: labelnya SEKARANG SELALU didudukkan kecil di atas kotak,
+   persis seperti "Nama Lengkap" — bukan lagi tergantung ada/tidaknya
+   placeholder atau isi input. Ini otomatis berlaku di SEMUA form di
+   seluruh aplikasi (modal Tambah Pelanggan/Proyek/Tugas/Stok, Kalender,
+   Pesan, Kelola Pengguna, Pengaturan, dst.) karena semuanya memakai
+   class .form-group yang sama — jadi cukup diperbaiki sekali di sini. */
 .form-group{margin-bottom:18px;flex-shrink:0;position:relative;}
 .form-group > label:not(.form-sublabel){
-  position:absolute;left:13px;top:50%;transform:translateY(-50%);
-  font-size:13px;font-weight:500;color:var(--muted);margin:0;
+  position:absolute;left:13px;top:9px;transform:translateY(0);
+  font-size:10.5px;font-weight:700;letter-spacing:.03em;color:var(--muted-2);margin:0;
   max-width:calc(100% - 26px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  pointer-events:none;transition:top .16s ease,font-size .16s ease,color .16s ease,font-weight .16s ease;
+  pointer-events:none;transition:color .16s ease;
 }
 .form-group input, .form-group select{
   width:100%;background:none;border:1px solid var(--edge);color:var(--ink);border-radius:0;
@@ -873,18 +930,16 @@ button{font-family:inherit;}
   transition:border-color .2s ease;
   box-sizing:border-box;
 }
-.form-group input::placeholder{color:transparent;transition:color .15s ease;}
-.form-group input:focus::placeholder{color:var(--muted-2);}
+/* Placeholder (mis. "cth. Sales Manager") kini selalu tampil dari awal
+   (bukan cuma saat fokus) — konsisten dengan label yang juga selalu
+   tampil, dan sekaligus membantu pengguna tahu contoh isian tanpa perlu
+   mengklik dulu ke dalam kotak. */
+.form-group input::placeholder{color:var(--muted-2);}
 .form-group input:focus, .form-group select:focus{
   border-color:var(--ink);
   box-shadow:none;
 }
 .form-group input[disabled]{color:var(--muted);cursor:default;}
-.form-group:has(input:focus) > label:not(.form-sublabel),
-.form-group:has(input:not(:placeholder-shown)) > label:not(.form-sublabel),
-.form-group:has(select) > label:not(.form-sublabel){
-  top:9px;transform:translateY(0);font-size:10.5px;font-weight:700;letter-spacing:.03em;color:var(--muted-2);
-}
 .form-group:has(input:focus) > label:not(.form-sublabel),
 .form-group:has(select:focus) > label:not(.form-sublabel){
   color:var(--ink);
@@ -957,7 +1012,7 @@ select option{ background-color:#000000; color:var(--ink); }
 .cal-nav{display:flex;align-items:center;gap:10px;}
 .cal-nav .btn{padding:9px 15px;}
 .cal-label{font-size:13.5px;font-weight:600;min-width:150px;text-align:center;}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--edge);}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
 .cal-grid.cal-days{margin-top:1px;margin-bottom:26px;border:1px solid var(--edge);}
 .cal-weekday{text-align:center;font-size:11px;font-weight:700;color:var(--muted-2);text-transform:uppercase;padding:6px 0 12px;background:var(--bg);}
 .cal-cell{
@@ -1079,6 +1134,18 @@ select option{ background-color:#000000; color:var(--ink); }
 .auth-note{font-size:11px;color:var(--muted-2);text-align:center;margin:20px 0 0;line-height:1.6;}
 #app-shell.hidden{display:none;}
 
+/* ============ LAYAR STATUS AKUN (menunggu persetujuan / ditolak) ============ */
+.status-akun-box{max-width:400px;text-align:center;}
+.status-akun-icon{
+  width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  margin:0 auto 18px;border:1px solid var(--edge);
+}
+.status-akun-icon svg{width:26px;height:26px;}
+.status-akun-icon--menunggu{color:var(--yellow);}
+.status-akun-icon--ditolak{color:var(--red);}
+.status-akun-title{font-size:17px;font-weight:700;margin:0 0 10px;letter-spacing:-.01em;}
+.status-akun-desc{font-size:13px;color:var(--muted);line-height:1.7;margin:0;}
+
 /* ============ AVATAR PENGGUNA ============ */
 .user-avatar{
   width:34px;height:34px;border-radius:50%;background:none;border:1px solid var(--edge-strong);
@@ -1094,6 +1161,14 @@ select option{ background-color:#000000; color:var(--ink); }
 .badge-prioritas.tinggi{background:none;color:var(--ink);font-weight:800;border-color:var(--edge-strong);}
 .assignee-cell{display:flex;align-items:center;gap:8px;}
 .assignee-cell .user-avatar{width:26px;height:26px;font-size:11px;}
+/* td.assignee-cell (kolom Nama di Kelola Pengguna) TIDAK boleh flex langsung
+   di <td> — sama seperti .cell-actions, itu merusak border-collapse baris
+   tabel (border kolom Nama jadi tidak nyambung/sejajar dgn kolom lain) dan
+   bikin teks nama ikut terpotong karena flex-item defaultnya tidak mau
+   menyusut. .assignee-cell versi <div> di halaman Tugas tidak disentuh,
+   cuma versi <td> ini yang dikembalikan ke table-cell biasa. */
+td.assignee-cell{display:table-cell;white-space:normal;}
+td.assignee-cell .user-avatar{display:inline-flex;vertical-align:middle;margin-right:8px;}
 .status-kerja-select{font-size:12px;padding:5px 8px;}
 
 /* ============ PENGAWASAN TIM ============ */
@@ -1116,17 +1191,18 @@ select option{ background-color:#000000; color:var(--ink); }
 .settings-sub{margin:0 0 22px;font-size:12px;color:var(--muted);line-height:1.6;}
 .settings-divider{height:1px;background:var(--edge);margin:26px 0;}
 .settings-actions{justify-content:flex-start;margin-top:4px;}
-.settings-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.settings-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;align-items:start;}
 @media(max-width:560px){.settings-form-grid{grid-template-columns:1fr;}}
 
-.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:6px;}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:6px;align-items:start;}
 @media(max-width:560px){.form-grid-3{grid-template-columns:1fr;}}
 
 .form-sublabel{font-size:12px;color:var(--muted);}
 .opsional-label{color:var(--muted-2);font-weight:500;text-transform:none;letter-spacing:0;}
 .settings-readonly{
   background:none;border:1px solid var(--edge);border-radius:0;
-  padding:10px 12px;font-size:13px;color:var(--muted);min-height:39px;display:flex;align-items:center;
+  padding:24px 12px 10px;font-size:13px;color:var(--muted);min-height:52px;display:flex;align-items:center;
+  box-sizing:border-box;
 }
 .role-pill{
   display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
@@ -1134,6 +1210,7 @@ select option{ background-color:#000000; color:var(--ink); }
   text-transform:uppercase;letter-spacing:.03em;
 }
 .settings-tip{
+
   display:flex;gap:10px;background:none;border:1px solid var(--edge);
   border-radius:0;padding:13px 15px;font-size:12px;color:var(--muted);line-height:1.65;margin-top:2px;
 }
@@ -1185,11 +1262,12 @@ select option{ background-color:#000000; color:var(--ink); }
   .data-table thead{display:none;}
   .data-table, .data-table tbody, .data-table tr{display:block;width:100%;}
   .data-table tbody tr{
-    background:var(--bg);border:1px solid var(--edge);border-radius:0;
+    background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius);
+    backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
     margin-bottom:14px;padding:2px 16px;
   }
   .data-table tbody tr:nth-child(even),
-  .data-table tbody tr:hover{background:var(--bg);}
+  .data-table tbody tr:hover{background:var(--glass-bg);}
   .data-table td{
     display:flex;align-items:center;justify-content:space-between;gap:14px;
     padding:11px 0;border-bottom:1px solid var(--edge);white-space:normal;text-align:right;
@@ -1259,12 +1337,15 @@ select option{ background-color:#000000; color:var(--ink); }
 [data-theme="light"] .icon-btn.theme-quick-toggle .ic-moon{opacity:0;transform:rotate(90deg) scale(.5);}
 
 /* =========================================================================
-   ================  REDESAIN GLASSMORPHISM FUTURISTIK  ====================
-   Lapisan override di bawah ini menimpa gaya "flat monokrom" di atas dan
-   mengubah seluruh permukaan (sidebar, kartu, modal, tombol, input) menjadi
-   kaca buram (frosted glass) mengambang di atas gradien lembut keluarga
-   merah/rose. Variabel warna didefinisikan ulang, backdrop-filter blur
-   dinyalakan kembali, dan sudut dibuat membulat untuk kesan futuristik.
+   ================  TEMA RESMI: GLASSMORPHISM FUTURISTIK  =================
+   Ini adalah tema final yang benar-benar tampil ke pengguna. Blok ini
+   mendefinisikan ulang variabel warna dari bagian atas file dan mengubah
+   seluruh permukaan (sidebar, kartu, modal, tombol, input) menjadi kaca
+   buram (frosted glass) mengambang di atas gradien lembut keluarga
+   merah/rose, dengan backdrop-filter blur dan sudut membulat untuk kesan
+   futuristik. Semua styling warna/permukaan baru HARUS ditambahkan di
+   sini (atau menyesuaikan pola di sini), bukan di bagian flat monokrom
+   di atas, supaya tidak ada elemen yang "ketinggalan" tema.
    ========================================================================= */
 
 :root{
@@ -1346,10 +1427,7 @@ select option{ background-color:#000000; color:var(--ink); }
   --grad-primary-hover:linear-gradient(135deg,#fda4af 0%,#f43f5e 55%,#be123c 100%);
   --grad-soft:linear-gradient(135deg,rgba(251,113,133,.28),rgba(225,29,72,.06));
   --grad-border:linear-gradient(135deg,rgba(225,29,72,.55),rgba(251,113,133,.15));
-  --page-gradient:radial-gradient(circle at 12% 8%, #ffd7de 0%, transparent 45%),
-                  radial-gradient(circle at 88% 12%, #ffe4e9 0%, transparent 45%),
-                  radial-gradient(circle at 50% 95%, #ffc9d3 0%, transparent 55%),
-                  linear-gradient(135deg,#fff6f7 0%,#ffeef1 50%,#fff8f8 100%);
+  --page-gradient:#ffffff;
 
   --overlay-1:rgba(225,29,72,.04);
   --overlay-2:rgba(225,29,72,.08);
@@ -1378,7 +1456,7 @@ html,body{
 }
 [data-theme="light"] .ambient-glow::before,
 [data-theme="light"] .ambient-glow::after,
-[data-theme="light"] .ambient-glow .glow-blob{opacity:.35;}
+[data-theme="light"] .ambient-glow .glow-blob{opacity:0;}
 
 /* ============ SIDEBAR / TOPBAR / AUTH — kaca utama ============ */
 .sidebar{
@@ -1524,12 +1602,28 @@ html,body{
   background:var(--glass-bg)!important;
 }
 
+/* ============ CEGAH KACA-DALAM-KACA — .filter-select di DALAM TABEL ============
+   .filter-select di atas didesain untuk berdiri sendiri di toolbar (kaca penuh:
+   background + border + blur). Tapi class yang sama juga dipakai untuk dropdown
+   di dalam sel tabel (mis. kolom "Peran" di Kelola Pengguna, kolom "Ditugaskan
+   ke" / status kerja di Tugas) — dan tabel itu sendiri (.table-card) SUDAH kaca.
+   Tanpa aturan ini, hasilnya dua kotak kaca bertumpuk (border+blur ganda) yang
+   terlihat seperti "kotak dobel". Di dalam tabel, cukup latar sedikit lebih
+   pekat + garis tipis, tanpa blur/kaca sendiri — sama seperti pola input di
+   dalam modal/settings di atas. */
+.table-card .filter-select,.data-table .filter-select{
+  background:var(--overlay-1)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+.table-card .filter-select:focus,.data-table .filter-select:focus{
+  background:var(--overlay-2)!important;
+}
+
 /* ============ INPUT / SELECT / TEXTAREA DI DALAM KARTU KACA (modal, settings, auth,
    message-composer) — TANPA backdrop-filter/border kaca sendiri. Memberi elemen ini
    kaca penuh lagi (di atas kartu yang sudah kaca) menghasilkan efek "kotak dobel/blur
    ganda" yang terlihat seperti garis pinggir berbayang. Cukup beri latar sedikit lebih
    gelap/pekat dari kartunya + garis tipis, tanpa blur tambahan. */
-.form-group input,.form-group select,
+.form-group input,.form-group select,.settings-readonly,
 .message-composer textarea,.message-composer-row input{
   background:var(--overlay-1)!important;border:1px solid var(--glass-border)!important;
   border-radius:12px!important;color:var(--ink)!important;
@@ -1565,6 +1659,24 @@ select option{background-color:#3a0f1e;color:var(--ink);}
   box-shadow:inset 3px 0 0 var(--accent),0 4px 16px rgba(200,20,70,.15);
 }
 .nav-badge{border:1px solid var(--glass-border-bright)!important;background:var(--grad-primary)!important;color:#fff!important;}
+
+/* ============ ELEMEN YANG TERLEWAT SAAT REDESAIN KACA ============
+   Bagian di bawah ini awalnya masih memakai var(--bg)/var(--ink) polos
+   (hitam/putih tanpa tema), padahal secara visual mereka setara dengan
+   elemen "aktif/selesai/terisi" lain yang sudah memakai gradien pink
+   (nav-item.active, nav-badge, btn-primary, toast). Disamakan di sini
+   supaya tidak ada lagi kotak/ikon polos hitam-putih yang menyembul di
+   antara komponen kaca lainnya. */
+.icon-badge{
+  background:var(--grad-primary)!important;color:#fff!important;
+  border:1px solid var(--glass-border-bright)!important;
+}
+.task-item.done .task-check{
+  background:var(--grad-primary)!important;border-color:var(--glass-border-bright)!important;
+}
+.task-item.done .task-check svg{color:#fff!important;}
+.funnel-fill span{color:#fff!important;}
+.theme-switch .knob{color:#fff!important;}
 
 /* ============ TABEL — hover kaca lembut ============ */
 .data-table tbody tr:hover{background:var(--overlay-1)!important;}
