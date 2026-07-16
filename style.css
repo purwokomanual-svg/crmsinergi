@@ -1411,8 +1411,8 @@ td.assignee-cell .user-avatar{display:inline-flex;vertical-align:middle;margin-r
   --glass-bg-soft:rgba(255,255,255,.40);
   --glass-border:rgba(255,255,255,.75);
   --glass-border-bright:rgba(225,29,72,.45);
-  --glass-shadow:0 8px 28px rgba(190,20,60,.14);
-  --glass-shadow-lg:0 20px 50px rgba(190,20,60,.18);
+  --glass-shadow:0 14px 38px -6px rgba(190,20,60,.20);
+  --glass-shadow-lg:0 28px 64px -12px rgba(190,20,60,.26);
 
   --edge:var(--glass-border);
   --edge-strong:var(--glass-border-bright);
@@ -1427,7 +1427,10 @@ td.assignee-cell .user-avatar{display:inline-flex;vertical-align:middle;margin-r
   --grad-primary-hover:linear-gradient(135deg,#fda4af 0%,#f43f5e 55%,#be123c 100%);
   --grad-soft:linear-gradient(135deg,rgba(251,113,133,.28),rgba(225,29,72,.06));
   --grad-border:linear-gradient(135deg,rgba(225,29,72,.55),rgba(251,113,133,.15));
-  --page-gradient:#ffffff;
+  --page-gradient:radial-gradient(circle at 10% 5%, rgba(225,29,72,.09) 0%, transparent 32%),
+                  radial-gradient(circle at 92% 10%, rgba(251,113,133,.11) 0%, transparent 30%),
+                  radial-gradient(circle at 50% 105%, rgba(225,29,72,.07) 0%, transparent 40%),
+                  #fefbfb;
 
   --overlay-1:rgba(225,29,72,.04);
   --overlay-2:rgba(225,29,72,.08);
@@ -1455,8 +1458,8 @@ html,body{
   background:radial-gradient(circle,rgba(255,145,170,.28),transparent 70%);filter:blur(100px);opacity:.2;
 }
 [data-theme="light"] .ambient-glow::before,
-[data-theme="light"] .ambient-glow::after,
-[data-theme="light"] .ambient-glow .glow-blob{opacity:0;}
+[data-theme="light"] .ambient-glow::after{opacity:.14;}
+[data-theme="light"] .ambient-glow .glow-blob{opacity:.12;}
 
 /* ============ SIDEBAR / TOPBAR / AUTH — kaca utama ============ */
 .sidebar{
@@ -1476,6 +1479,52 @@ html,body{
 .auth-tab{border-right:1px solid var(--glass-border);}
 .auth-tab.active{background:var(--grad-primary);color:#fff;}
 .brand-mark,.cust-icon{background:var(--grad-primary)!important;border:1px solid var(--glass-border-bright);box-shadow:0 6px 18px rgba(200,20,70,.4);}
+
+/* ============ LAYAR LOGIN — MODE TERANG DIBUAT MENONJOL ============
+   Sebelumnya mode terang cuma dapat latar putih polos (--page-gradient:#fff)
+   dan ambient glow-nya sengaja dimatikan total, jadi layar login terasa
+   datar dibanding mode gelap yang penuh glow rose. Di sini layar login
+   (khusus mode terang) diberi latar berlapis, kartu kaca yang lebih
+   "hidup", dan sakelar Masuk/Daftar bergaya pill dengan sorotan aktif —
+   supaya kesan pertama pengguna langsung terasa premium. */
+[data-theme="light"] .auth-screen{
+  background:
+    radial-gradient(circle at 12% 8%, rgba(225,29,72,.14) 0%, transparent 36%),
+    radial-gradient(circle at 92% 12%, rgba(251,113,133,.16) 0%, transparent 34%),
+    radial-gradient(circle at 50% 105%, rgba(225,29,72,.10) 0%, transparent 42%),
+    #fff8f9;
+}
+[data-theme="light"] .auth-box{
+  position:relative;overflow:hidden;
+  box-shadow:0 32px 70px -24px rgba(190,20,60,.28),0 2px 0 rgba(255,255,255,.6) inset;
+}
+[data-theme="light"] .auth-box::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:5px;background:var(--grad-primary);
+}
+[data-theme="light"] .brand-mark#brand-mark-auth{
+  box-shadow:0 10px 26px rgba(200,20,70,.38);
+  animation:auth-mark-glow 2.6s ease-in-out infinite;
+}
+@keyframes auth-mark-glow{
+  0%,100%{box-shadow:0 10px 26px rgba(200,20,70,.32);}
+  50%{box-shadow:0 12px 34px rgba(200,20,70,.52);}
+}
+[data-theme="light"] .auth-tabs{
+  background:rgba(225,29,72,.06);border:1px solid var(--glass-border);border-radius:999px;
+  padding:4px;gap:4px;
+}
+[data-theme="light"] .auth-tab{
+  border-radius:999px!important;border-right:none!important;transition:background .25s ease,color .25s ease,box-shadow .25s ease;
+}
+[data-theme="light"] .auth-tab.active{
+  background:var(--grad-primary)!important;color:#fff!important;
+  box-shadow:0 6px 16px rgba(200,20,70,.35);
+}
+[data-theme="light"] .auth-box{animation:glass-pop-in .45s ease both;}
+@keyframes glass-pop-in{
+  from{opacity:0;transform:translateY(14px) scale(.98);}
+  to{opacity:1;transform:translateY(0) scale(1);}
+}
 
 /* ============ KARTU KACA — semua panel datar jadi kaca buram ============ */
 .kpi-card,.chart-card,.table-card,.funnel-card,.timeline,.task-card,.cal-agenda-card,
@@ -1545,10 +1594,12 @@ html,body{
 .modal-box{
   background:var(--glass-bg-strong)!important;backdrop-filter:blur(20px)!important;-webkit-backdrop-filter:blur(20px)!important;
   border:1px solid var(--glass-border)!important;border-radius:24px!important;box-shadow:var(--glass-shadow-lg);
+  animation:glass-pop-in .3s ease both;
 }
 .dropdown-panel{
   background:var(--glass-bg-strong)!important;backdrop-filter:blur(18px)!important;-webkit-backdrop-filter:blur(18px)!important;
   border:1px solid var(--glass-border)!important;border-radius:18px!important;box-shadow:var(--glass-shadow-lg);
+  animation:glass-pop-in .22s ease both;
 }
 .toast{
   background:var(--grad-primary)!important;border:1px solid var(--glass-border-bright)!important;
