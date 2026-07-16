@@ -4220,14 +4220,14 @@ function renderChart(){
   svg.innerHTML = `
     <defs>
       <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#ef3f4d" stop-opacity="0.55"/>
-        <stop offset="100%" stop-color="#ef3f4d" stop-opacity="0"/>
+        <stop offset="0%" stop-color="#ff2440" stop-opacity="0.55"/>
+        <stop offset="100%" stop-color="#ff2440" stop-opacity="0"/>
       </linearGradient>
     </defs>
     <line x1="0" y1="0" x2="${W}" y2="0" stroke="rgba(255,255,255,.08)" stroke-dasharray="3 5"/>
     <path id="chart-ghost-path" d="${ghostPath}" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="1.5" style="${compareHidden ? 'display:none' : ''}"/>
     <path d="${areaPath}" fill="url(#areaGrad)"/>
-    <path d="${linePath}" fill="none" stroke="#ff6b74" stroke-width="2"/>
+    <path id="chart-main-path" d="${linePath}" fill="none" stroke="#ff2e46" stroke-width="2"/>
   `;
 
   const crossIdx = Math.round(N * 0.42);
@@ -4235,7 +4235,7 @@ function renderChart(){
   const crossY = H - (mainSeries[crossIdx] / maxV) * H;
   svg.innerHTML += `
     <line x1="${crossX}" y1="0" x2="${crossX}" y2="${H}" stroke="rgba(255,255,255,.35)" stroke-dasharray="4 4"/>
-    <circle cx="${crossX}" cy="${crossY}" r="4.5" fill="#161618" stroke="#fff" stroke-width="2"/>
+    <circle cx="${crossX}" cy="${crossY}" r="4.5" fill="#140407" stroke="#fff" stroke-width="2"/>
   `;
 
   const wrap = document.getElementById('chart-wrap');
@@ -4259,7 +4259,7 @@ function renderChart(){
   const brushSeries = buildSeries(N, 55);
   const bMax = Math.max(...brushSeries) * 1.15;
   const brushLine = toPath(brushSeries, W, 52, bMax);
-  brushSvg.innerHTML = `<path d="${brushLine}" fill="none" stroke="rgba(255,107,116,.55)" stroke-width="1.5"/>`;
+  brushSvg.innerHTML = `<path d="${brushLine}" fill="none" stroke="rgba(255,46,70,.55)" stroke-width="1.5"/>`;
 
   const brushWindow = document.getElementById('brush-window');
   brushWindow.style.left = '74%';
@@ -4302,7 +4302,7 @@ function unduhGrafik(){
     const canvas = document.createElement('canvas');
     canvas.width = 1200; canvas.height = 360;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#1b1a1d';
+    ctx.fillStyle = '#1a0509';
     ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     URL.revokeObjectURL(url);

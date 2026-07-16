@@ -1,8 +1,9 @@
 /* =========================================================
    DEALSTACK CRM — STYLESHEET
-   Tema final: Glassmorphism futuristik dengan aksen gradien rose/pink
-   (lihat blok "GLASSMORPHISM FUTURISTIK" di bagian bawah file untuk
-   variabel warna, kaca buram, dan gradien yang benar-benar dipakai).
+   Tema final: Glassmorphism futuristik Red/Maroon dengan luminous glow
+   (lihat blok "GLASSMORPHISM FUTURISTIK — RED/MAROON" di bagian bawah
+   file untuk variabel warna, kaca buram, dan gradien yang benar-benar
+   dipakai).
 
    CATATAN STRUKTUR: bagian di bawah ini (sampai sebelum blok
    glassmorphism) awalnya ditulis untuk konsep "flat monokrom" yang
@@ -1337,54 +1338,58 @@ td.assignee-cell .user-avatar{display:inline-flex;vertical-align:middle;margin-r
 [data-theme="light"] .icon-btn.theme-quick-toggle .ic-moon{opacity:0;transform:rotate(90deg) scale(.5);}
 
 /* =========================================================================
-   ================  TEMA RESMI: GLASSMORPHISM FUTURISTIK  =================
+   ========  TEMA RESMI: GLASSMORPHISM FUTURISTIK — RED/MAROON  ===========
    Ini adalah tema final yang benar-benar tampil ke pengguna. Blok ini
    mendefinisikan ulang variabel warna dari bagian atas file dan mengubah
    seluruh permukaan (sidebar, kartu, modal, tombol, input) menjadi kaca
-   buram (frosted glass) mengambang di atas gradien lembut keluarga
-   merah/rose, dengan backdrop-filter blur dan sudut membulat untuk kesan
-   futuristik. Semua styling warna/permukaan baru HARUS ditambahkan di
-   sini (atau menyesuaikan pola di sini), bukan di bagian flat monokrom
-   di atas, supaya tidak ada elemen yang "ketinggalan" tema.
+   buram (frosted glass) mengambang di atas gradien radial dalam dari
+   merah mawar tua/scarlet ke hitam, dengan backdrop-filter blur kuat,
+   garis pinggir tipis & cerah, dan luminous glow ambient merah di
+   belakang tiap panel untuk kesan futuristik. Warna semantik: hijau neon
+   = ok/tersedia, kuning keemasan = tertunda/menipis, merah scarlet =
+   danger/habis, cyan luminous = info netral. Semua styling warna/
+   permukaan baru HARUS ditambahkan di sini (atau menyesuaikan pola di
+   sini), bukan di bagian flat monokrom di atas, supaya tidak ada elemen
+   yang "ketinggalan" tema.
    ========================================================================= */
 
 :root{
   --ink:#fdf3f5;
   --muted:#e7c3cb;
   --muted-2:#c98d9b;
-  --green:#4ee8b0;
-  --red:#ff5876;
-  --yellow:#ffd166;
-  --blue:#7fd8ff;
+  --green:#39ff8a;
+  --red:#ff2440;
+  --yellow:#ffc94d;
+  --blue:#3ce8ff;
 
   --glass-blur:blur(10px);
   --glass-bg:rgba(255,255,255,.08);
   --glass-bg-strong:rgba(255,255,255,.13);
   --glass-bg-soft:rgba(255,255,255,.05);
   --glass-border:rgba(255,255,255,.28);
-  --glass-border-bright:rgba(255,120,150,.55);
-  --glass-shadow:0 8px 32px rgba(90,0,25,.35);
-  --glass-shadow-lg:0 24px 64px rgba(60,0,20,.45);
+  --glass-border-bright:rgba(255,45,70,.55);
+  --glass-shadow:0 8px 32px rgba(70,0,15,.35);
+  --glass-shadow-lg:0 24px 64px rgba(45,0,10,.45);
 
   --edge:var(--glass-border);
   --edge-strong:var(--glass-border-bright);
-  --accent:#ff6b81;
-  --accent-bright:#ff8fa3;
-  --accent-2:#ffb199;
-  --accent-2-bright:#ffd2c2;
-  --accent-dim:rgba(255,107,129,.16);
-  --accent-ink:#2a0512;
+  --accent:#ff1f3d;
+  --accent-bright:#ff5568;
+  --accent-2:#ff8a5c;
+  --accent-2-bright:#ffbfa0;
+  --accent-dim:rgba(255,31,61,.16);
+  --accent-ink:#2a0208;
 
   --radius:20px;
   --radius-sharp:14px;
 
-  --grad-primary:linear-gradient(135deg,#ff6b81 0%,#c81d4a 55%,#7a1030 100%);
-  --grad-primary-hover:linear-gradient(135deg,#ff8a9c 0%,#e0244f 55%,#93163d 100%);
-  --grad-soft:linear-gradient(135deg,rgba(255,107,129,.30),rgba(200,29,74,.10));
-  --grad-border:linear-gradient(135deg,rgba(255,180,190,.9),rgba(255,90,120,.25));
-  --page-gradient:radial-gradient(circle at 12% 0%, rgba(130,15,45,.30) 0%, transparent 32%),
-                  radial-gradient(circle at 100% 15%, rgba(90,10,32,.22) 0%, transparent 30%),
-                  radial-gradient(circle at 50% 105%, rgba(110,12,40,.26) 0%, transparent 38%),
+  --grad-primary:linear-gradient(135deg,#ff1f3d 0%,#a80f2c 55%,#3d0510 100%);
+  --grad-primary-hover:linear-gradient(135deg,#ff4d5e 0%,#c81530 55%,#5c0a18 100%);
+  --grad-soft:linear-gradient(135deg,rgba(255,31,61,.30),rgba(160,15,40,.10));
+  --grad-border:linear-gradient(135deg,rgba(255,110,120,.9),rgba(255,50,70,.25));
+  --page-gradient:radial-gradient(circle at 12% 0%, rgba(110,8,28,.30) 0%, transparent 32%),
+                  radial-gradient(circle at 100% 15%, rgba(75,5,18,.22) 0%, transparent 30%),
+                  radial-gradient(circle at 50% 105%, rgba(95,6,22,.26) 0%, transparent 38%),
                   linear-gradient(180deg,#050203 0%,#08040a 45%,#020102 100%);
 
   --overlay-1:rgba(255,255,255,.05);
@@ -1398,43 +1403,43 @@ td.assignee-cell .user-avatar{display:inline-flex;vertical-align:middle;margin-r
 }
 
 [data-theme="light"]{
-  --ink:#3a0716;
-  --muted:#8a4a58;
-  --muted-2:#b57887;
-  --green:#0ea678;
-  --red:#e11d48;
+  --ink:#2a0510;
+  --muted:#7a3540;
+  --muted-2:#a5636e;
+  --green:#0ea666;
+  --red:#c81020;
   --yellow:#b45309;
-  --blue:#0369a1;
+  --blue:#0389a1;
 
   --glass-bg:rgba(255,255,255,.55);
   --glass-bg-strong:rgba(255,255,255,.72);
   --glass-bg-soft:rgba(255,255,255,.40);
   --glass-border:rgba(255,255,255,.75);
-  --glass-border-bright:rgba(225,29,72,.45);
-  --glass-shadow:0 14px 38px -6px rgba(190,20,60,.20);
-  --glass-shadow-lg:0 28px 64px -12px rgba(190,20,60,.26);
+  --glass-border-bright:rgba(200,16,32,.45);
+  --glass-shadow:0 14px 38px -6px rgba(160,10,30,.20);
+  --glass-shadow-lg:0 28px 64px -12px rgba(160,10,30,.26);
 
   --edge:var(--glass-border);
   --edge-strong:var(--glass-border-bright);
-  --accent:#e11d48;
-  --accent-bright:#c81440;
-  --accent-2:#fb7185;
-  --accent-2-bright:#e11d48;
-  --accent-dim:rgba(225,29,72,.10);
+  --accent:#c81020;
+  --accent-bright:#a80c1a;
+  --accent-2:#e8432f;
+  --accent-2-bright:#c81020;
+  --accent-dim:rgba(200,16,32,.10);
   --accent-ink:#ffffff;
 
-  --grad-primary:linear-gradient(135deg,#fb7185 0%,#e11d48 55%,#9f1239 100%);
-  --grad-primary-hover:linear-gradient(135deg,#fda4af 0%,#f43f5e 55%,#be123c 100%);
-  --grad-soft:linear-gradient(135deg,rgba(251,113,133,.28),rgba(225,29,72,.06));
-  --grad-border:linear-gradient(135deg,rgba(225,29,72,.55),rgba(251,113,133,.15));
-  --page-gradient:radial-gradient(circle at 10% 5%, rgba(225,29,72,.09) 0%, transparent 32%),
-                  radial-gradient(circle at 92% 10%, rgba(251,113,133,.11) 0%, transparent 30%),
-                  radial-gradient(circle at 50% 105%, rgba(225,29,72,.07) 0%, transparent 40%),
+  --grad-primary:linear-gradient(135deg,#e8432f 0%,#c81020 55%,#6b0814 100%);
+  --grad-primary-hover:linear-gradient(135deg,#f06855 0%,#d61b2c 55%,#870f1c 100%);
+  --grad-soft:linear-gradient(135deg,rgba(232,67,47,.28),rgba(200,16,32,.06));
+  --grad-border:linear-gradient(135deg,rgba(200,16,32,.55),rgba(232,67,47,.15));
+  --page-gradient:radial-gradient(circle at 10% 5%, rgba(200,16,32,.09) 0%, transparent 32%),
+                  radial-gradient(circle at 92% 10%, rgba(232,67,47,.11) 0%, transparent 30%),
+                  radial-gradient(circle at 50% 105%, rgba(200,16,32,.07) 0%, transparent 40%),
                   #fefbfb;
 
-  --overlay-1:rgba(225,29,72,.04);
-  --overlay-2:rgba(225,29,72,.08);
-  --overlay-3:rgba(225,29,72,.14);
+  --overlay-1:rgba(200,16,32,.04);
+  --overlay-2:rgba(200,16,32,.08);
+  --overlay-3:rgba(200,16,32,.14);
   --glass-highlight:rgba(255,255,255,.8);
   --topbar-bg:rgba(255,255,255,.55);
   --sidebar:rgba(255,255,255,.5);
@@ -1451,11 +1456,11 @@ html,body{
 .ambient-glow::before,.ambient-glow::after{
   display:block;content:'';position:absolute;border-radius:50%;filter:blur(110px);opacity:.22;
 }
-.ambient-glow::before{width:520px;height:520px;top:-160px;left:-120px;background:radial-gradient(circle,#ff6b81,transparent 70%);}
-.ambient-glow::after{width:620px;height:620px;bottom:-220px;right:-160px;background:radial-gradient(circle,#c81d4a,transparent 70%);}
+.ambient-glow::before{width:520px;height:520px;top:-160px;left:-120px;background:radial-gradient(circle,#ff1f3d,transparent 70%);}
+.ambient-glow::after{width:620px;height:620px;bottom:-220px;right:-160px;background:radial-gradient(circle,#a80f2c,transparent 70%);}
 .ambient-glow .glow-blob{
   display:block;position:absolute;top:38%;left:55%;width:460px;height:460px;border-radius:50%;
-  background:radial-gradient(circle,rgba(255,145,170,.28),transparent 70%);filter:blur(100px);opacity:.2;
+  background:radial-gradient(circle,rgba(220,40,70,.28),transparent 70%);filter:blur(100px);opacity:.2;
 }
 [data-theme="light"] .ambient-glow::before,
 [data-theme="light"] .ambient-glow::after{opacity:.14;}
@@ -1478,7 +1483,7 @@ html,body{
 .auth-tabs{background:var(--glass-bg-soft);border:1px solid var(--glass-border);border-radius:14px;overflow:hidden;}
 .auth-tab{border-right:1px solid var(--glass-border);}
 .auth-tab.active{background:var(--grad-primary);color:#fff;}
-.brand-mark,.cust-icon{background:var(--grad-primary)!important;border:1px solid var(--glass-border-bright);box-shadow:0 6px 18px rgba(200,20,70,.4);}
+.brand-mark,.cust-icon{background:var(--grad-primary)!important;border:1px solid var(--glass-border-bright);box-shadow:0 6px 18px rgba(168,12,34,.4);}
 
 /* ============ LAYAR LOGIN — MODE TERANG DIBUAT MENONJOL ============
    Sebelumnya mode terang cuma dapat latar putih polos (--page-gradient:#fff)
@@ -1489,28 +1494,28 @@ html,body{
    supaya kesan pertama pengguna langsung terasa premium. */
 [data-theme="light"] .auth-screen{
   background:
-    radial-gradient(circle at 12% 8%, rgba(225,29,72,.14) 0%, transparent 36%),
-    radial-gradient(circle at 92% 12%, rgba(251,113,133,.16) 0%, transparent 34%),
-    radial-gradient(circle at 50% 105%, rgba(225,29,72,.10) 0%, transparent 42%),
-    #fff8f9;
+    radial-gradient(circle at 12% 8%, rgba(200,16,32,.14) 0%, transparent 36%),
+    radial-gradient(circle at 92% 12%, rgba(232,67,47,.16) 0%, transparent 34%),
+    radial-gradient(circle at 50% 105%, rgba(200,16,32,.10) 0%, transparent 42%),
+    #fff4f5;
 }
 [data-theme="light"] .auth-box{
   position:relative;overflow:hidden;
-  box-shadow:0 32px 70px -24px rgba(190,20,60,.28),0 2px 0 rgba(255,255,255,.6) inset;
+  box-shadow:0 32px 70px -24px rgba(160,10,30,.28),0 2px 0 rgba(255,255,255,.6) inset;
 }
 [data-theme="light"] .auth-box::before{
   content:'';position:absolute;top:0;left:0;right:0;height:5px;background:var(--grad-primary);
 }
 [data-theme="light"] .brand-mark#brand-mark-auth{
-  box-shadow:0 10px 26px rgba(200,20,70,.38);
+  box-shadow:0 10px 26px rgba(168,12,34,.38);
   animation:auth-mark-glow 2.6s ease-in-out infinite;
 }
 @keyframes auth-mark-glow{
-  0%,100%{box-shadow:0 10px 26px rgba(200,20,70,.32);}
-  50%{box-shadow:0 12px 34px rgba(200,20,70,.52);}
+  0%,100%{box-shadow:0 10px 26px rgba(168,12,34,.32);}
+  50%{box-shadow:0 12px 34px rgba(168,12,34,.52);}
 }
 [data-theme="light"] .auth-tabs{
-  background:rgba(225,29,72,.06);border:1px solid var(--glass-border);border-radius:999px;
+  background:rgba(200,16,32,.06);border:1px solid var(--glass-border);border-radius:999px;
   padding:4px;gap:4px;
 }
 [data-theme="light"] .auth-tab{
@@ -1518,7 +1523,7 @@ html,body{
 }
 [data-theme="light"] .auth-tab.active{
   background:var(--grad-primary)!important;color:#fff!important;
-  box-shadow:0 6px 16px rgba(200,20,70,.35);
+  box-shadow:0 6px 16px rgba(168,12,34,.35);
 }
 [data-theme="light"] .auth-box{animation:glass-pop-in .45s ease both;}
 @keyframes glass-pop-in{
@@ -1543,7 +1548,7 @@ html,body{
 .stat-mini-card:hover,.donut-card:hover,.stock-alert-card:hover,
 .cmd-activity-tile:hover{
   border-color:var(--glass-border-bright)!important;
-  box-shadow:0 10px 40px rgba(200,20,70,.28);
+  box-shadow:0 10px 40px rgba(168,12,34,.28);
   transform:translateY(-2px);
 }
 .kpi-grid,.stat-mini-grid,.team-grid,.dash-row,.dash-team-row,.cmd-activity-bento,
@@ -1588,6 +1593,49 @@ html,body{
   box-shadow:none!important;
 }
 
+/* ============ REVENUE CHART — garis mawar tua berdenyut (luminous pulse) ============ */
+#chart-main-path{
+  filter:drop-shadow(0 0 3px rgba(255,46,70,.9)) drop-shadow(0 0 10px rgba(255,31,61,.55));
+  animation:chart-line-pulse 2.6s ease-in-out infinite;
+}
+@keyframes chart-line-pulse{
+  0%,100%{filter:drop-shadow(0 0 3px rgba(255,46,70,.9)) drop-shadow(0 0 10px rgba(255,31,61,.55));}
+  50%{filter:drop-shadow(0 0 5px rgba(255,80,100,1)) drop-shadow(0 0 18px rgba(255,31,61,.85));}
+}
+@media (prefers-reduced-motion:reduce){#chart-main-path{animation:none;}}
+
+/* ============ LUMINOUS GLOW — halo merah lembut memancar dari belakang
+   setiap panel kaca (kpi-card, chart-card, sidebar, topbar, dropdown),
+   memperkuat kesan "bercahaya" futuristik di atas latar gradien gelap. ============ */
+.kpi-card,.chart-card,.table-card,.funnel-card,.timeline,.task-card,.cal-agenda-card,
+.team-card,.message-composer,.integration-card,.faq-item,
+.search-box,.settings-card,.stat-mini-card,.donut-card,.stock-alert-card,
+.cmd-activity-tile,.dash-team-mini,.chart-card-main,
+.modal-box{
+  position:relative;
+}
+.kpi-card::after,.chart-card::after,.table-card::after,.funnel-card::after,
+.stat-mini-card::after,.donut-card::after,.stock-alert-card::after,
+.cmd-activity-tile::after,.chart-card-main::after,
+.cal-agenda-card::after,.integration-card::after,.settings-card::after{
+  content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;z-index:-1;
+  box-shadow:0 0 40px -6px rgba(168,12,34,.45),0 0 90px -20px rgba(200,16,32,.35);
+  opacity:.55;transition:opacity .25s ease;
+}
+[data-theme="light"] .kpi-card::after,[data-theme="light"] .chart-card::after,
+[data-theme="light"] .table-card::after,[data-theme="light"] .funnel-card::after,
+[data-theme="light"] .stat-mini-card::after,[data-theme="light"] .donut-card::after,
+[data-theme="light"] .stock-alert-card::after,[data-theme="light"] .cmd-activity-tile::after,
+[data-theme="light"] .chart-card-main::after,
+[data-theme="light"] .cal-agenda-card::after,[data-theme="light"] .integration-card::after,
+[data-theme="light"] .settings-card::after{
+  box-shadow:0 0 30px -8px rgba(200,16,32,.20),0 0 60px -16px rgba(200,16,32,.14);opacity:.4;
+}
+.kpi-card:hover::after,.chart-card:hover::after,.table-card:hover::after,
+.funnel-card:hover::after,.stat-mini-card:hover::after,.donut-card:hover::after,
+.stock-alert-card:hover::after,.cmd-activity-tile:hover::after,
+.cal-agenda-card:hover::after,.integration-card:hover::after,.settings-card:hover::after{opacity:.9;}
+
 /* ============ MODAL / DROPDOWN / TOAST — kaca lebih pekat ============ */
 .modal-overlay{background:rgba(30,4,14,.45)!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
 [data-theme="light"] .modal-overlay{background:rgba(80,10,30,.20)!important;}
@@ -1612,10 +1660,10 @@ html,body{
 .btn{border-radius:14px!important;}
 .btn-primary{
   background:var(--grad-primary)!important;color:#fff!important;border:1px solid var(--glass-border-bright)!important;
-  box-shadow:0 8px 24px rgba(200,20,70,.35);
+  box-shadow:0 8px 24px rgba(168,12,34,.35);
 }
 .btn-primary:hover{
-  background:var(--grad-primary-hover)!important;opacity:1!important;box-shadow:0 10px 30px rgba(200,20,70,.5);
+  background:var(--grad-primary-hover)!important;opacity:1!important;box-shadow:0 10px 30px rgba(168,12,34,.5);
   transform:translateY(-1px);
 }
 .btn-secondary{
@@ -1624,14 +1672,14 @@ html,body{
 }
 .btn-secondary:hover{
   background:var(--grad-soft)!important;border-color:var(--glass-border-bright)!important;
-  box-shadow:0 6px 20px rgba(200,20,70,.2);
+  box-shadow:0 6px 20px rgba(168,12,34,.2);
 }
 .btn-danger{
-  background:var(--glass-bg-soft)!important;border:1px solid rgba(255,90,120,.55)!important;color:var(--red)!important;
+  background:var(--glass-bg-soft)!important;border:1px solid rgba(255,50,70,.55)!important;color:var(--red)!important;
 }
 .btn-danger:hover{
-  background:linear-gradient(135deg,rgba(255,88,118,.28),rgba(255,88,118,.08))!important;
-  border-color:var(--red)!important;font-weight:700;box-shadow:0 6px 20px rgba(255,88,118,.28);
+  background:linear-gradient(135deg,rgba(255,36,64,.28),rgba(255,36,64,.08))!important;
+  border-color:var(--red)!important;font-weight:700;box-shadow:0 6px 20px rgba(255,36,64,.28);
 }
 .icon-btn{border-radius:12px!important;}
 .icon-btn:hover{
@@ -1649,7 +1697,7 @@ html,body{
 }
 .filter-select:focus{
   border-color:var(--glass-border-bright)!important;
-  box-shadow:0 0 0 4px rgba(255,107,129,.16)!important;
+  box-shadow:0 0 0 4px rgba(255,31,61,.16)!important;
   background:var(--glass-bg)!important;
 }
 
@@ -1683,21 +1731,21 @@ html,body{
 .form-group input:focus,.form-group select:focus,
 .message-composer textarea:focus,.message-composer-row input:focus{
   border-color:var(--glass-border-bright)!important;
-  box-shadow:0 0 0 4px rgba(255,107,129,.16)!important;
+  box-shadow:0 0 0 4px rgba(255,31,61,.16)!important;
   background:var(--overlay-2)!important;
 }
 
 /* ============ SEARCH BOX — kotak luar sudah kaca; input di dalamnya dibuat polos
    transparan tanpa border/blur sendiri, supaya tidak ada dua kotak kaca bertumpuk. ============ */
 .search-box{border-radius:14px!important;}
-.search-box:focus-within{border-color:var(--glass-border-bright)!important;box-shadow:0 0 0 4px rgba(255,107,129,.14);}
+.search-box:focus-within{border-color:var(--glass-border-bright)!important;box-shadow:0 0 0 4px rgba(255,31,61,.14);}
 .search-box input{
   background:transparent!important;border:none!important;box-shadow:none!important;
   backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-radius:0!important;
 }
 
-select option{background-color:#3a0f1e;color:var(--ink);}
-[data-theme="light"] select option{background-color:#fff5f6;color:var(--ink);}
+select option{background-color:#2e050e;color:var(--ink);}
+[data-theme="light"] select option{background-color:#fff0f1;color:var(--ink);}
 
 /* ============ NAV ITEM — highlight kaca dgn gradien lembut ============ */
 .nav-item{border-radius:12px!important;border-left:none!important;padding-left:14px!important;}
@@ -1707,7 +1755,7 @@ select option{background-color:#3a0f1e;color:var(--ink);}
 }
 .nav-item.active{
   background:var(--grad-soft)!important;color:var(--ink)!important;font-weight:700;
-  box-shadow:inset 3px 0 0 var(--accent),0 4px 16px rgba(200,20,70,.15);
+  box-shadow:inset 3px 0 0 var(--accent),0 4px 16px rgba(168,12,34,.15);
 }
 .nav-badge{border:1px solid var(--glass-border-bright)!important;background:var(--grad-primary)!important;color:#fff!important;}
 
@@ -1747,14 +1795,14 @@ select option{background-color:#3a0f1e;color:var(--ink);}
 
 /* ============ SCROLLBAR / SELEKSI ============ */
 ::-webkit-scrollbar-thumb{background:var(--grad-primary);border-radius:8px;}
-::selection{background:rgba(255,107,129,.35);}
+::selection{background:rgba(255,31,61,.35);}
 
 /* ============ THEME SWITCH — knob & track kaca ============ */
 .theme-switch{
   background:var(--glass-bg-soft)!important;border:1px solid var(--glass-border)!important;border-radius:999px!important;
 }
 .theme-switch .knob{
-  background:var(--grad-primary)!important;border-radius:50%!important;box-shadow:0 4px 12px rgba(200,20,70,.4)!important;
+  background:var(--grad-primary)!important;border-radius:50%!important;box-shadow:0 4px 12px rgba(168,12,34,.4)!important;
 }
 
 /* ============ RESPONSIVE: sidebar mobile tetap kaca ============ */
@@ -1785,13 +1833,13 @@ select option{background-color:#3a0f1e;color:var(--ink);}
 
 /* ---- Status proyek/tugas (badge) ---- */
 .badge-aktif{color:var(--green)!important;}
-.badge-aktif .dot{background:var(--green)!important;box-shadow:0 0 6px rgba(78,232,176,.6);}
+.badge-aktif .dot{background:var(--green)!important;box-shadow:0 0 6px rgba(57,255,138,.6);}
 .badge-berjalan{color:var(--blue)!important;border-style:solid!important;}
 .badge-berjalan .dot{background:var(--blue)!important;border-color:var(--blue)!important;}
 .badge-tertunda{color:var(--yellow)!important;}
 .badge-tertunda .dot{background:var(--yellow)!important;border-color:var(--yellow)!important;}
 .badge-selesai{color:var(--green)!important;border-color:var(--green)!important;}
-.badge-selesai .dot{background:var(--green)!important;box-shadow:0 0 6px rgba(78,232,176,.6);}
+.badge-selesai .dot{background:var(--green)!important;box-shadow:0 0 6px rgba(57,255,138,.6);}
 .badge-dibatalkan{color:var(--red)!important;}
 .badge-dibatalkan .dot{background:var(--red)!important;border-color:var(--red)!important;}
 .badge-belum{color:var(--muted)!important;}
@@ -1801,13 +1849,13 @@ select option{background-color:#3a0f1e;color:var(--ink);}
 .badge-prioritas.normal{color:var(--yellow)!important;border-color:var(--yellow)!important;border-style:solid!important;}
 .badge-prioritas.tinggi{color:var(--red)!important;border-color:var(--red)!important;}
 
-/* ---- Status stok gudang ---- */
+/* ---- Status stok gudang — titik menyala (luminous glow) ---- */
 .stok-status--tersedia{color:var(--green)!important;}
-.stok-status--tersedia::before{background:var(--green)!important;}
+.stok-status--tersedia::before{background:var(--green)!important;box-shadow:0 0 8px 1px rgba(57,255,138,.75);}
 .stok-status--menipis{color:var(--yellow)!important;}
-.stok-status--menipis::before{background:var(--yellow)!important;border-color:var(--yellow)!important;}
+.stok-status--menipis::before{background:var(--yellow)!important;border-color:var(--yellow)!important;box-shadow:0 0 8px 1px rgba(255,201,77,.7);}
 .stok-status--habis{color:var(--red)!important;border-color:var(--red)!important;}
-.stok-status--habis::before{background:var(--red)!important;}
+.stok-status--habis::before{background:var(--red)!important;box-shadow:0 0 8px 1px rgba(255,36,64,.75);}
 .stok-status--nonaktif{color:var(--muted-2)!important;}
 [data-theme="light"] .stok-status--tersedia{color:var(--green)!important;}
 [data-theme="light"] .stok-status--menipis{color:var(--yellow)!important;}
@@ -1847,5 +1895,5 @@ select option{background-color:#3a0f1e;color:var(--ink);}
 .auth-msg.error{color:var(--red)!important;font-weight:700;}
 .auth-msg.ok{color:var(--green)!important;font-weight:600;}
 .impor-hasil-box .impor-error-list{color:var(--red)!important;}
-.notif-dot.red{background:var(--red)!important;box-shadow:0 0 6px rgba(255,88,118,.6);}
+.notif-dot.red{background:var(--red)!important;box-shadow:0 0 6px rgba(255,36,64,.6);}
 .notif-dot.info{background:var(--blue)!important;}
