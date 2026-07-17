@@ -1586,3 +1586,237 @@ begin
   exception when duplicate_object then null;
   end;
 end $$;
+
+-- =========================================================
+-- TAMBAHAN v25 — KOLOM "DIBUAT OLEH" & "UPDATE TERAKHIR" PADA PELANGGAN
+-- Menambahkan kolom dibuat_oleh_id/nama dan diupdate_oleh_id/nama/
+-- diupdate_pada pada tabel pelanggan, supaya menu "Pelanggan" bisa
+-- menampilkan kolom "Dibuat Oleh" (siapa yang menambahkan data
+-- pelanggan) dan "Update Terakhir" (kapan data pelanggan tersebut
+-- terakhir diubah) — konsisten dengan pola yang sudah dipakai pada
+-- tabel proyek (lihat v8 & v12) dan stok_item (lihat v10).
+-- Nilainya diisi otomatis oleh aplikasi (script.js) setiap kali data
+-- pelanggan ditambah atau diedit — bukan lewat trigger database.
+-- Aman dijalankan berulang kali / di database yang sudah berisi data.
+-- =========================================================
+alter table pelanggan add column if not exists dibuat_oleh_id uuid references profil(id) on delete set null;
+alter table pelanggan add column if not exists dibuat_oleh_nama text;
+alter table pelanggan add column if not exists diupdate_oleh_id uuid references profil(id) on delete set null;
+alter table pelanggan add column if not exists diupdate_oleh_nama text;
+alter table pelanggan add column if not exists diupdate_pada timestamptz default now();
+
+-- ---- Samakan data lama: pakai dibuat_pada sebagai "update terakhir" awal,
+-- dan tandai "Sistem" sebagai pembuat data pelanggan yang sudah ada sebelum
+-- migrasi ini, supaya kolom baru tidak tampil kosong untuk data lama ----
+update pelanggan set diupdate_pada = dibuat_pada where diupdate_pada is null;
+update pelanggan set dibuat_oleh_nama = 'Sistem' where dibuat_oleh_nama is null;
+
+-- =========================================================
+-- TAMBAHAN v26 — AKSES MENU "RINGKASAN" UNTUK PERAN MARKETING
+-- (KPI PRIBADI) & PEMBATASAN MENU "PELANGGAN" HANYA UNTUK DATA
+-- PELANGGAN MILIK MARKETING YBS
+--
+-- Sebelumnya peran Marketing sama sekali tidak bisa membuka menu
+-- Ringkasan (lihat data-roles di index.html versi lama) dan bisa
+-- melihat SEMUA baris pelanggan tanpa batas (kebijakan SELECT pada
+-- migrasi v7 mengizinkan siapa pun yang statusnya aktif).
+--
+-- Perubahan pada migrasi ini:
+--   1. Menu Ringkasan sekarang BOLEH dibuka oleh Marketing (lihat
+--      perubahan data-roles di index.html) — tapi datanya (KPI, grafik,
+--      tabel "Pelanggan Teratas" & "Proyek Bernilai Tertinggi") otomatis
+--      hanya berisi pelanggan yang MEREKA SENDIRI tambahkan (kolom
+--      dibuat_oleh_id, lihat migrasi v25), karena script.js memuat
+--      seluruh data lewat SELECT * — jadi pembatasannya harus terjadi
+--      di sini (RLS), bukan di JS.
+--   2. Menu Pelanggan mengikuti pembatasan yang sama: Marketing hanya
+--      melihat baris pelanggan yang dibuat_oleh_id = akun mereka sendiri.
+--      Admin, Anggota, dan Purchasing TIDAK terpengaruh — tetap melihat
+--      seluruh data seperti sebelumnya.
+--   3. Tabel proyek ikut dibatasi utk peran Marketing supaya kartu
+--      "Proyek Bernilai Tertinggi" & grafik di Ringkasan mereka juga
+--      cuma menghitung proyek milik pelanggan yang mereka tangani
+--      (dicocokkan lewat proyek.pelanggan_id -> pelanggan.dibuat_oleh_id).
+--
+-- CATATAN: jika sebuah baris pelanggan lama belum punya dibuat_oleh_id
+-- (data seed / data sebelum migrasi v25 yang ditandai dibuat_oleh_nama
+-- = 'Sistem'), baris tsb TIDAK AKAN muncul bagi peran Marketing manapun
+-- (dibuat_oleh_id-nya NULL, tidak match auth.uid() siapapun). Ini
+-- disengaja: data lama tanpa pemilik jelas sebaiknya di-assign ulang
+-- oleh Admin (buka baris pelanggan tsb, simpan ulang) supaya kolom
+-- dibuat_oleh_id terisi dan baru muncul di akun Marketing yg sesuai.
+-- Aman dijalankan berulang kali.
+-- =========================================================
+
+-- ---- PELANGGAN: Marketing hanya lihat baris miliknya sendiri ----
+drop policy if exists "akun aktif dapat membaca pelanggan" on pelanggan;
+create policy "akun aktif dapat membaca pelanggan" on pelanggan for select using (
+  public.peran_aktif_saya() is not null and (
+    public.peran_aktif_saya() <> 'marketing' or dibuat_oleh_id = auth.uid()
+  ));
+
+-- ---- PROYEK: Marketing hanya lihat proyek milik pelanggan yg mereka tangani ----
+drop policy if exists "akun aktif dapat membaca proyek" on proyek;
+create policy "akun aktif dapat membaca proyek" on proyek for select using (
+  public.peran_aktif_saya() is not null and (
+    public.peran_aktif_saya() <> 'marketing' or exists (
+      select 1 from pelanggan
+      where pelanggan.id = proyek.pelanggan_id
+        and pelanggan.dibuat_oleh_id = auth.uid()
+    )
+  ));
+
+-- =========================================================
+-- TAMBAHAN v27 — FILTER MARKETING DICOCOKKAN LEWAT NAMA (dibuat_oleh_nama)
+-- SELAIN LEWAT AKUN (dibuat_oleh_id), TIDAK HANYA SALAH SATU SAJA
+--
+-- Pada v26, baris pelanggan HANYA dianggap "milik" seorang Marketing kalau
+-- dibuat_oleh_id-nya persis sama dengan akun (auth.uid()) yang sedang login.
+-- Ini menyebabkan data lama yang belum sempat memiliki dibuat_oleh_id (mis.
+-- data sebelum migrasi v25, atau data yang di-assign manual oleh Admin lewat
+-- nama saja) tidak pernah muncul, walau nama pembuatnya (dibuat_oleh_nama)
+-- sebenarnya cocok dengan nama akun Marketing tsb (contoh: "Andhina",
+-- "Purwoko").
+--
+-- Migrasi ini menambahkan fungsi helper public.nama_aktif_saya() (pola yang
+-- sama seperti public.peran_aktif_saya()) yang mengembalikan kolom "nama"
+-- dari tabel profil milik akun yang sedang login. Kebijakan SELECT pelanggan
+-- & proyek untuk Marketing kemudian dicocokkan lewat DUA syarat sekaligus
+-- (OR, bukan cuma salah satu):
+--   a) dibuat_oleh_id = akun yang sedang login, ATAU
+--   b) dibuat_oleh_nama = nama akun yang sedang login (perbandingan tidak
+--      case-sensitive lewat lower(), supaya "Andhina" & "andhina" tetap
+--      cocok)
+--
+-- Konsekuensi praktis: SELAIN otomatis ter-assign ke pembuatnya (dibuat_oleh
+-- lewat aplikasi), Admin sekarang juga bisa "meng-assign" pelanggan lama ke
+-- seorang Marketing cukup dengan mengisi/menyamakan kolom dibuat_oleh_nama
+-- pelanggan tsb dengan kolom nama di profil Marketing ybs — TANPA harus
+-- membuka & menyimpan ulang baris tsb dari akun Marketing yang bersangkutan.
+--
+-- CATATAN: karena pencocokan nama bersifat teks biasa (bukan ID unik), jika
+-- ada dua akun Marketing dengan nama PERSIS SAMA, keduanya akan sama-sama
+-- melihat baris pelanggan yang nama pembuatnya cocok itu. Kalau ini jadi
+-- masalah di tim Anda, sebaiknya pastikan nama tiap akun Marketing unik, atau
+-- gunakan cara pencocokan ID saja (v26) dengan meng-assign ulang lewat
+-- aplikasi. Aman dijalankan berulang kali.
+-- =========================================================
+
+create or replace function public.nama_aktif_saya()
+returns text
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select nama from profil where id = auth.uid() and status_akun = 'aktif' limit 1;
+$$;
+grant execute on function public.nama_aktif_saya() to authenticated, anon;
+
+-- ---- PELANGGAN: cocokkan lewat akun (id) ATAU nama ----
+drop policy if exists "akun aktif dapat membaca pelanggan" on pelanggan;
+create policy "akun aktif dapat membaca pelanggan" on pelanggan for select using (
+  public.peran_aktif_saya() is not null and (
+    public.peran_aktif_saya() <> 'marketing'
+    or dibuat_oleh_id = auth.uid()
+    or lower(coalesce(dibuat_oleh_nama,'')) = lower(coalesce(public.nama_aktif_saya(),'__tidak_ada__'))
+  ));
+
+-- ---- PROYEK: ikut cocokkan lewat pelanggan yg id ATAU namanya match ----
+drop policy if exists "akun aktif dapat membaca proyek" on proyek;
+create policy "akun aktif dapat membaca proyek" on proyek for select using (
+  public.peran_aktif_saya() is not null and (
+    public.peran_aktif_saya() <> 'marketing' or exists (
+      select 1 from pelanggan
+      where pelanggan.id = proyek.pelanggan_id
+        and (
+          pelanggan.dibuat_oleh_id = auth.uid()
+          or lower(coalesce(pelanggan.dibuat_oleh_nama,'')) = lower(coalesce(public.nama_aktif_saya(),'__tidak_ada__'))
+        )
+    )
+  ));
+
+-- =========================================================
+-- TAMBAHAN v28 — AKSES MENU "AKTIVITAS", "TUGAS", "KALENDER",
+-- "LAPORAN" & "NOTIFIKASI" UNTUK PERAN MARKETING (HANYA DATA
+-- MILIK NAMA/AKUN MEREKA SENDIRI)
+--
+-- Perubahan pada migrasi ini HANYA menyangkut tabel AKTIVITAS.
+-- Tiga menu lainnya TIDAK perlu perubahan RLS karena datanya sudah
+-- otomatis terfilter lewat mekanisme yang sudah ada:
+--   - Menu Tugas & widget Kalender/Notifikasi terkait tugas: kebijakan
+--     SELECT tabel "tugas" (lihat migrasi v9) SUDAH membatasi setiap
+--     akun non-admin (termasuk Marketing) hanya melihat tugas yang
+--     ditugaskan ke/oleh dirinya sendiri, atau tugas yang belum
+--     ditugaskan ke siapa pun.
+--   - Menu Laporan, Kalender (bagian proyek), & KPI terkait proyek:
+--     memakai tabel "pelanggan" & "proyek" yang SUDAH dibatasi utk
+--     Marketing lewat migrasi v26/v27 (hanya pelanggan/proyek yang
+--     dibuat_oleh_id ATAU dibuat_oleh_nama cocok dengan akun ybs).
+--
+-- Tabel AKTIVITAS (log riwayat "X menambahkan Y", "Z memperbarui W",
+-- dst.) sebelumnya bisa dibaca penuh oleh SIAPA SAJA yang statusnya
+-- aktif (migrasi v10), tanpa peduli siapa pelakunya — supaya menu
+-- Aktivitas & Notifikasi Marketing HANYA menampilkan log yang mereka
+-- sendiri hasilkan (pelaku_id / pelaku_nama, lihat migrasi v4),
+-- kebijakan SELECT-nya dipersempit khusus utk peran Marketing dengan
+-- pola pencocokan yang SAMA seperti pelanggan/proyek (v27): lewat ID
+-- akun ATAU lewat nama (tidak case-sensitive), supaya log lama yang
+-- pelaku_id-nya belum terisi tapi pelaku_nama-nya sudah benar tetap
+-- ikut muncul.
+--
+-- CATATAN: log aktivitas lama (sebelum migrasi v4, kolom pelaku_id/
+-- pelaku_nama masih NULL) TIDAK AKAN muncul bagi peran Marketing
+-- manapun — sama seperti catatan pada migrasi v26 untuk data pelanggan
+-- lama. Admin/Anggota tetap melihat SELURUH log seperti biasa.
+-- Aman dijalankan berulang kali.
+-- =========================================================
+
+drop policy if exists "akun aktif dapat membaca aktivitas" on aktivitas;
+create policy "akun aktif dapat membaca aktivitas" on aktivitas for select using (
+  public.peran_aktif_saya() is not null and (
+    public.peran_aktif_saya() <> 'marketing'
+    or pelaku_id = auth.uid()
+    or lower(coalesce(pelaku_nama,'')) = lower(coalesce(public.nama_aktif_saya(),'__tidak_ada__'))
+  ));
+
+-- =========================================================
+-- TAMBAHAN v29 — MARKETING BOLEH MENAMBAHKAN PROYEK BARU
+--
+-- Sebelumnya hanya Admin & Anggota yang boleh INSERT ke tabel proyek.
+-- Tombol "Tambah Proyek" di halaman detail pelanggan (menu Pelanggan)
+-- sebenarnya sudah tampil bagi Marketing sejak awal (tidak ada
+-- data-roles yang menyembunyikannya di index.html) — hanya saja
+-- permintaan INSERT-nya selalu ditolak RLS. Migrasi ini mengizinkan
+-- Marketing menambah proyek, TAPI hanya untuk pelanggan yang memang
+-- mereka tangani sendiri (dicocokkan lewat dibuat_oleh_id ATAU
+-- dibuat_oleh_nama pada baris pelanggan tsb, pola yang sama dengan
+-- migrasi v26/v27) — supaya mereka tidak bisa diam-diam menambahkan
+-- proyek atas nama pelanggan milik marketing lain.
+--
+-- script.js (simpanProyek, mode tambah) SUDAH otomatis mengisi
+-- dibuat_oleh_id/dibuat_oleh_nama proyek dengan akun yang sedang login
+-- — jadi tidak perlu perubahan apa pun di script.js.
+--
+-- CATATAN: migrasi ini HANYA menambah hak INSERT. Hak UPDATE (edit)
+-- dan DELETE (hapus) proyek TETAP terbatas Admin & Anggota seperti
+-- sebelumnya (lihat kebijakan "admin anggota dapat mengubah proyek"
+-- & "hanya admin dapat menghapus proyek" pada migrasi v8/v22) — kalau
+-- Marketing juga perlu bisa mengedit/menghapus proyek yang mereka buat
+-- sendiri, beri tahu supaya ditambahkan kebijakan terpisah untuk itu.
+-- Aman dijalankan berulang kali.
+-- =========================================================
+drop policy if exists "admin anggota dapat menambah proyek" on proyek;
+create policy "admin anggota marketing dapat menambah proyek" on proyek for insert with check (
+  public.peran_aktif_saya() in ('admin','anggota')
+  or (
+    public.peran_aktif_saya() = 'marketing'
+    and exists (
+      select 1 from pelanggan
+      where pelanggan.id = proyek.pelanggan_id
+        and (
+          pelanggan.dibuat_oleh_id = auth.uid()
+          or lower(coalesce(pelanggan.dibuat_oleh_nama,'')) = lower(coalesce(public.nama_aktif_saya(),'__tidak_ada__'))
+        )
+    )
+  ));

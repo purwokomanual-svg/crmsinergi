@@ -341,16 +341,19 @@ async function masukKeAplikasi(session){
   if(CURRENT_USER.peran === 'admin'){ renderPengawasanTim(); renderPenggunaAdmin(); }
   initRealtime();
 
-  // Menu "Ringkasan" (dashboard umum) disembunyikan untuk peran Marketing
-  // (lihat data-roles di index.html) — jadi begitu masuk, langsung arahkan
-  // ke satu-satunya menu yang relevan bagi peran tsb, bukan menampilkan
-  // halaman Ringkasan yang toh tidak bisa mereka lihat. Purchasing SEKARANG
-  // juga bisa membuka Ringkasan (versi terbatas: hanya kartu Statistik
-  // Proyek & Peringatan Stok Gudang yang tampil, lihat data-roles di
-  // index.html), tapi tetap diarahkan ke Stock & Gudang lebih dulu karena
-  // itu menu utama pekerjaan sehari-hari peran ini.
-  if(CURRENT_USER.peran === 'marketing') pindahTampilan('pelanggan');
-  else if(CURRENT_USER.peran === 'purchasing') pindahTampilan('gudang');
+  // SEJAK v26: peran Marketing sekarang BOLEH membuka menu "Ringkasan" —
+  // tapi versinya personal (KPI, grafik, & tabel "Pelanggan Teratas"/
+  // "Proyek Bernilai Tertinggi" hanya berisi pelanggan yang mereka
+  // tambahkan sendiri, lihat data-roles di index.html & kebijakan RLS
+  // "marketing hanya lihat baris miliknya sendiri" di migrasi v26
+  // schema.sql) — jadi begitu masuk, TIDAK perlu lagi diarahkan paksa ke
+  // menu Pelanggan; Ringkasan sudah jadi halaman default yang relevan
+  // (sama seperti Admin/Anggota). Purchasing tetap diarahkan ke Stock &
+  // Gudang lebih dulu (versi Ringkasan mereka tetap terbatas: hanya kartu
+  // Statistik Proyek & Peringatan Stok Gudang yang tampil, lihat
+  // data-roles di index.html) karena itu menu utama pekerjaan sehari-hari
+  // peran ini.
+  if(CURRENT_USER.peran === 'purchasing') pindahTampilan('gudang');
 }
 
 /* Menampilkan #layar-status-akun dengan konten sesuai status akun —
@@ -646,6 +649,16 @@ function hitungNotifikasi(){
   // Stock & Gudang tetap ditampilkan apa adanya karena itu memang inti
   // tanggung jawab peran Purchasing.
   const isPurchasing = CURRENT_USER && CURRENT_USER.peran === 'purchasing';
+  // Marketing (SEJAK v28): DATA.proyek yang mereka terima dari Supabase
+  // SUDAH otomatis hanya berisi proyek milik pelanggan yang mereka
+  // tangani sendiri (lihat RLS "akun aktif dapat membaca proyek" di
+  // migrasi v26/v27) — jadi loop proyek di bawah TIDAK perlu filter
+  // tambahan khusus Marketing. Untuk tugas, terapkan aturan yang sama
+  // seperti Purchasing (hanya notifikasi tugas yang ditugaskan ke/oleh
+  // dirinya, bukan tugas umum yang belum ditugaskan ke siapa pun).
+  // Notifikasi Stock & Gudang TIDAK relevan bagi Marketing (mereka tidak
+  // punya akses ke menu Stock & Gudang) sehingga disembunyikan sama sekali.
+  const isMarketing = CURRENT_USER && CURRENT_USER.peran === 'marketing';
   DATA.proyek.forEach(p => {
     if(p.status === 'selesai' || p.status === 'dibatalkan') return;
     if(isPurchasing && p.dibuat_oleh_id !== CURRENT_USER.id) return;
@@ -657,7 +670,7 @@ function hitungNotifikasi(){
       });
     }
   });
-  DATA.tugas.filter(t => statusKerjaTugas(t) !== 'selesai').filter(t => !isPurchasing || t.ditugaskan_ke === CURRENT_USER.id || t.ditugaskan_oleh === CURRENT_USER.id).forEach(t => {
+  DATA.tugas.filter(t => statusKerjaTugas(t) !== 'selesai').filter(t => !(isPurchasing || isMarketing) || t.ditugaskan_ke === CURRENT_USER.id || t.ditugaskan_oleh === CURRENT_USER.id).forEach(t => {
     const d = tenggatKeTanggal(t.tenggat);
     if(d){
       const sisa = hariMenujuTenggat(d.toISOString().slice(0,10));
@@ -666,7 +679,7 @@ function hitungNotifikasi(){
       }
     }
   });
-  DATA.stokItem.filter(i => i.status !== 'nonaktif').forEach(i => {
+  if(!isMarketing) DATA.stokItem.filter(i => i.status !== 'nonaktif').forEach(i => {
     const status = hitungStatusStok(i);
     if(status === 'habis'){
       hasil.push({ judul: `Stok "${esc(i.nama_produk)}" (${esc(i.sku)}) di ${namaGudang(i.gudang_id)} habis`, meta: 'Stock & Gudang', urgent: true, urutan: -1 });
@@ -1317,7 +1330,7 @@ function renderPelanggan(){
   renderStatPelanggan(data, awal, akhir);
 
   if(!data.length){
-    tbody.innerHTML = `<tr><td colspan="18"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="20"><div class="empty-state">
       <p>Tidak ada pelanggan yang cocok dengan pencarian.</p></div></td></tr>`;
     return;
   }
@@ -1333,6 +1346,8 @@ function renderPelanggan(){
       <td>${esc(p.no_telepon) || '—'}</td>
       <td>${esc(p.no_whatsapp) || '—'}</td>
       <td>${esc(p.nama_pic) || '—'}</td>
+      <td class="cell-muted">${p.diupdate_pada ? waktuRelatif(p.diupdate_pada) : '—'}</td>
+      <td class="cell-muted">${esc(p.dibuat_oleh_nama) || '—'}</td>
       <td>${formatRupiah(a.berjalan)}</td>
       <td>${formatRupiah(a.tertunda)}</td>
       <td>${formatRupiah(a.selesai)}</td>
@@ -1443,7 +1458,12 @@ async function simpanPelanggan(e){
 
   if(id){
     // --- mode edit ---
-    const baris = { kode, nama, industri, alamat, no_telepon, no_whatsapp, nama_pic };
+    const baris = {
+      kode, nama, industri, alamat, no_telepon, no_whatsapp, nama_pic,
+      diupdate_oleh_id: CURRENT_USER ? CURRENT_USER.id : null,
+      diupdate_oleh_nama: CURRENT_USER ? CURRENT_USER.nama : null,
+      diupdate_pada: new Date().toISOString()
+    };
     const { data, error } = await supabaseClient.from('pelanggan').update(baris).eq('id', id).select().single();
     if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'ID Pelanggan') || 'Gagal menyimpan perubahan pelanggan', true); return; }
 
@@ -1460,7 +1480,10 @@ async function simpanPelanggan(e){
     const baris = {
       kode, nama, industri, status: 'aktif',
       alamat, no_telepon, no_whatsapp, nama_pic,
-      kontak_terakhir: new Date().toISOString().slice(0,10)
+      kontak_terakhir: new Date().toISOString().slice(0,10),
+      dibuat_oleh_id: CURRENT_USER ? CURRENT_USER.id : null,
+      dibuat_oleh_nama: CURRENT_USER ? CURRENT_USER.nama : null,
+      diupdate_pada: new Date().toISOString()
     };
     const { data, error } = await supabaseClient.from('pelanggan').insert(baris).select().single();
     if(error){ console.error(error); tampilkanToast(pesanErrorKode(error, 'ID Pelanggan') || 'Gagal menambah pelanggan', true); return; }
@@ -4353,6 +4376,12 @@ function itemUntukTanggal(hari, bulan, tahun){
   // buat, dan tugas yang ditugaskan ke/oleh dirinya (lihat juga renderTugas
   // yang menerapkan aturan serupa untuk menu Tugas non-admin).
   const isPurchasing = CURRENT_USER && CURRENT_USER.peran === 'purchasing';
+  // Marketing (SEJAK v28): DATA.proyek sudah otomatis hanya berisi proyek
+  // milik pelanggan yang mereka tangani sendiri (RLS migrasi v26/v27),
+  // jadi tidak perlu filter tambahan di sini untuk proyek. Untuk tugas,
+  // terapkan aturan yang sama seperti Purchasing (hanya tugas yang
+  // ditugaskan ke/oleh dirinya sendiri).
+  const isMarketing = CURRENT_USER && CURRENT_USER.peran === 'marketing';
   DATA.proyek.forEach(p => {
     if(!p.tenggat) return;
     if(isPurchasing && p.dibuat_oleh_id !== CURRENT_USER.id) return;
@@ -4362,7 +4391,7 @@ function itemUntukTanggal(hari, bulan, tahun){
     }
   });
   DATA.tugas.forEach(t => {
-    if(isPurchasing && t.ditugaskan_ke !== CURRENT_USER.id && t.ditugaskan_oleh !== CURRENT_USER.id) return;
+    if((isPurchasing || isMarketing) && t.ditugaskan_ke !== CURRENT_USER.id && t.ditugaskan_oleh !== CURRENT_USER.id) return;
     const tgl = parseTanggalIndo(t.tenggat) || (/^\d{4}-\d{2}-\d{2}/.test(t.tenggat||'') ? { hari: new Date(t.tenggat).getDate(), bulan: new Date(t.tenggat).getMonth() } : null);
     if(tgl && tgl.hari === hari && tgl.bulan === bulan){
       const status = statusKerjaTugas(t);
