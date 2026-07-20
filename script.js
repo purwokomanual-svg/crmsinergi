@@ -803,6 +803,7 @@ function pindahTampilan(namaView){
   // ditandai aktif saat berada di sana.
   const namaViewNav = namaView === 'pelanggan-detail' ? 'pelanggan'
     : (namaView === 'stok-detail' || namaView === 'manajemen-produk') ? 'gudang'
+    : namaView === 'komisi-marketing' ? 'laporan'
     : namaView;
   document.querySelectorAll('.nav-item[data-view]').forEach(el => {
     el.classList.toggle('active', el.dataset.view === namaViewNav);
@@ -822,6 +823,7 @@ function pindahTampilan(namaView){
   if(namaView === 'stok-detail') renderDetailStok();
   if(namaView === 'manajemen-produk') pindahTabManajemenProduk(MP_TAB_AKTIF);
   if(namaView === 'laporan') renderLaporan();
+  if(namaView === 'komisi-marketing') renderKomisiMarketing();
   if(namaView === 'pesan') renderPesan();
   if(namaView === 'integrasi') tesKoneksiSupabase();
   if(namaView === 'bantuan') renderFAQ();
@@ -4609,6 +4611,204 @@ function renderLaporan(){
   proyekPeriode.forEach(p => perStatus[p.status] = (perStatus[p.status]||0) + 1);
   document.getElementById('laporan-status').innerHTML = Object.entries(perStatus).map(([status,jumlah]) =>
     `<div class="report-row"><span>${labelStatusProyek(status)}</span><b>${jumlah} proyek</b></div>`).join('');
+}
+
+/* ---------------------------------------------------------
+   13b. KOMISI MARKETING (sub-halaman dari menu Laporan)
+   Menghitung komisi seorang marketing dari proyek yang ia tangani
+   (dicocokkan lewat dibuat_oleh_id/dibuat_oleh_nama — field yang sama
+   dipakai sebagai kolom "Dibuat Oleh" di menu Pelanggan & Proyek).
+   Basis komisi, persentase, potongan pajak & potongan lain semuanya
+   bisa diatur langsung dari halaman ini dan dihitung ulang otomatis.
+--------------------------------------------------------- */
+function bukaKomisiMarketing(){
+  pindahTampilan('komisi-marketing');
+}
+
+/* Mengisi dropdown pilihan marketing. Jika akun yang login berperan
+   sebagai Marketing, dropdown dikunci hanya ke dirinya sendiri — supaya
+   seorang marketing tidak bisa melihat rincian komisi marketing lain,
+   walau secara data (tabel profil) semua nama bisa diakses semua akun. */
+function isiSelectMarketingKomisi(){
+  const select = document.getElementById('pilih-marketing-komisi');
+  if(!select) return;
+  const isMarketingLogin = CURRENT_USER && CURRENT_USER.peran === 'marketing';
+  const daftarMarketing = isMarketingLogin
+    ? DATA.profil.filter(p => p.id === CURRENT_USER.id)
+    : DATA.profil.filter(p => p.peran === 'marketing').sort((a,b) => a.nama.localeCompare(b.nama));
+
+  if(!daftarMarketing.length){
+    select.innerHTML = `<option value="">Belum ada akun bertipe Marketing</option>`;
+    select.disabled = true;
+    return;
+  }
+  select.disabled = isMarketingLogin;
+  select.innerHTML = daftarMarketing.map(p => `<option value="${esc(p.id)}">${esc(p.nama)}</option>`).join('');
+  select.dataset.terisi = '1';
+}
+
+/* Mesin hitung inti — dipakai bersama oleh render tampilan & unduh CSV,
+   supaya angka yang ditampilkan dan yang diunduh selalu identik. */
+function hitungKomisiMarketing(){
+  const select = document.getElementById('pilih-marketing-komisi');
+  const marketingId = select ? select.value : '';
+  const marketing = DATA.profil.find(p => p.id === marketingId) || null;
+
+  const statusFilter = document.getElementById('filter-status-komisi')?.value || 'selesai';
+  const statusDiizinkan = statusFilter === 'selesai' ? ['selesai']
+    : statusFilter === 'selesai_berjalan' ? ['selesai','berjalan']
+    : ['berjalan','tertunda','selesai','dibatalkan'];
+
+  const { awal, akhir } = dapatkanRentangPeriode('komisi');
+
+  const basis = document.getElementById('komisi-basis')?.value || 'sub_total';
+  const persen = Number(document.getElementById('komisi-persen')?.value) || 0;
+  const potonganPajakPersen = Number(document.getElementById('komisi-potongan-pajak')?.value) || 0;
+  const potonganLainRp = Number(document.getElementById('komisi-potongan-lain')?.value) || 0;
+
+  const proyek = marketing ? DATA.proyek.filter(p => {
+    const cocokMarketing = p.dibuat_oleh_id ? p.dibuat_oleh_id === marketing.id : p.dibuat_oleh_nama === marketing.nama;
+    if(!cocokMarketing) return false;
+    if(!statusDiizinkan.includes(p.status)) return false;
+    return tanggalDalamRentang(p.tanggal, awal, akhir);
+  }) : [];
+
+  const baris = proyek.map(p => {
+    const subTotal = p.sub_total || p.nilai || 0;
+    const grandTotal = p.grand_total || subTotal;
+    const budgetTerpakai = p.budget_terpakai || 0;
+    const profit = hitungProfit(subTotal, budgetTerpakai);
+    const nilaiBasis = basis === 'grand_total' ? grandTotal : basis === 'profit' ? profit : subTotal;
+    const komisiRow = Math.max(0, nilaiBasis) * (persen/100);
+    return { p, subTotal, budgetTerpakai, profit, nilaiBasis, komisiRow };
+  });
+
+  const totalBasis = baris.reduce((s,b) => s + b.nilaiBasis, 0);
+  const komisiKotor = Math.max(0, totalBasis) * (persen/100);
+  const potonganPajakRp = komisiKotor * (potonganPajakPersen/100);
+  const komisiBersih = Math.max(0, komisiKotor - potonganPajakRp - potonganLainRp);
+  const totalPotongan = komisiKotor - komisiBersih;
+  const persenTerpotong = komisiKotor ? Math.round((totalPotongan/komisiKotor)*1000)/10 : 0;
+
+  return {
+    marketing, baris, statusFilter, basis, persen, potonganPajakPersen, potonganLainRp,
+    totalBasis, komisiKotor, potonganPajakRp, komisiBersih, totalPotongan, persenTerpotong,
+    labelPeriode: labelPeriodeRingkasSingkat(document.getElementById('filter-periode-komisi')?.value || 'semua')
+  };
+}
+
+function labelBasisKomisi(basis){
+  return { sub_total:'Sub Total', grand_total:'Grand Total', profit:'Profit Bersih' }[basis] || basis;
+}
+
+function renderKomisiMarketing(){
+  const select = document.getElementById('pilih-marketing-komisi');
+  if(select && !select.dataset.terisi) isiSelectMarketingKomisi();
+
+  const hasil = hitungKomisiMarketing();
+  const { marketing, baris, basis, persen, potonganPajakRp, potonganLainRp, potonganPajakPersen,
+    totalBasis, komisiKotor, komisiBersih, totalPotongan, persenTerpotong, labelPeriode } = hasil;
+
+  // --- Header profil marketing ---
+  document.getElementById('komisi-marketing-nama').textContent = marketing ? marketing.nama : 'Pilih Marketing';
+  document.getElementById('komisi-marketing-role').textContent = marketing ? labelPeran(marketing.peran) : 'Marketing';
+  document.getElementById('komisi-marketing-periode-tag').textContent = 'Periode: ' + labelPeriode;
+  document.getElementById('komisi-marketing-jumlah-proyek').textContent = baris.length + ' Proyek Dihitung';
+  document.getElementById('komisi-marketing-total-basis').textContent = 'Basis Komisi: ' + formatRupiah(totalBasis);
+  const sigMarketing = document.getElementById('komisi-signature-marketing');
+  if(sigMarketing) sigMarketing.textContent = marketing ? marketing.nama : 'Marketing';
+
+  // --- Kartu hero: Komisi Kotor & Komisi Bersih ---
+  document.getElementById('komisi-kotor').textContent = formatRupiah(komisiKotor);
+  document.getElementById('komisi-persen-badge').textContent = persen + '%';
+  document.getElementById('komisi-bersih').textContent = formatRupiah(komisiBersih);
+  document.getElementById('komisi-potongan-persen').textContent = persenTerpotong + '%';
+  const barBersih = document.getElementById('komisi-bersih-bar');
+  if(barBersih) barBersih.style.width = Math.max(4, 100 - persenTerpotong) + '%';
+  const badgePotongan = document.getElementById('komisi-potongan-badge');
+  if(badgePotongan){
+    badgePotongan.classList.toggle('down', persenTerpotong > 0);
+    badgePotongan.classList.toggle('up', persenTerpotong <= 0);
+  }
+
+  // --- Kartu KPI pendukung ---
+  document.getElementById('komisi-jumlah-proyek-kpi').textContent = baris.length;
+  document.getElementById('komisi-total-basis-kpi').textContent = formatRupiah(totalBasis);
+  document.getElementById('komisi-potongan-pajak-rp-kpi').textContent = formatRupiah(hasil.potonganPajakRp);
+  document.getElementById('komisi-potongan-lain-rp-kpi').textContent = formatRupiah(potonganLainRp);
+
+  // --- Rincian formula, seperti struk resmi ---
+  document.getElementById('komisi-formula').innerHTML = `
+    <div class="komisi-formula-row">
+      <span class="label">Total ${esc(labelBasisKomisi(basis))} dari ${baris.length} proyek<span class="sub">Basis yang dipakai untuk menghitung komisi</span></span>
+      <span class="val">${formatRupiah(totalBasis)}</span>
+    </div>
+    <div class="komisi-formula-row">
+      <span class="label"><span class="op">×</span>Persentase Komisi</span>
+      <span class="val">${persen}%</span>
+    </div>
+    <div class="komisi-formula-row">
+      <span class="label"><span class="op">=</span>Komisi Kotor</span>
+      <span class="val">${formatRupiah(komisiKotor)}</span>
+    </div>
+    <div class="komisi-formula-row deduct">
+      <span class="label"><span class="op">−</span>Potongan Pajak PPh21 (${potonganPajakPersen}%)</span>
+      <span class="val">− ${formatRupiah(hasil.potonganPajakRp)}</span>
+    </div>
+    <div class="komisi-formula-row deduct">
+      <span class="label"><span class="op">−</span>Potongan Biaya Lain</span>
+      <span class="val">− ${formatRupiah(potonganLainRp)}</span>
+    </div>
+    <div class="komisi-formula-row final">
+      <span class="label">Komisi Bersih Diterima</span>
+      <span class="val">${formatRupiah(komisiBersih)}</span>
+    </div>`;
+
+  // --- Tabel rincian proyek ---
+  const tbody = document.getElementById('komisi-tabel-body');
+  tbody.innerHTML = baris.length ? baris.map(({p, subTotal, budgetTerpakai, profit, nilaiBasis, komisiRow}) => `
+    <tr>
+      <td class="cell-muted">${esc(p.kode)}</td>
+      <td class="cell-name">${esc(p.nama)}</td>
+      <td>${esc(p.pelanggan_nama)}</td>
+      <td class="cell-muted">${p.tanggal ? formatTanggal(p.tanggal) : '—'}</td>
+      <td><span class="badge badge-${esc(p.status)}"><span class="dot"></span>${labelStatusProyek(p.status)}</span></td>
+      <td>${formatRupiah(subTotal)}</td>
+      <td>${formatRupiah(budgetTerpakai)}</td>
+      <td>${formatRupiah(profit)}</td>
+      <td>${formatRupiah(nilaiBasis)}</td>
+      <td><b>${formatRupiah(komisiRow)}</b></td>
+    </tr>`).join('') : `<tr><td colspan="10"><div class="empty-state"><p>${marketing ? 'Tidak ada proyek yang cocok dengan filter saat ini.' : 'Pilih marketing untuk melihat rincian proyeknya.'}</p></div></td></tr>`;
+
+  document.getElementById('komisi-tabel-total-basis').textContent = formatRupiah(totalBasis);
+  document.getElementById('komisi-tabel-total-komisi').textContent = formatRupiah(komisiKotor);
+
+  document.getElementById('komisi-tanggal-cetak').textContent = formatTanggal(new Date().toISOString());
+  const tglLetterhead = document.getElementById('komisi-tanggal-cetak-letterhead');
+  if(tglLetterhead) tglLetterhead.textContent = formatTanggal(new Date().toISOString());
+
+  // Ringkasan parameter dalam teks polos — hanya tampil saat dicetak
+  // (panel parameter interaktif disembunyikan saat print), supaya slip
+  // tetap transparan menunjukkan basis/persentase/potongan yang dipakai.
+  const labelStatusFilter = { selesai:'Hanya Proyek Selesai', selesai_berjalan:'Selesai & Berjalan', semua:'Semua Status' }[hasil.statusFilter] || hasil.statusFilter;
+  const printInfo = document.getElementById('komisi-print-info');
+  if(printInfo) printInfo.innerHTML = `
+    <div><b>Nama Marketing</b> : ${marketing ? esc(marketing.nama) : '—'}</div>
+    <div><b>Periode</b> : ${esc(labelPeriode)}</div>
+    <div><b>Status Proyek Dihitung</b> : ${esc(labelStatusFilter)}</div>
+    <div><b>Jumlah Proyek</b> : ${baris.length} proyek</div>
+    <div class="full"><b>Basis Komisi</b> : ${esc(labelBasisKomisi(basis))} &nbsp;·&nbsp; <b>Persentase Komisi</b> : ${persen}% &nbsp;·&nbsp; <b>Potongan Pajak PPh21</b> : ${potonganPajakPersen}% &nbsp;·&nbsp; <b>Potongan Biaya Lain</b> : ${formatRupiah(potonganLainRp)}</div>`;
+}
+
+function unduhKomisiMarketingCSV(){
+  const hasil = hitungKomisiMarketing();
+  if(!hasil.marketing){ tampilkanToast('Pilih marketing terlebih dahulu', true); return; }
+  const nama = hasil.marketing.nama.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+  unduhCSV(`komisi-${nama}.csv`,
+    ['Kode','Nama Proyek','Pelanggan','Tanggal PO','Status','Sub Total','Budget Terpakai','Profit', labelBasisKomisi(hasil.basis), 'Komisi (Rp)'],
+    hasil.baris.map(({p, subTotal, budgetTerpakai, profit, nilaiBasis, komisiRow}) =>
+      [p.kode, p.nama, p.pelanggan_nama, p.tanggal || '', labelStatusProyek(p.status), subTotal, budgetTerpakai, profit, nilaiBasis, Math.round(komisiRow)]));
+  tampilkanToast('Rincian komisi diunduh');
 }
 
 /* ---------------------------------------------------------

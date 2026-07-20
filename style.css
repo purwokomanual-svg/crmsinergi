@@ -1240,6 +1240,149 @@ td.assignee-cell .user-avatar{display:inline-flex;vertical-align:middle;margin-r
 .form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:6px;align-items:start;}
 @media(max-width:560px){.form-grid-3{grid-template-columns:1fr;}}
 
+/* ============ KOMISI MARKETING (menu Laporan) ============ */
+.komisi-param-card{padding:22px 24px;margin-bottom:20px;}
+.komisi-param-card h3{margin:0 0 4px;font-size:15px;font-weight:600;letter-spacing:-.01em;}
+.komisi-param-hint{margin:0 0 16px;font-size:13px;color:var(--muted);}
+.komisi-param-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+.komisi-param-grid .form-group{margin-bottom:0;}
+@media(max-width:980px){.komisi-param-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:560px){.komisi-param-grid{grid-template-columns:1fr;}}
+
+.komisi-formula-card{margin-bottom:20px;}
+.komisi-formula-row{
+  display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  padding:12px 0;border-bottom:1px dashed var(--edge);font-size:14px;
+}
+.komisi-formula-row:last-child{border-bottom:none;}
+.komisi-formula-row .label{color:var(--muted);}
+.komisi-formula-row .label .sub{display:block;font-size:12px;color:var(--muted-2);margin-top:2px;}
+.komisi-formula-row .op{color:var(--muted-2);font-weight:600;margin-right:8px;}
+.komisi-formula-row .val{font-weight:600;white-space:nowrap;}
+.komisi-formula-row.deduct .val{color:var(--red);}
+.komisi-formula-row.final{
+  margin-top:6px;padding-top:18px;border-top:2px solid var(--glass-border-bright);border-bottom:none;
+}
+.komisi-formula-row.final .label{color:var(--ink);font-weight:700;font-size:15px;}
+.komisi-formula-row.final .val{
+  font-size:26px;font-weight:800;letter-spacing:-.02em;
+  background:linear-gradient(135deg,#ffffff 0%,rgba(255,255,255,.72) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+[data-theme="light"] .komisi-formula-row.final .val{
+  background:linear-gradient(135deg,var(--ink) 0%,rgba(13,13,13,.75) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+
+.komisi-tabel-total td{background:var(--panel-2);font-size:13px;}
+
+.komisi-signature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin:28px 0 8px;}
+@media(max-width:700px){.komisi-signature-grid{grid-template-columns:1fr;}}
+.komisi-signature-block{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:18px 12px 8px;}
+.komisi-signature-role{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+.komisi-signature-line{width:100%;height:56px;border-bottom:1px solid var(--edge);}
+.komisi-signature-name{font-size:13px;font-weight:600;color:var(--ink);}
+.komisi-disclaimer{margin:0 0 24px;font-size:12px;color:var(--muted-2);text-align:center;}
+
+/* Letterhead & ringkasan parameter — hanya untuk hasil cetak, disembunyikan
+   di layar karena info yang sama sudah tampil lewat header & panel parameter
+   interaktif. */
+.komisi-print-letterhead{display:none;}
+.komisi-print-info{display:none;}
+
+/* ============ CETAK SLIP KOMISI — DOKUMEN BERSIH ============
+   Saat window.print() dipanggil di halaman ini, seluruh nuansa "kartu kaca
+   gelap + glow neon" dilepas dan diganti tampilan dokumen resmi: latar
+   putih polos, teks hitam pekat kontras tinggi, garis pembatas tipis biasa
+   (bukan bayangan/blur/gradasi), tipografi lebih besar & rapi, supaya hasil
+   cetak/PDF benar-benar terbaca jelas di atas kertas — bukan sekadar
+   screenshot tampilan gelap yang dipaksa ke kertas putih. */
+@media print{
+  #view-komisi-marketing .komisi-print-letterhead{
+    display:block;text-align:center;margin-bottom:26px;padding-bottom:16px;border-bottom:2px solid #000;
+  }
+  #view-komisi-marketing .komisi-print-letterhead .brand-name{
+    display:block;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#000;
+  }
+  #view-komisi-marketing .komisi-print-letterhead h1{margin:10px 0 4px;font-size:23px;font-weight:800;letter-spacing:-.01em;color:#000;}
+  #view-komisi-marketing .komisi-print-letterhead p{margin:0;font-size:11.5px;color:#444;}
+
+  #view-komisi-marketing .komisi-print-info{
+    display:grid!important;grid-template-columns:1fr 1fr;gap:5px 24px;
+    margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid #999;font-size:12.5px;line-height:1.7;
+  }
+  #view-komisi-marketing .komisi-print-info b{font-weight:700;}
+  #view-komisi-marketing .komisi-print-info .full{grid-column:1/-1;}
+
+  /* Reset total: latar putih, semua bayangan/gradasi/glow/blur dimatikan,
+     semua teks jadi hitam pekat (termasuk teks yang tadinya "dipotong"
+     transparan lewat -webkit-text-fill-color untuk efek gradasi kartu hero). */
+  #view-komisi-marketing{background:#fff!important;color:#000!important;padding:0!important;font-size:13px;}
+  #view-komisi-marketing *{
+    box-shadow:none!important;text-shadow:none!important;animation:none!important;
+    filter:none!important;backdrop-filter:none!important;
+    background:transparent!important;background-image:none!important;
+    -webkit-text-fill-color:#000!important;border-color:#ccc!important;
+  }
+
+  /* Sembunyikan semua yang tidak relevan di kertas (kontrol interaktif,
+     ikon dekoratif berwarna, dan progress bar dekoratif). */
+  #view-komisi-marketing .btn-kembali,
+  #view-komisi-marketing .komisi-param-card,
+  #view-komisi-marketing .toolbar,
+  #view-komisi-marketing .cust-header,
+  #view-komisi-marketing .view-head,
+  #view-komisi-marketing .kpi-mini-icon,
+  #view-komisi-marketing .hero-kpi-icon,
+  #view-komisi-marketing .kpi-bar,
+  #view-komisi-marketing .kpi-range,
+  #view-komisi-marketing .badge .dot{display:none!important;}
+
+  /* Kartu jadi kotak dokumen polos berbingkai tipis, bukan panel kaca */
+  #view-komisi-marketing .kpi-card,#view-komisi-marketing .table-card,
+  #view-komisi-marketing .hero-kpi-card{
+    border:1px solid #bbb!important;border-radius:4px!important;padding:12px 14px!important;
+  }
+  #view-komisi-marketing .hero-kpi-grid{grid-template-columns:1fr 1fr!important;gap:12px!important;margin-bottom:12px!important;}
+  #view-komisi-marketing .cmd-stat-grid{grid-template-columns:repeat(4,1fr)!important;gap:10px!important;margin-bottom:16px!important;}
+  #view-komisi-marketing .kpi-label{font-size:11px!important;color:#555!important;}
+  #view-komisi-marketing .hero-kpi-value{font-size:21px!important;}
+  #view-komisi-marketing .kpi-value{font-size:16px!important;color:#000!important;}
+  #view-komisi-marketing .hero-kpi-tag,#view-komisi-marketing .kpi-delta{
+    border:1px solid #bbb!important;color:#000!important;font-size:11px!important;
+  }
+
+  /* Rincian formula: hitam pekat, baris potongan tetap merah gelap supaya
+     langsung terlihat sebagai pengurang, baris final ditebalkan dg garis. */
+  #view-komisi-marketing .komisi-formula-card{margin-bottom:16px!important;padding:14px 16px!important;}
+  #view-komisi-marketing .komisi-formula-card h3{font-size:14px!important;}
+  #view-komisi-marketing .komisi-formula-row{border-bottom:1px dashed #bbb!important;padding:7px 0!important;font-size:12.5px!important;}
+  #view-komisi-marketing .komisi-formula-row .label .sub{color:#666!important;}
+  #view-komisi-marketing .komisi-formula-row.final{border-top:2px solid #000!important;padding-top:14px!important;}
+  #view-komisi-marketing .komisi-formula-row.final .label{font-size:13.5px!important;}
+  #view-komisi-marketing .komisi-formula-row.final .val{font-size:19px!important;}
+  #view-komisi-marketing .komisi-formula-row.deduct .val{color:#a00!important;-webkit-text-fill-color:#a00!important;}
+
+  /* Tabel rincian: bingkai penuh + header abu-abu muda + baris selang-seling
+     supaya enak dipindai mata di atas kertas. */
+  #view-komisi-marketing .table-card{margin-bottom:16px!important;}
+  #view-komisi-marketing .data-table{border-collapse:collapse!important;width:100%!important;}
+  #view-komisi-marketing .data-table th,#view-komisi-marketing .data-table td{
+    border:1px solid #ccc!important;padding:6px 8px!important;font-size:11px!important;color:#000!important;
+  }
+  #view-komisi-marketing .data-table thead th{background:#eee!important;font-weight:700!important;}
+  #view-komisi-marketing .data-table tbody tr:nth-child(even) td{background:#f7f7f7!important;}
+  #view-komisi-marketing .komisi-tabel-total td{background:#eee!important;font-weight:700!important;}
+  #view-komisi-marketing .badge{border:1px solid #999!important;padding:2px 9px!important;border-radius:999px!important;font-size:10.5px!important;}
+
+  /* Tanda tangan: baris tegas, jangan sampai terpotong di antara halaman */
+  #view-komisi-marketing .komisi-signature-grid{margin-top:44px!important;page-break-inside:avoid;}
+  #view-komisi-marketing .komisi-signature-line{border-bottom:1px solid #000!important;height:70px!important;}
+  #view-komisi-marketing .komisi-signature-role{color:#555!important;}
+  #view-komisi-marketing .komisi-signature-name{color:#000!important;font-size:12.5px!important;}
+  #view-komisi-marketing .komisi-disclaimer{color:#666!important;margin-top:14px!important;font-size:10.5px!important;}
+}
+
 .form-sublabel{font-size:12px;color:var(--muted);}
 .opsional-label{color:var(--muted-2);font-weight:500;text-transform:none;letter-spacing:0;}
 .settings-readonly{

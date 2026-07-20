@@ -1258,6 +1258,10 @@
           <p>Ringkasan performa penjualan &amp; proyek, siap diunduh atau dicetak.</p>
         </div>
         <div class="cust-actions no-print">
+          <button class="btn btn-secondary" onclick="bukaKomisiMarketing()" data-roles="admin,anggota,marketing">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.2"/><circle cx="17" cy="17" r="2.2"/></svg>
+            Komisi Marketing
+          </button>
           <button class="btn btn-secondary" onclick="window.print()">Cetak</button>
           <button class="btn btn-primary" onclick="unduhLaporanCSV()">Unduh CSV</button>
         </div>
@@ -1289,6 +1293,224 @@
           <div id="laporan-status"></div>
         </div>
       </div>
+    </section>
+
+    <!-- ===================== VIEW: KOMISI MARKETING ===================== -->
+    <section class="view" id="view-komisi-marketing">
+      <div class="komisi-print-letterhead">
+        <span class="brand-name">Dealstack</span>
+        <h1>Slip Komisi Marketing</h1>
+        <p>Dicetak pada <span id="komisi-tanggal-cetak-letterhead">—</span></p>
+      </div>
+      <div class="komisi-print-info" id="komisi-print-info"></div>
+
+      <button class="btn btn-secondary btn-kembali no-print" onclick="pindahTampilan('laporan')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
+        Kembali ke Laporan
+      </button>
+
+      <div class="cust-header">
+        <div class="cust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.2"/><circle cx="17" cy="17" r="2.2"/></svg></div>
+        <div class="cust-titles">
+          <h1 id="komisi-marketing-nama">Pilih Marketing</h1>
+          <div class="cust-tags">
+            <span class="tag" id="komisi-marketing-role">Marketing</span>
+            <span class="tag" id="komisi-marketing-periode-tag">Periode: Semua Waktu</span>
+          </div>
+          <div class="cust-tags" style="margin-top:8px;">
+            <span class="tag status"><span class="dot"></span><span id="komisi-marketing-jumlah-proyek">0 Proyek Dihitung</span></span>
+            <span class="tag" id="komisi-marketing-total-basis">Basis Komisi: Rp0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="view-head">
+        <div>
+          <h2>Perhitungan Komisi Marketing</h2>
+          <p>Rincian proyek, persentase komisi, dan potongan — bisa diatur sesuai kebijakan perusahaan.</p>
+        </div>
+        <div class="cust-actions no-print">
+          <button class="btn btn-secondary" onclick="window.print()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
+            Cetak Slip Komisi
+          </button>
+          <button class="btn btn-primary" onclick="unduhKomisiMarketingCSV()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>
+            Unduh CSV
+          </button>
+        </div>
+      </div>
+
+      <div class="toolbar no-print">
+        <select class="filter-select" id="pilih-marketing-komisi" onchange="renderKomisiMarketing()" title="Pilih marketing yang dihitung komisinya"></select>
+        <select class="filter-select" id="filter-status-komisi" onchange="renderKomisiMarketing()" title="Status proyek yang dihitung">
+          <option value="selesai">Hanya Proyek Selesai</option>
+          <option value="selesai_berjalan">Selesai &amp; Berjalan</option>
+          <option value="semua">Semua Status</option>
+        </select>
+        <select class="filter-select" id="filter-periode-komisi" title="Saring berdasarkan Tanggal PO" onchange="toggleInputPeriodeCustom('komisi');renderKomisiMarketing()">
+          <option value="semua">Periode: Semua Waktu</option>
+          <option value="harian">Periode: Hari Ini</option>
+          <option value="bulanan" selected>Periode: Bulan Ini</option>
+          <option value="semester">Periode: Semester Ini</option>
+          <option value="tahunan">Periode: Tahun Ini</option>
+          <option value="custom">Periode: Custom...</option>
+        </select>
+        <div class="periode-custom-wrap hidden" id="wrap-periode-custom-komisi">
+          <input type="date" class="periode-date-input" id="periode-dari-komisi" onchange="renderKomisiMarketing()">
+          <span>s/d</span>
+          <input type="date" class="periode-date-input" id="periode-sampai-komisi" onchange="renderKomisiMarketing()">
+        </div>
+        <div class="toolbar-spacer"></div>
+      </div>
+
+      <div class="table-card komisi-param-card no-print">
+        <h3>Parameter Perhitungan</h3>
+        <p class="komisi-param-hint">Atur basis, persentase, dan potongan sesuai kebijakan komisi perusahaan — seluruh angka di bawah otomatis dihitung ulang.</p>
+        <div class="komisi-param-grid">
+          <div class="form-group">
+            <label>Basis Komisi</label>
+            <select id="komisi-basis" onchange="renderKomisiMarketing()">
+              <option value="sub_total">Sub Total (Omzet)</option>
+              <option value="grand_total">Grand Total (termasuk Pajak &amp; Dana Lain)</option>
+              <option value="profit">Profit Bersih (Omzet − Budget Terpakai)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Persentase Komisi (%)</label>
+            <input type="number" id="komisi-persen" value="5" min="0" max="100" step="0.5" oninput="renderKomisiMarketing()">
+          </div>
+          <div class="form-group">
+            <label>Potongan Pajak PPh21 (%)</label>
+            <input type="number" id="komisi-potongan-pajak" value="0" min="0" max="100" step="0.5" oninput="renderKomisiMarketing()">
+          </div>
+          <div class="form-group">
+            <label>Potongan Biaya Lain (Rp)</label>
+            <input type="number" id="komisi-potongan-lain" value="0" min="0" step="10000" oninput="renderKomisiMarketing()">
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-grid hero-kpi-grid" data-roles="admin,anggota,marketing">
+        <div class="kpi-card hero-kpi-card hero-kpi-omzet cmd-grad-blue">
+          <div class="kpi-top">
+            <div class="kpi-icon-label">
+              <span class="kpi-mini-icon hero-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.2"/><circle cx="17" cy="17" r="2.2"/></svg></span>
+              <span class="kpi-label">Komisi Kotor</span>
+            </div>
+            <span class="kpi-range">Sebelum Potongan</span>
+          </div>
+          <div class="kpi-bar"><div class="kpi-bar-fill" style="width:100%"></div></div>
+          <div class="kpi-bottom">
+            <div class="kpi-value hero-kpi-value" id="komisi-kotor">Rp0</div>
+            <div class="kpi-delta hero-kpi-tag"><span id="komisi-persen-badge">5%</span> dari Basis</div>
+          </div>
+        </div>
+        <div class="kpi-card hero-kpi-card hero-kpi-profit cmd-grad-green">
+          <div class="kpi-top">
+            <div class="kpi-icon-label">
+              <span class="kpi-mini-icon hero-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 12V8H6a2 2 0 010-4h12v4M4 6v12a2 2 0 002 2h14v-4M18 12a2 2 0 100 4 2 2 0 000-4z"/></svg></span>
+              <span class="kpi-label">Komisi Bersih Diterima</span>
+            </div>
+            <span class="kpi-range">Setelah Potongan</span>
+          </div>
+          <div class="kpi-bar"><div class="kpi-bar-fill" id="komisi-bersih-bar" style="width:0%"></div></div>
+          <div class="kpi-bottom">
+            <div class="kpi-value hero-kpi-value" id="komisi-bersih">Rp0</div>
+            <div class="kpi-delta up" id="komisi-potongan-badge"><span id="komisi-potongan-persen">0%</span> Terpotong</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-grid cmd-stat-grid" data-roles="admin,anggota,marketing">
+        <div class="kpi-card cmd-stat-card cmd-grad-cyan">
+          <div class="kpi-top">
+            <div class="kpi-icon-label">
+              <span class="kpi-mini-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 11l3 3L22 4M2 12a10 10 0 1018 6"/></svg></span>
+              <span class="kpi-label">Jumlah Proyek Dihitung</span>
+            </div>
+          </div>
+          <div class="kpi-bottom"><div class="kpi-value" id="komisi-jumlah-proyek-kpi">0</div></div>
+        </div>
+        <div class="kpi-card cmd-stat-card cmd-grad-purple">
+          <div class="kpi-top">
+            <div class="kpi-icon-label">
+              <span class="kpi-mini-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></span>
+              <span class="kpi-label">Total Basis Komisi</span>
+            </div>
+          </div>
+          <div class="kpi-bottom"><div class="kpi-value" id="komisi-total-basis-kpi">Rp0</div></div>
+        </div>
+        <div class="kpi-card cmd-stat-card cmd-grad-yellow">
+          <div class="kpi-top">
+            <div class="kpi-icon-label">
+              <span class="kpi-mini-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 7a2 2 0 012-2h13a1 1 0 011 1v3M3 7v11a2 2 0 002 2h14a2 2 0 002-2V9a1 1 0 00-1-1H6a1 1 0 00-1 1"/><circle cx="16.5" cy="14" r="1.4"/></svg></span>
+              <span class="kpi-label">Potongan Pajak (Rp)</span>
+            </div>
+          </div>
+          <div class="kpi-bottom"><div class="kpi-value" id="komisi-potongan-pajak-rp-kpi">Rp0</div></div>
+        </div>
+        <div class="kpi-card cmd-stat-card cmd-grad-blue">
+          <div class="kpi-top">
+            <div class="kpi-icon-label">
+              <span class="kpi-mini-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M19 14l-7 7-7-7M12 21V3"/></svg></span>
+              <span class="kpi-label">Potongan Biaya Lain (Rp)</span>
+            </div>
+          </div>
+          <div class="kpi-bottom"><div class="kpi-value" id="komisi-potongan-lain-rp-kpi">Rp0</div></div>
+        </div>
+      </div>
+
+      <div class="table-card komisi-formula-card">
+        <h3>Rincian Perhitungan Komisi</h3>
+        <div id="komisi-formula"></div>
+      </div>
+
+      <div class="table-card">
+        <h3>Rincian Proyek yang Dihitung</h3>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Kode</th><th>Nama Proyek</th><th>Pelanggan</th><th>Tanggal PO</th><th>Status</th>
+                <th>Sub Total</th><th>Budget Terpakai</th><th>Profit</th><th>Basis Komisi</th><th>Komisi (Rp)</th>
+              </tr>
+            </thead>
+            <tbody id="komisi-tabel-body"></tbody>
+            <tfoot>
+              <tr class="komisi-tabel-total">
+                <td colspan="8"></td>
+                <td><b>Total Basis</b></td>
+                <td><b id="komisi-tabel-total-basis">Rp0</b></td>
+              </tr>
+              <tr class="komisi-tabel-total">
+                <td colspan="8"></td>
+                <td><b>Total Komisi Kotor</b></td>
+                <td><b id="komisi-tabel-total-komisi">Rp0</b></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="komisi-signature-grid">
+        <div class="komisi-signature-block">
+          <span class="komisi-signature-role">Disiapkan oleh</span>
+          <span class="komisi-signature-line"></span>
+          <span class="komisi-signature-name">Admin / Finance</span>
+        </div>
+        <div class="komisi-signature-block">
+          <span class="komisi-signature-role">Diperiksa oleh</span>
+          <span class="komisi-signature-line"></span>
+          <span class="komisi-signature-name">Manajer</span>
+        </div>
+        <div class="komisi-signature-block">
+          <span class="komisi-signature-role">Diterima oleh</span>
+          <span class="komisi-signature-line"></span>
+          <span class="komisi-signature-name" id="komisi-signature-marketing">Marketing</span>
+        </div>
+      </div>
+      <p class="komisi-disclaimer">Dokumen dibuat otomatis oleh sistem pada <span id="komisi-tanggal-cetak">—</span>. Nilai bersifat perhitungan internal dan dapat berubah sebelum disetujui.</p>
     </section>
 
     <!-- ===================== VIEW: INTEGRASI ===================== -->
