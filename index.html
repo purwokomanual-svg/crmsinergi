@@ -107,15 +107,15 @@
   </div>
 
   <div class="sidebar-nav">
-  <button class="nav-item active" data-view="ringkasan" data-roles="admin,anggota,purchasing,marketing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/></svg>Ringkasan</button>
+  <button class="nav-item active" data-view="ringkasan" data-roles="admin,anggota,purchasing,marketing,staff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/></svg>Ringkasan</button>
   <button class="nav-item" data-view="pelanggan" data-roles="admin,anggota,marketing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><circle cx="18" cy="9" r="2.5"/><path d="M15.5 20a5 5 0 018.5-3.2"/></svg>Pelanggan</button>
-  <button class="nav-item" data-view="pesan" data-roles="admin,anggota,purchasing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v13H8l-4 4V4z"/></svg>Pesan<span class="nav-badge" id="badge-pesan" style="display:none;"></span></button>
+  <button class="nav-item" data-view="pesan" data-roles="admin,anggota,purchasing,staff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v13H8l-4 4V4z"/></svg>Pesan<span class="nav-badge" id="badge-pesan" style="display:none;"></span></button>
 
-  <div class="nav-label" data-roles="admin,anggota,purchasing,marketing">Penjualan &amp; Operasional</div>
-  <button class="nav-item" data-view="aktivitas" data-roles="admin,anggota,marketing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg>Aktivitas</button>
-  <button class="nav-item" data-view="tugas" data-roles="admin,anggota,purchasing,marketing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l2.5 2.5L16 9"/></svg>Tugas</button>
-  <button class="nav-item" data-view="kalender" data-roles="admin,anggota,purchasing,marketing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>Kalender</button>
-  <button class="nav-item" data-view="gudang" data-roles="admin,anggota,purchasing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/></svg>Stock &amp; Gudang<span class="nav-badge" id="badge-gudang" style="display:none;"></span></button>
+  <div class="nav-label" data-roles="admin,anggota,purchasing,marketing,staff">Penjualan &amp; Operasional</div>
+  <button class="nav-item" data-view="aktivitas" data-roles="admin,anggota,marketing,staff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg>Aktivitas</button>
+  <button class="nav-item" data-view="tugas" data-roles="admin,anggota,purchasing,marketing,staff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l2.5 2.5L16 9"/></svg>Tugas</button>
+  <button class="nav-item" data-view="kalender" data-roles="admin,anggota,purchasing,marketing,staff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>Kalender</button>
+  <button class="nav-item" data-view="gudang" data-roles="admin,anggota,purchasing,marketing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/></svg>Stock &amp; Gudang<span class="nav-badge" id="badge-gudang" style="display:none;"></span></button>
 
   <div class="nav-label" data-roles="admin,anggota,marketing">Wawasan</div>
   <button class="nav-item" data-view="analitik" data-roles="admin,anggota"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>Analitik</button>
@@ -207,10 +207,15 @@
         <div class="cust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v7M12 14v7M5 12h4M15 12h4"/></svg></div>
         <div class="cust-titles">
           <h1>Ringkasan Bisnis</h1>
-          <div class="cust-tags">
+          <div class="cust-tags" data-roles="admin,anggota,purchasing,marketing">
             <span class="tag status"><span class="dot"></span><span id="tag-pelanggan-aktif">— Pelanggan Aktif</span></span>
             <span class="tag" id="tag-proyek-berjalan">— Proyek Berjalan</span>
             <span class="tag" id="tag-tanggal-ringkasan">—</span>
+          </div>
+          <div class="cust-tags" data-roles="staff">
+            <span class="tag status"><span class="dot"></span><span id="tag-staff-tugas-aktif">— Tugas Aktif</span></span>
+            <span class="tag" id="tag-staff-tugas-selesai">— Tugas Selesai</span>
+            <span class="tag" id="tag-tanggal-ringkasan-staff">—</span>
           </div>
         </div>
         <div class="cust-actions" data-roles="admin,anggota,marketing">
@@ -225,7 +230,85 @@
             </div>
           </div>
         </div>
+        <!-- Aksi khusus peran Staff: hanya 2 tombol fungsional yang relevan
+             dengan pekerjaan harian mereka (tugas), bukan aksi manajerial
+             seperti Bagikan/Unduh CSV/Laporan Lengkap di atas yang memang
+             tidak relevan untuk Staff (mereka tidak punya akses data
+             pelanggan/proyek). Diberi class "no-print" karena tombol aksi
+             tidak boleh ikut tercetak — lihat aturan @media print umum di
+             style.css & mode cetak khusus di cetakTugasStaff() (script.js). -->
+        <div class="cust-actions no-print" data-roles="staff">
+          <button class="btn btn-secondary btn-sm" onclick="bukaModalTugas()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+            Tambah Tugas Baru
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="cetakTugasStaff()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4a1 1 0 01-1-1v-6a1 1 0 011-1h16a1 1 0 011 1v6a1 1 0 01-1 1h-2M6 14h12v7H6v-7z"/></svg>
+            Cetak Tugas
+          </button>
+        </div>
       </div>
+
+      <!-- ======== DASHBOARD PERSONAL UNTUK PERAN STAFF ========
+           Staff tidak punya akses ke data pelanggan/proyek/finansial, jadi
+           Ringkasan mereka diganti total dengan "monitoring pribadi": tugas
+           yang ditugaskan ke mereka, aktivitas yang mereka lakukan sendiri,
+           dan pengumuman tim terbaru — bukan KPI penjualan. Semua data di
+           blok ini (kecuali Pesan, yang memang papan bersama) otomatis
+           terbatas ke akun Staff yang sedang login lewat RLS (lihat migrasi
+           v30 schema.sql) & fungsi renderRingkasanStaff() di script.js.
+
+           Seluruh blok visual staff SENGAJA disatukan ke dalam SATU wrapper
+           induk ".staff-dashboard-wrapper" dengan SATU atribut data-roles,
+           bukan disebar di tiap sub-elemen — supaya terapkanPeran() cuma
+           toggle 1 node saat ganti peran (bukan 6+ node terpisah), yang
+           mencegah "visual flickering" saat elemen-elemen anak muncul satu
+           per satu. Layout bento: kartu mini-stat di atas, lalu baris utama
+           Tabel Tugas Saya (~65%) berdampingan dengan Pesan Terbaru (~35%),
+           dan Aktivitas Saya penuh selebar konten di baris paling bawah. -->
+      <div class="staff-dashboard-wrapper" data-roles="staff">
+
+        <div class="dash-section-head">
+          <div class="card-title-row"><span class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l2.5 2.5L16 9"/></svg></span><h3>Tugas Saya</h3></div>
+          <span class="dash-section-sub">Status &amp; tenggat tugas yang ditugaskan ke Anda</span>
+          <button class="btn btn-secondary btn-sm dash-section-action no-print" onclick="pindahTampilan('tugas')">Buka Tugas</button>
+        </div>
+
+        <div class="stat-mini-grid" id="stat-ringkasan-staff-tugas"></div>
+
+        <!-- Baris utama: Tabel Tugas Saya (~65%) + Pesan Terbaru (~35%).
+             id="staff-tugas-print-target" dipakai cetakTugasStaff() (script.js)
+             untuk membatasi hasil cetak HANYA ke tabel tugas, tanpa ikut
+             mencetak kolom Pesan Terbaru di sampingnya (lihat mode
+             ".mode-cetak-tugas" di style.css). -->
+        <div class="dash-row dash-row-staff-main" id="staff-tugas-print-target">
+          <div class="table-card staff-tugas-col">
+            <table class="data-table">
+              <thead>
+                <tr><th>Tugas</th><th>Prioritas</th><th>Status</th><th>Tenggat</th></tr>
+              </thead>
+              <tbody id="tbody-ringkasan-staff-tugas"></tbody>
+            </table>
+          </div>
+          <div class="table-card staff-pesan-col">
+            <div class="card-title-row" style="padding:16px 16px 0 16px;"><span class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v13H8l-4 4V4z"/></svg></span><h3>Pesan Terbaru</h3></div>
+            <span class="dash-section-sub" style="padding:0 16px;display:block;">5 pengumuman tim paling baru</span>
+            <div class="message-list" id="list-ringkasan-staff-pesan" style="padding:12px 16px 16px;"></div>
+          </div>
+        </div>
+
+        <!-- Baris bawah: Aktivitas Saya, penuh selebar konten (Staff tidak
+             punya log sistem seperti Admin, jadi tidak perlu berdampingan). -->
+        <div class="dash-row dash-row-staff-bottom">
+          <div class="table-card staff-aktivitas-col">
+            <div class="card-title-row" style="padding:16px 16px 0 16px;"><span class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg></span><h3>Aktivitas Saya</h3></div>
+            <span class="dash-section-sub" style="padding:0 16px;display:block;">Riwayat aksi yang Anda lakukan di aplikasi ini</span>
+            <div class="timeline" id="list-ringkasan-staff-aktivitas" style="padding:12px 16px 16px;"></div>
+          </div>
+        </div>
+
+      </div>
+      <!-- ======== /DASHBOARD PERSONAL STAFF ======== -->
 
       <div class="toolbar" data-roles="admin,anggota,marketing">
         <div class="dash-toolbar-label card-title-row">
@@ -246,6 +329,37 @@
           <input type="date" class="periode-date-input" id="periode-sampai-ringkasan">
         </div>
         <div class="toolbar-spacer"></div>
+      </div>
+
+      <div class="kpi-grid hero-kpi-grid cmd-stat-grid" data-roles="admin,anggota,marketing">
+        <div class="kpi-card cmd-stat-card hero-kpi-card hero-kpi-omzet cmd-grad-blue">
+          <div class="kpi-top">
+            <div class="kpi-icon-label">
+              <span class="kpi-mini-icon hero-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 7a2 2 0 012-2h13a1 1 0 011 1v3M3 7v11a2 2 0 002 2h14a2 2 0 002-2V9a1 1 0 00-1-1H6a1 1 0 00-1 1"/><circle cx="16.5" cy="14" r="1.4"/></svg></span>
+              <span class="kpi-label">Total Omzet</span>
+            </div>
+            <span class="kpi-range"><span id="kpi-range-total-omzet">Bulan Ini</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span>
+          </div>
+          <div class="kpi-bar"><div class="kpi-bar-fill" style="width:82%"></div></div>
+          <div class="kpi-bottom">
+            <div class="kpi-value hero-kpi-value" id="kpi-total-omzet">—</div>
+            <div class="kpi-delta hero-kpi-tag"><span id="kpi-omzet-tag">Sub Total</span></div>
+          </div>
+        </div>
+        <div class="kpi-card cmd-stat-card hero-kpi-card hero-kpi-profit cmd-grad-green">
+          <div class="kpi-top">
+            <div class="kpi-icon-label">
+              <span class="kpi-mini-icon hero-kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8M15 6h6v6"/></svg></span>
+              <span class="kpi-label">Nett Profit</span>
+            </div>
+            <span class="kpi-range"><span id="kpi-range-nett-profit">Bulan Ini</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span>
+          </div>
+          <div class="kpi-bar"><div class="kpi-bar-fill" id="kpi-nett-profit-bar" style="width:0%"></div></div>
+          <div class="kpi-bottom">
+            <div class="kpi-value hero-kpi-value" id="kpi-nett-profit">—</div>
+            <div class="kpi-delta" id="kpi-nett-margin-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 15l6-6 6 6"/></svg><span id="kpi-nett-margin">0%</span> Margin</div>
+          </div>
+        </div>
       </div>
 
       <div class="kpi-grid cmd-stat-grid" data-roles="admin,anggota,marketing">
@@ -417,13 +531,6 @@
           <span class="cmd-activity-time">2 jam lalu</span>
         </div>
       </div>
-
-      <div class="dash-section-head">
-        <div class="card-title-row"><span class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg></span><h3>Peringatan Stok Gudang</h3></div>
-        <span class="dash-section-sub">Item berstatus stok menipis atau habis di gudang Surabaya &amp; Jakarta</span>
-        <button class="btn btn-secondary btn-sm dash-section-action" onclick="pindahTampilan('gudang')">Buka Stock &amp; Gudang</button>
-      </div>
-      <div class="dash-row dash-row-stok" id="dash-row-stok-gudang"></div>
 
       <div class="dash-section-head" data-roles="admin,anggota">
         <div class="card-title-row"><span class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0114 0"/></svg></span><h3>Anggota Tim</h3></div>
@@ -731,8 +838,8 @@
           <h2>Stock &amp; Gudang</h2>
           <p>Atur dan awasi stok produk di setiap gudang — satu SKU dipantau terpisah per lokasi.</p>
         </div>
-        <div class="view-head-actions">
-          <button class="btn btn-secondary" onclick="bukaManajemenProduk('produk')">
+        <div class="view-head-actions" data-roles="admin,anggota,purchasing">
+          <button class="btn btn-secondary" onclick="bukaManajemenProduk()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
             Manajemen Produk &amp; Kategori
           </button>
@@ -986,7 +1093,7 @@
             <h2>Detail Stok Masuk</h2>
             <p>Riwayat penerimaan produk ini ke gudang, lengkap dengan No DO, vendor, No PO, dan kondisi barang.</p>
           </div>
-          <button class="btn btn-primary" onclick="bukaModalTambahStokMasuk()">
+          <button class="btn btn-primary" data-roles="admin,anggota,purchasing" onclick="bukaModalTambahStokMasuk()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
             Tambah Stok Masuk
           </button>
@@ -1039,7 +1146,7 @@
             <h2>Detail Stok Keluar</h2>
             <p>Riwayat pengiriman produk ini keluar dari gudang, lengkap dengan No DO, pelanggan, No PO, proyek, status (Terjual/Dipinjam), dan kondisi barang.</p>
           </div>
-          <button class="btn btn-primary" onclick="bukaModalTambahStokKeluar()">
+          <button class="btn btn-primary" data-roles="admin,anggota,purchasing" onclick="bukaModalTambahStokKeluar()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
             Tambah Stok Keluar
           </button>
@@ -1109,7 +1216,7 @@
           <p>Papan pengumuman internal untuk tim penjualan. Semua anggota tim dapat melihat catatan ini.</p>
         </div>
       </div>
-      <div class="message-composer">
+      <div class="message-composer" data-roles="admin,anggota,purchasing">
         <textarea id="input-catatan" placeholder="Tulis pengumuman atau catatan untuk tim..." rows="2"></textarea>
         <div class="message-composer-row">
           <button class="btn btn-primary" onclick="tambahCatatan()">

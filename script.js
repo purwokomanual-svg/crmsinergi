@@ -217,11 +217,25 @@ function bolehKelolaStok(){
   return !!(CURRENT_USER && (CURRENT_USER.peran === 'admin' || CURRENT_USER.peran === 'purchasing'));
 }
 
+/* True jika peran pengguna saat ini HANYA boleh MELIHAT menu Stock &
+   Gudang, tanpa hak tambah/edit/hapus apa pun — khusus Marketing sejak
+   migrasi v30 (lihat juga data-roles di index.html yang menyembunyikan
+   tombol "Tambah Item"/"Import Data"/"Manajemen Produk & Kategori"/
+   "Tambah Stok Masuk"/"Tambah Stok Keluar" bagi peran ini). Kebijakan
+   INSERT/UPDATE/DELETE tabel gudang, stok_item, riwayat_stok, dan
+   kategori_produk/kategori_merek di schema.sql memang sudah TIDAK
+   menyertakan 'marketing' sejak awal — fungsi ini hanya menyembunyikan
+   ikon aksi di sisi tampilan supaya konsisten dengan itu. */
+function gudangHanyaLihat(){
+  return !!(CURRENT_USER && CURRENT_USER.peran === 'marketing');
+}
+
 function labelPeran(peran){
   switch(peran){
     case 'admin': return 'Administrator';
     case 'marketing': return 'Marketing';
     case 'purchasing': return 'Purchasing';
+    case 'staff': return 'Staff';
     default: return 'Anggota Tim';
   }
 }
@@ -349,8 +363,7 @@ async function masukKeAplikasi(session){
   // schema.sql) — jadi begitu masuk, TIDAK perlu lagi diarahkan paksa ke
   // menu Pelanggan; Ringkasan sudah jadi halaman default yang relevan
   // (sama seperti Admin/Anggota). Purchasing tetap diarahkan ke Stock &
-  // Gudang lebih dulu (versi Ringkasan mereka tetap terbatas: hanya kartu
-  // Statistik Proyek & Peringatan Stok Gudang yang tampil, lihat
+  // Gudang lebih dulu (versi Ringkasan mereka tetap terbatas — lihat
   // data-roles di index.html) karena itu menu utama pekerjaan sehari-hari
   // peran ini.
   if(CURRENT_USER.peran === 'purchasing') pindahTampilan('gudang');
@@ -659,6 +672,12 @@ function hitungNotifikasi(){
   // Notifikasi Stock & Gudang TIDAK relevan bagi Marketing (mereka tidak
   // punya akses ke menu Stock & Gudang) sehingga disembunyikan sama sekali.
   const isMarketing = CURRENT_USER && CURRENT_USER.peran === 'marketing';
+  // Staff (SEJAK v30): dashboard & notifikasi mereka murni personal — hanya
+  // tugas yang ditugaskan ke/oleh dirinya sendiri, TANPA notifikasi Stock &
+  // Gudang (mereka tidak punya akses ke menu itu) dan TANPA notifikasi
+  // proyek (DATA.proyek memang sudah kosong bagi Staff lewat RLS v30,
+  // karena mereka tidak menangani pelanggan/proyek).
+  const isStaff = CURRENT_USER && CURRENT_USER.peran === 'staff';
   DATA.proyek.forEach(p => {
     if(p.status === 'selesai' || p.status === 'dibatalkan') return;
     if(isPurchasing && p.dibuat_oleh_id !== CURRENT_USER.id) return;
@@ -670,7 +689,7 @@ function hitungNotifikasi(){
       });
     }
   });
-  DATA.tugas.filter(t => statusKerjaTugas(t) !== 'selesai').filter(t => !(isPurchasing || isMarketing) || t.ditugaskan_ke === CURRENT_USER.id || t.ditugaskan_oleh === CURRENT_USER.id).forEach(t => {
+  DATA.tugas.filter(t => statusKerjaTugas(t) !== 'selesai').filter(t => !(isPurchasing || isMarketing || isStaff) || t.ditugaskan_ke === CURRENT_USER.id || t.ditugaskan_oleh === CURRENT_USER.id).forEach(t => {
     const d = tenggatKeTanggal(t.tenggat);
     if(d){
       const sisa = hariMenujuTenggat(d.toISOString().slice(0,10));
@@ -679,7 +698,7 @@ function hitungNotifikasi(){
       }
     }
   });
-  if(!isMarketing) DATA.stokItem.filter(i => i.status !== 'nonaktif').forEach(i => {
+  if(!isMarketing && !isStaff) DATA.stokItem.filter(i => i.status !== 'nonaktif').forEach(i => {
     const status = hitungStatusStok(i);
     if(status === 'habis'){
       hasil.push({ judul: `Stok "${esc(i.nama_produk)}" (${esc(i.sku)}) di ${namaGudang(i.gudang_id)} habis`, meta: 'Stock & Gudang', urgent: true, urutan: -1 });
@@ -847,8 +866,40 @@ function renderKPI(){
   document.getElementById('kpi-win-rate').textContent = winRate + '%';
   document.getElementById('kpi-jumlah-proyek').textContent = jumlahProyek;
 
+  // Total Omzet (Sub Total) & Nett Profit (Profit + Margin%) — dua kartu KPI
+  // "hero" di atas grid utama. Sama seperti aturan Profit/Margin di menu
+  // Pelanggan & Laporan: dihitung dari Sub Total dikurangi Budget Terpakai,
+  // bukan dari grand_total (yang sudah termasuk pajak/dana lain), supaya
+  // Nett Profit mencerminkan margin usaha yang sesungguhnya.
+  const totalOmzet = proyekAktif.reduce((s,p) => s + (p.sub_total || 0), 0);
+  const totalBudgetTerpakai = proyekAktif.reduce((s,p) => s + (p.budget_terpakai || 0), 0);
+  const nettProfit = hitungProfit(totalOmzet, totalBudgetTerpakai);
+  const marginPersen = hitungMarginPersen(totalOmzet, totalBudgetTerpakai);
+
+  document.getElementById('kpi-total-omzet').textContent = formatRupiah(totalOmzet);
+
+  const elNettProfit = document.getElementById('kpi-nett-profit');
+  elNettProfit.textContent = formatRupiah(nettProfit);
+
+  const elMarginBadge = document.getElementById('kpi-nett-margin-badge');
+  const elMargin = document.getElementById('kpi-nett-margin');
+  const elBar = document.getElementById('kpi-nett-profit-bar');
+  const elProfitCard = elNettProfit.closest('.hero-kpi-profit');
+  elMargin.textContent = Math.abs(marginPersen) + '%';
+  if(nettProfit < 0){
+    elMarginBadge.classList.remove('up'); elMarginBadge.classList.add('down');
+    elMarginBadge.querySelector('svg path').setAttribute('d','M6 9l6 6 6-6');
+    if(elProfitCard) elProfitCard.classList.add('hero-kpi-loss');
+  } else {
+    elMarginBadge.classList.remove('down'); elMarginBadge.classList.add('up');
+    elMarginBadge.querySelector('svg path').setAttribute('d','M6 15l6-6 6 6');
+    if(elProfitCard) elProfitCard.classList.remove('hero-kpi-loss');
+  }
+  if(elBar) elBar.style.width = Math.max(0, Math.min(100, Math.abs(marginPersen))) + '%';
+
   const labelSingkat = labelPeriodeRingkasSingkat(modePeriode);
-  ['kpi-range-total-nilai','kpi-range-rata-rata','kpi-range-win-rate','kpi-range-jumlah-proyek'].forEach(id => {
+  ['kpi-range-total-nilai','kpi-range-rata-rata','kpi-range-win-rate','kpi-range-jumlah-proyek',
+   'kpi-range-total-omzet','kpi-range-nett-profit'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.textContent = labelSingkat;
   });
@@ -875,10 +926,10 @@ function renderRingkasan(){
   renderTagRingkasan();
   renderKPI();
   renderRingkasanDonut();
-  renderRingkasanStokGudang();
   renderDashTeamRow();
   renderRingkasanTabelPelanggan();
   renderRingkasanTabelProyek();
+  renderRingkasanStaff();
 }
 
 function renderTagRingkasan(){
@@ -889,6 +940,133 @@ function renderTagRingkasan(){
   const hariIni = new Date();
   const bln = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
   document.getElementById('tag-tanggal-ringkasan').textContent = hariIni.getDate() + ' ' + bln[hariIni.getMonth()] + ' ' + hariIni.getFullYear();
+}
+
+/* ---------------------------------------------------------
+   4a-2. RENDER: DASHBOARD PERSONAL PERAN STAFF
+   Staff tidak diberi akses ke data pelanggan/proyek/finansial (lihat
+   data-roles di index.html & migrasi v30 di schema.sql), jadi Ringkasan
+   mereka diganti total dengan monitoring pribadi: tugas yang ditugaskan
+   ke mereka, aktivitas yang mereka lakukan sendiri, dan pengumuman tim
+   terbaru. DATA.tugas & DATA.aktivitas yang dipakai di sini SUDAH
+   otomatis terbatas ke akun Staff yang login lewat RLS — fungsi ini
+   tinggal merender apa yang sudah dikirim Supabase, tanpa filter
+   tambahan (kecuali DATA.catatan/Pesan yang memang papan bersama).
+--------------------------------------------------------- */
+function renderTagRingkasanStaff(){
+  const tagAktif = document.getElementById('tag-staff-tugas-aktif');
+  const tagSelesai = document.getElementById('tag-staff-tugas-selesai');
+  const tagTanggal = document.getElementById('tag-tanggal-ringkasan-staff');
+  if(!tagAktif || !CURRENT_USER) return;
+  const tugasSaya = DATA.tugas.filter(t => t.ditugaskan_ke === CURRENT_USER.id);
+  const aktifCount = tugasSaya.filter(t => statusKerjaTugas(t) !== 'selesai').length;
+  const selesaiCount = tugasSaya.filter(t => statusKerjaTugas(t) === 'selesai').length;
+  tagAktif.textContent = aktifCount + ' Tugas Aktif';
+  tagSelesai.textContent = selesaiCount + ' Tugas Selesai';
+  const hariIni = new Date();
+  const bln = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  tagTanggal.textContent = hariIni.getDate() + ' ' + bln[hariIni.getMonth()] + ' ' + hariIni.getFullYear();
+}
+
+function renderRingkasanStaff(){
+  if(!CURRENT_USER || CURRENT_USER.peran !== 'staff') return;
+  renderTagRingkasanStaff();
+
+  // ---- Kartu statistik "Tugas Saya" ----
+  const statWrap = document.getElementById('stat-ringkasan-staff-tugas');
+  const tugasSaya = DATA.tugas.filter(t => t.ditugaskan_ke === CURRENT_USER.id);
+  if(statWrap){
+    const belum = tugasSaya.filter(t => statusKerjaTugas(t) === 'belum').length;
+    const dikerjakan = tugasSaya.filter(t => ['dikerjakan','review'].includes(statusKerjaTugas(t))).length;
+    const selesai = tugasSaya.filter(t => statusKerjaTugas(t) === 'selesai').length;
+    const terlambat = tugasSaya.filter(t => {
+      if(statusKerjaTugas(t) === 'selesai') return false;
+      const sisa = hariMenujuTenggat(tenggatKeTanggal(t.tenggat));
+      return sisa !== null && sisa < 0;
+    }).length;
+    statWrap.innerHTML = `
+      <div class="stat-mini-card">
+        <span class="stat-mini-label">Total Tugas</span>
+        <span class="stat-mini-value">${tugasSaya.length}</span>
+      </div>
+      <div class="stat-mini-card">
+        <span class="stat-mini-label">Belum Dikerjakan</span>
+        <span class="stat-mini-value">${belum}</span>
+      </div>
+      <div class="stat-mini-card">
+        <span class="stat-mini-label">Sedang Dikerjakan</span>
+        <span class="stat-mini-value">${dikerjakan}</span>
+      </div>
+      <div class="stat-mini-card ${terlambat > 0 ? 'danger' : 'ok'}">
+        <span class="stat-mini-label">Terlambat</span>
+        <span class="stat-mini-value">${terlambat}</span>
+      </div>
+      <div class="stat-mini-card ok">
+        <span class="stat-mini-label">Selesai</span>
+        <span class="stat-mini-value">${selesai}</span>
+      </div>`;
+  }
+
+  // ---- Tabel tugas saya, diurutkan dari tenggat terdekat, tugas selesai
+  //      ditaruh paling bawah supaya yang butuh perhatian tampil dulu ----
+  const tbody = document.getElementById('tbody-ringkasan-staff-tugas');
+  if(tbody){
+    if(!tugasSaya.length){
+      tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><p>Belum ada tugas yang ditugaskan ke Anda.</p></div></td></tr>`;
+    } else {
+      const urutanStatus = { belum: 0, dikerjakan: 1, review: 1, selesai: 2 };
+      const terurut = [...tugasSaya].sort((a, b) => {
+        const sa = statusKerjaTugas(a), sb = statusKerjaTugas(b);
+        if(urutanStatus[sa] !== urutanStatus[sb]) return urutanStatus[sa] - urutanStatus[sb];
+        const da = tenggatKeTanggal(a.tenggat), db = tenggatKeTanggal(b.tenggat);
+        if(!da && !db) return 0;
+        if(!da) return 1;
+        if(!db) return -1;
+        return da - db;
+      }).slice(0, 8);
+      tbody.innerHTML = terurut.map(t => {
+        const status = statusKerjaTugas(t);
+        return `
+        <tr>
+          <td class="cell-name">${esc(t.judul)}</td>
+          <td><span class="badge-prioritas ${t.prioritas || 'normal'}">${(t.prioritas || 'normal').charAt(0).toUpperCase() + (t.prioritas || 'normal').slice(1)}</span></td>
+          <td><span class="badge badge-${ {belum:'belum', dikerjakan:'berjalan', review:'tertunda', selesai:'selesai'}[status] }"><span class="dot"></span>${labelStatusKerja(status)}</span></td>
+          <td class="cell-muted">${formatTenggatUniversal(t.tenggat)}</td>
+        </tr>`;
+      }).join('');
+    }
+  }
+
+  // ---- Aktivitas saya (sudah terbatas ke pelaku = akun sendiri lewat RLS) ----
+  const wrapAktivitas = document.getElementById('list-ringkasan-staff-aktivitas');
+  if(wrapAktivitas){
+    const aktivitasSaya = DATA.aktivitas.slice(0, 6);
+    wrapAktivitas.innerHTML = aktivitasSaya.length ? aktivitasSaya.map(a => `
+      <div class="timeline-item">
+        <div class="timeline-dot">${ikonAktivitas[a.tipe] || ikonAktivitas.tugas}</div>
+        <div class="timeline-body">
+          <div class="timeline-title">${escB(a.teks)}</div>
+          <div class="timeline-meta">${esc(waktuRelatif(a.dibuat_pada))}</div>
+        </div>
+      </div>`).join('') : `<div class="empty-state"><p>Belum ada aktivitas yang tercatat atas nama Anda.</p></div>`;
+  }
+
+  // ---- Pesan terbaru (papan pengumuman BERSAMA — semua tim, bukan cuma milik sendiri) ----
+  const wrapPesan = document.getElementById('list-ringkasan-staff-pesan');
+  if(wrapPesan){
+    const pesanTerbaru = DATA.catatan.slice(0, 5);
+    wrapPesan.innerHTML = pesanTerbaru.length ? pesanTerbaru.map(c => `
+      <div class="message-item">
+        <div class="message-avatar">${esc((c.dibuat_oleh||'?').trim().charAt(0).toUpperCase())}</div>
+        <div class="message-body">
+          <div class="message-head">
+            <span class="message-author">${esc(c.dibuat_oleh)}</span>
+            <span class="message-time">${esc(waktuRelatif(c.dibuat_pada))}</span>
+          </div>
+          <div class="message-text">${esc(c.isi)}</div>
+        </div>
+      </div>`).join('') : `<div class="empty-state"><p>Belum ada pengumuman dari tim.</p></div>`;
+  }
 }
 
 /* ---------------------------------------------------------
@@ -943,113 +1121,6 @@ function renderRingkasanDonut(){
           <span class="donut-legend-pct">${pct}%</span>
         </div>`;
       }).join('');
-}
-
-/* ---------------------------------------------------------
-   4c. RINGKASAN — PERINGATAN STOK GUDANG (Surabaya & Jakarta)
-   Menampilkan item berstatus "Stok Habis" & "Stok Menipis" untuk dua
-   gudang spesifik langsung di dashboard, tanpa perlu buka menu Stock &
-   Gudang. Dicocokkan berdasarkan NAMA gudang (bukan ID tetap), supaya
-   tetap berfungsi normal walau gudang tsb diedit/dibuat ulang lewat
-   tab Gudang pada "Manajemen Produk & Kategori" — dan menampilkan pesan yang jelas jika gudang dengan
-   nama tsb belum terdaftar sama sekali.
---------------------------------------------------------- */
-const IKON_GUDANG_DASH = '<path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/>';
-const IKON_CENTANG_DASH = '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.3 2.3L16 9.5"/>';
-
-function cariGudangBerdasarkanNama(potongan){
-  const p = potongan.toLowerCase();
-  return DATA.gudang.find(g => (g.nama || '').toLowerCase().includes(p)) || null;
-}
-
-/* Render satu kartu ("Gudang Surabaya" / "Gudang Jakarta"). Mengembalikan
-   markup HTML string agar renderRingkasanStokGudang() tinggal menggabung
-   dua kartu ke dalam satu baris (.dash-row-stok). */
-function markupKartuStokGudang(potonganNama, labelKota){
-  const g = cariGudangBerdasarkanNama(potonganNama);
-
-  if(!g){
-    return `
-    <div class="stock-alert-card">
-      <div class="stock-alert-head">
-        <div class="stock-alert-title">
-          <div class="stock-alert-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${IKON_GUDANG_DASH}</svg></div>
-          <div><h4>Gudang ${esc(labelKota)}</h4><span>Belum terdaftar</span></div>
-        </div>
-      </div>
-      <div class="stock-alert-empty stock-alert-missing">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
-        <span>Gudang <b>${esc(labelKota)}</b> belum terdaftar.<br>Tambahkan lewat Stock &amp; Gudang → Manajemen Produk &amp; Kategori.</span>
-      </div>
-    </div>`;
-  }
-
-  const items = DATA.stokItem.filter(i => i.gudang_id === g.id);
-  const bermasalah = items
-    .map(i => ({ item:i, status:hitungStatusStok(i) }))
-    .filter(x => x.status === 'habis' || x.status === 'menipis')
-    // Habis ditampilkan lebih dulu, lalu urut dari sisa stok paling sedikit
-    .sort((a,b) => {
-      if(a.status !== b.status) return a.status === 'habis' ? -1 : 1;
-      return sisaStok(a.item) - sisaStok(b.item);
-    });
-
-  const jumlahHabis = bermasalah.filter(x => x.status === 'habis').length;
-  const jumlahMenipis = bermasalah.filter(x => x.status === 'menipis').length;
-
-  const daftarHtml = !bermasalah.length
-    ? `<div class="stock-alert-empty">
-         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${IKON_CENTANG_DASH}</svg>
-         <span>Semua stok di <b>${esc(g.nama)}</b> aman, tidak ada yang menipis atau habis.</span>
-       </div>`
-    : bermasalah.map(({item, status}) => `
-      <div class="stock-alert-row" title="Klik untuk membuka detail di Stock & Gudang" onclick="bukaAlertStokGudang('${g.id}','${status}')">
-        <div class="stock-alert-row-main">
-          <span class="stock-alert-dot ${status}"></span>
-          <div>
-            <div class="stock-alert-row-name">${esc(item.nama_produk)}</div>
-            <div class="stock-alert-row-sub">${esc(item.sku)}${item.variant ? ' · ' + esc(item.variant) : ''}</div>
-          </div>
-        </div>
-        <div class="stock-alert-row-right">
-          <span class="stock-alert-row-qty"><b>${sisaStok(item).toLocaleString('id-ID')}</b> ${esc(item.satuan || 'Pcs')}</span>
-          <span class="stok-status stok-status--${status}">${labelStatusStok(status)}</span>
-        </div>
-      </div>`).join('');
-
-  return `
-  <div class="stock-alert-card">
-    <div class="stock-alert-head">
-      <div class="stock-alert-title">
-        <div class="stock-alert-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${IKON_GUDANG_DASH}</svg></div>
-        <div><h4>${esc(g.nama)}</h4><span>${items.length} SKU terdaftar</span></div>
-      </div>
-      <div class="stock-alert-counts">
-        ${jumlahHabis ? `<span class="stok-status stok-status--habis">${jumlahHabis} Habis</span>` : ''}
-        ${jumlahMenipis ? `<span class="stok-status stok-status--menipis">${jumlahMenipis} Menipis</span>` : ''}
-        ${!jumlahHabis && !jumlahMenipis ? `<span class="stok-status stok-status--tersedia">Aman</span>` : ''}
-      </div>
-    </div>
-    <div class="stock-alert-list">${daftarHtml}</div>
-  </div>`;
-}
-
-/* Membuka menu Stock & Gudang, langsung difilter ke gudang + status yang
-   diklik dari dashboard Ringkasan (mis. klik item "Stok Habis" di kartu
-   Gudang Jakarta -> otomatis menampilkan hanya item habis di gudang itu). */
-function bukaAlertStokGudang(gudangId, status){
-  pindahTampilan('gudang');
-  const selGudang = document.getElementById('filter-lokasi-gudang');
-  const selStatus = document.getElementById('filter-status-gudang');
-  if(selGudang) selGudang.value = gudangId;
-  if(selStatus) selStatus.value = status;
-  renderGudang();
-}
-
-function renderRingkasanStokGudang(){
-  const wrap = document.getElementById('dash-row-stok-gudang');
-  if(!wrap) return;
-  wrap.innerHTML = markupKartuStokGudang('surabaya', 'Surabaya') + markupKartuStokGudang('jakarta', 'Jakarta');
 }
 
 function renderDashTeamRow(){
@@ -2006,6 +2077,25 @@ function bukaModalTugas(){
   bukaModal('modal-tugas');
 }
 
+/* Tombol "Cetak Tugas" di Ringkasan khusus peran Staff. Alih-alih
+   window.print() polos (yang akan ikut mencetak kartu mini-stat, kolom
+   Pesan Terbaru, & Aktivitas Saya di dashboard yang sama), fungsi ini
+   menambahkan class body.mode-cetak-tugas sesaat sebelum mencetak —
+   aturan @media print di style.css lalu menyembunyikan semua bagian
+   dashboard staff KECUALI tabel #staff-tugas-print-target, sehingga
+   hasil cetak jadi daftar tugas harian yang ringkas & siap dibawa. */
+function cetakTugasStaff(){
+  document.body.classList.add('mode-cetak-tugas');
+  const bersihkan = () => {
+    document.body.classList.remove('mode-cetak-tugas');
+    window.removeEventListener('afterprint', bersihkan);
+  };
+  window.addEventListener('afterprint', bersihkan);
+  window.print();
+  // Fallback untuk browser yang tidak konsisten memicu 'afterprint'.
+  setTimeout(bersihkan, 3000);
+}
+
 async function tambahTugas(e){
   e.preventDefault();
   const judul = document.getElementById('input-judul-tugas').value.trim();
@@ -2244,9 +2334,9 @@ function renderGudang(){
       const s = hitungStatusStok(i);
       return `<span class="gudang-badge gudang-badge-clickable gudang-badge--${s}" title="Klik untuk lihat detail Masuk/Keluar · ${labelStatusStok(s)}" onclick="bukaDetailStok('${i.id}')">
         ${namaGudang(i.gudang_id)} · <b>${sisaStok(i).toLocaleString('id-ID')}</b>
-        <span class="gudang-badge-edit" title="Edit Item Gudang Ini" onclick="event.stopPropagation(); editItemStok('${i.id}')">
+        ${gudangHanyaLihat() ? '' : `<span class="gudang-badge-edit" title="Edit Item Gudang Ini" onclick="event.stopPropagation(); editItemStok('${i.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        </span>
+        </span>`}
       </span>`;
     }).join('');
 
@@ -2263,6 +2353,7 @@ function renderGudang(){
       <td class="cell-muted">${(terbaru && esc(terbaru.diupdate_oleh_nama)) || '—'}</td>
       <td><span class="stok-status stok-status--${statusGabungan}">${labelStatusStok(statusGabungan)}</span></td>
       <td class="cell-actions">
+        ${gudangHanyaLihat() ? '' : `
         <div class="icon-btn" title="Tambahkan ke Gudang Lain" onclick="bukaModalTambahKeGudangLain('${esc(p.sku)}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 8L12 3 3 8v9a1 1 0 001 1h4v-6h8v6h4a1 1 0 001-1V8z"/><path d="M3 8l9 5 9-5"/><path d="M12 12v5m-2.5-2.5h5"/></svg>
         </div>
@@ -2271,7 +2362,7 @@ function renderGudang(){
         </div>
         ${bolehKelolaStok() ? `<div class="icon-btn" title="Hapus dari semua gudang" onclick="hapusProdukMaster('${esc(p.sku)}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
-        </div>` : ''}
+        </div>` : ''}`}
       </td>
     </tr>`;
   }).join('');
@@ -2528,9 +2619,9 @@ function renderTabelStokMasukDetail(){
       <td>${esc(r.satuan) || '—'}</td>
       <td class="cell-muted">${esc(r.catatan) || '—'}</td>
       <td class="cell-actions">
-        <div class="icon-btn" title="Edit" onclick="editStokMasuk('${r.id}')">
+        ${gudangHanyaLihat() ? '' : `<div class="icon-btn" title="Edit" onclick="editStokMasuk('${r.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        </div>
+        </div>`}
         ${bolehKelolaStok() ? `<div class="icon-btn" title="Hapus" onclick="hapusStokMasuk('${r.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
         </div>` : ''}
@@ -2762,9 +2853,9 @@ function renderTabelStokKeluarDetail(){
       <td>${esc(r.satuan) || '—'}</td>
       <td class="cell-muted">${esc(r.catatan) || '—'}</td>
       <td class="cell-actions">
-        <div class="icon-btn" title="Edit" onclick="editStokKeluar('${r.id}')">
+        ${gudangHanyaLihat() ? '' : `<div class="icon-btn" title="Edit" onclick="editStokKeluar('${r.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        </div>
+        </div>`}
         ${bolehKelolaStok() ? `<div class="icon-btn" title="Hapus" onclick="hapusStokKeluar('${r.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
         </div>` : ''}
@@ -3598,6 +3689,7 @@ function renderPenggunaAdmin(){
               <option value="anggota" selected>Anggota Tim</option>
               <option value="marketing">Marketing</option>
               <option value="purchasing">Purchasing</option>
+              <option value="staff">Staff</option>
               <option value="admin">Admin</option>
             </select>
           </td>
@@ -3635,6 +3727,7 @@ function renderPenggunaAdmin(){
           <option value="anggota" ${p.peran==='anggota'?'selected':''}>Anggota Tim</option>
           <option value="marketing" ${p.peran==='marketing'?'selected':''}>Marketing</option>
           <option value="purchasing" ${p.peran==='purchasing'?'selected':''}>Purchasing</option>
+          <option value="staff" ${p.peran==='staff'?'selected':''}>Staff</option>
           <option value="admin" ${p.peran==='admin'?'selected':''}>Admin</option>
         </select>
       </td>
@@ -4015,7 +4108,6 @@ function initRealtime(){
         }
       }
       renderGudang();
-      renderRingkasanStokGudang(); // BUGFIX: dulu kartu Peringatan Stok Gudang di halaman Ringkasan tidak ikut ter-refresh saat ada perubahan stok realtime dari perangkat lain
       renderNotifikasi();
     })
     .subscribe();
@@ -4382,6 +4474,11 @@ function itemUntukTanggal(hari, bulan, tahun){
   // terapkan aturan yang sama seperti Purchasing (hanya tugas yang
   // ditugaskan ke/oleh dirinya sendiri).
   const isMarketing = CURRENT_USER && CURRENT_USER.peran === 'marketing';
+  // Staff (SEJAK v30): sama seperti Purchasing/Marketing, Kalender mereka
+  // hanya menampilkan tugas yang ditugaskan ke/oleh dirinya sendiri. Loop
+  // proyek di bawah otomatis tidak menghasilkan apa pun bagi Staff karena
+  // DATA.proyek memang sudah kosong lewat RLS v30.
+  const isStaff = CURRENT_USER && CURRENT_USER.peran === 'staff';
   DATA.proyek.forEach(p => {
     if(!p.tenggat) return;
     if(isPurchasing && p.dibuat_oleh_id !== CURRENT_USER.id) return;
@@ -4391,7 +4488,7 @@ function itemUntukTanggal(hari, bulan, tahun){
     }
   });
   DATA.tugas.forEach(t => {
-    if((isPurchasing || isMarketing) && t.ditugaskan_ke !== CURRENT_USER.id && t.ditugaskan_oleh !== CURRENT_USER.id) return;
+    if((isPurchasing || isMarketing || isStaff) && t.ditugaskan_ke !== CURRENT_USER.id && t.ditugaskan_oleh !== CURRENT_USER.id) return;
     const tgl = parseTanggalIndo(t.tenggat) || (/^\d{4}-\d{2}-\d{2}/.test(t.tenggat||'') ? { hari: new Date(t.tenggat).getDate(), bulan: new Date(t.tenggat).getMonth() } : null);
     if(tgl && tgl.hari === hari && tgl.bulan === bulan){
       const status = statusKerjaTugas(t);
@@ -4537,9 +4634,9 @@ function renderPesan(){
         </div>
         <div class="message-text">${esc(c.isi)}</div>
       </div>
-      <div class="message-del" title="Hapus" onclick="hapusCatatan('${c.id}')">
+      ${CURRENT_USER && CURRENT_USER.peran === 'staff' ? '' : `<div class="message-del" title="Hapus" onclick="hapusCatatan('${c.id}')">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>
-      </div>
+      </div>`}
     </div>`).join('');
 }
 async function tambahCatatan(){

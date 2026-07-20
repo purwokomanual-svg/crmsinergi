@@ -1820,3 +1820,101 @@ create policy "admin anggota marketing dapat menambah proyek" on proyek for inse
         )
     )
   ));
+
+-- =========================================================
+-- TAMBAHAN v30 — PERAN BARU "STAFF": AKSES MENU RINGKASAN (VERSI
+-- PERSONAL: MONITORING TUGAS, PESAN, AKTIVITAS), PESAN, AKTIVITAS,
+-- TUGAS, KALENDER, PENGATURAN & PUSAT BANTUAN — SELURUHNYA HANYA
+-- DATA MILIK AKUN STAFF TSB SENDIRI (KECUALI PESAN, PAPAN BERSAMA)
+--
+-- Peran ini murni "monitoring pribadi": TIDAK ada akses ke Pelanggan,
+-- Proyek, Laporan, Analitik, maupun Stock & Gudang sama sekali (baik di
+-- menu maupun datanya) — beda dengan Marketing yang masih boleh melihat
+-- data pelanggan/proyek miliknya sendiri.
+--
+-- 1) Tambah 'staff' ke daftar peran yang sah pada tabel profil.
+-- 2) Tabel PELANGGAN & PROYEK: Staff SAMA SEKALI TIDAK BOLEH membaca
+--    baris apa pun (bukan cuma dibatasi ke miliknya sendiri seperti
+--    Marketing — karena Staff memang tidak pernah membuat/menangani
+--    pelanggan atau proyek). Kebijakan SELECT ditulis ulang memakai
+--    pola "hanya peran tertentu yang diizinkan penuh, sisanya (mis.
+--    Marketing) dicek lewat kecocokan pemilik, dan peran lain otomatis
+--    tidak dapat baris sama sekali" — supaya browser Staff tidak diam-
+--    diam menyimpan data pelanggan/proyek perusahaan di memori lewat
+--    query SELECT * yang dipakai script.js (muatSemuaData), walau
+--    tidak ditampilkan di menu manapun.
+-- 3) Tabel AKTIVITAS: kebijakan SELECT dari migrasi v28 diperluas —
+--    sebelumnya hanya peran 'marketing' yang dibatasi lewat kecocokan
+--    pelaku_id/pelaku_nama, sekarang 'staff' ikut memakai aturan yang
+--    sama (hanya log yang PELAKUNYA dirinya sendiri).
+-- 4) Tabel TUGAS & CATATAN_TIM (Pesan) TIDAK PERLU diubah:
+--    - tugas: kebijakan SELECT sejak migrasi v9 memang sudah membatasi
+--      SEMUA akun non-admin (termasuk Staff) hanya melihat tugas yang
+--      ditugaskan ke/oleh dirinya sendiri, atau yang belum ditugaskan
+--      ke siapa pun.
+--    - catatan_tim: SENGAJA TETAP TERBUKA untuk semua akun aktif —
+--      berdasarkan konfirmasi, menu Pesan adalah papan pengumuman
+--      BERSAMA untuk seluruh tim, jadi Staff tetap membaca SEMUA
+--      catatan (bukan cuma yang mereka tulis sendiri). Pembatasan
+--      "hanya milik nama sendiri" untuk Staff HANYA berlaku pada tombol
+--      kirim/hapus catatan (staff tetap tidak bisa menulis/menghapus
+--      pengumuman — lihat kebijakan INSERT/DELETE admin+anggota yang
+--      sudah ada sejak migrasi v22, tidak berubah).
+--
+-- Menu Pengaturan & Pusat Bantuan tidak butuh perubahan RLS apa pun —
+-- keduanya sudah tidak dibatasi data-roles di index.html (selalu
+-- tampil untuk siapa pun yang login).
+--
+-- CATATAN: setelah migrasi ini jalan, Admin perlu membuat/mengubah
+-- peran salah satu akun di menu Kelola Pengguna menjadi "Staff" (opsi
+-- baru sudah ditambahkan di dropdown ubah peran & dropdown persetujuan
+-- akun baru pada script.js) supaya bisa dites. Aman dijalankan berulang
+-- kali.
+-- =========================================================
+
+-- ---- 1) Perluas daftar peran yang sah ----
+alter table profil drop constraint if exists profil_peran_check;
+alter table profil add constraint profil_peran_check check (peran in ('admin','anggota','marketing','purchasing','staff'));
+
+-- ---- 2) PELANGGAN: Staff tidak dapat membaca baris apa pun ----
+drop policy if exists "akun aktif dapat membaca pelanggan" on pelanggan;
+create policy "akun aktif dapat membaca pelanggan" on pelanggan for select using (
+  public.peran_aktif_saya() is not null and (
+    public.peran_aktif_saya() in ('admin','anggota','purchasing')
+    or (
+      public.peran_aktif_saya() = 'marketing' and (
+        dibuat_oleh_id = auth.uid()
+        or lower(coalesce(dibuat_oleh_nama,'')) = lower(coalesce(public.nama_aktif_saya(),'__tidak_ada__'))
+      )
+    )
+  ));
+
+-- ---- 2) PROYEK: Staff tidak dapat membaca baris apa pun ----
+drop policy if exists "akun aktif dapat membaca proyek" on proyek;
+create policy "akun aktif dapat membaca proyek" on proyek for select using (
+  public.peran_aktif_saya() is not null and (
+    public.peran_aktif_saya() in ('admin','anggota','purchasing')
+    or (
+      public.peran_aktif_saya() = 'marketing' and exists (
+        select 1 from pelanggan
+        where pelanggan.id = proyek.pelanggan_id
+          and (
+            pelanggan.dibuat_oleh_id = auth.uid()
+            or lower(coalesce(pelanggan.dibuat_oleh_nama,'')) = lower(coalesce(public.nama_aktif_saya(),'__tidak_ada__'))
+          )
+      )
+    )
+  ));
+
+-- ---- 3) AKTIVITAS: perluas pembatasan v28 ke peran 'staff' juga ----
+drop policy if exists "akun aktif dapat membaca aktivitas" on aktivitas;
+create policy "akun aktif dapat membaca aktivitas" on aktivitas for select using (
+  public.peran_aktif_saya() is not null and (
+    public.peran_aktif_saya() in ('admin','anggota','purchasing')
+    or (
+      public.peran_aktif_saya() in ('marketing','staff') and (
+        pelaku_id = auth.uid()
+        or lower(coalesce(pelaku_nama,'')) = lower(coalesce(public.nama_aktif_saya(),'__tidak_ada__'))
+      )
+    )
+  ));

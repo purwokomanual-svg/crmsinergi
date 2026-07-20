@@ -469,6 +469,61 @@ button{font-family:inherit;}
 }
 .cmd-grad-cyan:hover,.cmd-grad-purple:hover,.cmd-grad-blue:hover,.cmd-grad-green:hover,.cmd-grad-yellow:hover{box-shadow:none;}
 
+/* ============ HERO KPI — Total Omzet & Nett Profit ============
+   Dua kartu unggulan yang lebih besar & lebih "futuristik" dibanding kartu
+   KPI standar: memakai grid 2 kolom, padding & tipografi lebih besar, glow
+   luminous yang lebih kuat, dan aksen warna berbeda per kartu (biru untuk
+   Omzet, hijau/merah dinamis untuk Nett Profit tergantung untung/rugi). */
+.hero-kpi-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;background:none;border:none;
+}
+.hero-kpi-card{
+  border-radius:26px!important;padding:30px 32px 28px!important;
+  background:linear-gradient(150deg,rgba(255,255,255,.07),rgba(255,255,255,0) 60%),var(--bg-2)!important;
+  border:1px solid var(--glass-border-bright)!important;
+  animation:hero-kpi-pulse 3.6s ease-in-out infinite;
+}
+.hero-kpi-card:nth-child(2){animation-delay:.4s;}
+@keyframes hero-kpi-pulse{
+  0%,100%{box-shadow:0 0 24px -9px rgba(255,31,61,.26),0 0 46px -19px rgba(200,16,32,.18);}
+  50%{box-shadow:0 0 38px -7px rgba(255,60,80,.38),0 0 64px -15px rgba(255,31,61,.26);}
+}
+@media (prefers-reduced-motion:reduce){.hero-kpi-card{animation:none;}}
+.hero-kpi-card .kpi-top{margin-bottom:22px;}
+.hero-kpi-card .kpi-icon-label{gap:14px;}
+.hero-kpi-card .kpi-label{font-size:14.5px;font-weight:700;letter-spacing:.01em;color:var(--ink);}
+.hero-kpi-icon{
+  width:42px;height:42px;border-radius:14px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--overlay-2);border:1px solid var(--glass-border-bright);
+  box-shadow:0 0 22px -5px rgba(255,31,61,.55);
+}
+.hero-kpi-icon svg{width:21px;height:21px;}
+.hero-kpi-card .kpi-bar{height:4px;border-radius:999px;margin-bottom:22px;}
+.hero-kpi-card .kpi-bar-fill{border-radius:999px;background:var(--grad-primary);}
+.hero-kpi-value{
+  font-size:clamp(30px,3.4vw,46px)!important;font-weight:800!important;letter-spacing:-.03em!important;
+  background:linear-gradient(135deg,#ffffff 0%,rgba(255,255,255,.72) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent!important;
+  text-shadow:0 0 34px rgba(255,60,80,.30);
+}
+.hero-kpi-card .kpi-delta{font-size:13px;font-weight:700;padding:6px 13px;border-radius:999px;}
+/* Omzet: aksen biru/cyan luminous */
+.hero-kpi-omzet .hero-kpi-icon{color:var(--blue);box-shadow:0 0 22px -5px rgba(60,232,255,.55);}
+.hero-kpi-omzet .kpi-bar-fill{background:linear-gradient(90deg,#3ce8ff,#3d7bff);}
+.hero-kpi-omzet .hero-kpi-tag{color:var(--blue);border-color:rgba(60,232,255,.5);box-shadow:0 0 16px -4px rgba(60,232,255,.45);}
+/* Nett Profit: aksen hijau (untung) / merah (rugi), warna badge di-set lewat kelas up/down dari JS */
+.hero-kpi-profit .hero-kpi-icon{color:var(--green);box-shadow:0 0 22px -5px rgba(57,255,138,.5);}
+.hero-kpi-profit .kpi-bar-fill{background:linear-gradient(90deg,#39ff8a,#12b862);}
+.hero-kpi-profit .kpi-delta.up{color:var(--green)!important;border-color:rgba(57,255,138,.55)!important;box-shadow:0 0 16px -4px rgba(57,255,138,.45);}
+.hero-kpi-profit .kpi-delta.down{color:var(--red)!important;border-color:rgba(255,36,64,.55)!important;box-shadow:0 0 16px -4px rgba(255,36,64,.45);}
+.hero-kpi-profit.hero-kpi-loss .kpi-bar-fill{background:linear-gradient(90deg,#ff2440,#a80f2c);}
+[data-theme="light"] .hero-kpi-value{
+  background:linear-gradient(135deg,var(--ink) 0%,rgba(13,13,13,.75) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent!important;text-shadow:none;
+}
+@media (max-width:900px){.hero-kpi-grid{grid-template-columns:1fr;}}
+
 /* ============ CHART CARD ============ */
 .chart-card{background:var(--bg);border:1px solid var(--edge);border-radius:0;padding:24px 26px 20px;margin-bottom:26px;}
 .chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
@@ -518,8 +573,37 @@ button{font-family:inherit;}
 .dash-row-bottom{background:none;border:none;gap:22px;}
 .dash-row-bottom > .dash-table-card{flex:1;min-width:0;}
 .dash-row-bottom > .dash-table-card:first-child{flex:1.2;}
-.dash-row-stok{background:none;border:none;gap:22px;}
 .chart-card{background:var(--bg);}
+
+/* ============ DASHBOARD RINGKASAN — PERAN STAFF (BENTO) ============
+   Wrapper tunggal (lihat data-roles di index.html); di dalamnya cukup 2
+   baris dash-row: baris utama Tabel Tugas (~65%) + Pesan Terbaru (~35%),
+   lalu baris bawah Aktivitas Saya selebar penuh. */
+.staff-dashboard-wrapper{display:flex;flex-direction:column;}
+.dash-row-staff-main{margin-bottom:22px;}
+.dash-row-staff-main > .staff-tugas-col{flex:1.85;min-width:0;display:flex;flex-direction:column;}
+.dash-row-staff-main > .staff-pesan-col{flex:1;min-width:0;display:flex;flex-direction:column;}
+.dash-row-staff-bottom > .staff-aktivitas-col{flex:1;min-width:0;}
+
+@media(max-width:1100px){
+  .dash-row-staff-main{flex-direction:column;}
+  .dash-row-staff-main > .staff-tugas-col,
+  .dash-row-staff-main > .staff-pesan-col{flex:1;}
+}
+
+/* ---- Mode cetak khusus tombol "Cetak Tugas" (lihat cetakTugasStaff()
+   di script.js): saat body diberi class ini sebelum window.print(),
+   hanya tabel Tugas Saya yang tercetak — kartu mini-stat, kolom Pesan
+   Terbaru, & baris Aktivitas Saya disembunyikan supaya hasil cetak jadi
+   daftar tugas harian yang ringkas, bukan seluruh dashboard. ---- */
+@media print{
+  body.mode-cetak-tugas .stat-mini-grid,
+  body.mode-cetak-tugas .dash-row-staff-main > .staff-pesan-col,
+  body.mode-cetak-tugas .dash-row-staff-bottom{
+    display:none!important;
+  }
+  body.mode-cetak-tugas .dash-row-staff-main > .staff-tugas-col{flex:1 1 100%;}
+}
 
 .donut-card{
   flex:1;min-width:0;background:var(--bg);border:none;border-radius:0;
@@ -612,58 +696,6 @@ button{font-family:inherit;}
 .cmd-activity-tile.cmd-grad-blue .cmd-activity-icon,
 .cmd-activity-tile.cmd-grad-green .cmd-activity-icon{color:var(--ink);box-shadow:none;}
 
-/* ============ PERINGATAN STOK GUDANG ============ */
-.dash-row-stok{align-items:stretch;}
-.stock-alert-card{
-  flex:1;min-width:0;background:var(--bg);border:1px solid var(--edge);border-radius:0;
-  display:flex;flex-direction:column;overflow:hidden;
-}
-.stock-alert-head{
-  display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:16px 20px;border-bottom:1px solid var(--edge);flex-shrink:0;
-}
-.stock-alert-title{display:flex;align-items:center;gap:10px;min-width:0;}
-.stock-alert-title-icon{
-  width:32px;height:32px;border-radius:0;flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  background:none;border:1px solid var(--edge-strong);color:var(--muted);
-}
-.stock-alert-title-icon svg{width:16px;height:16px;}
-.stock-alert-title h4{margin:0;font-size:13.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.stock-alert-title span{font-size:11px;color:var(--muted-2);white-space:nowrap;}
-.stock-alert-counts{display:flex;gap:6px;flex-shrink:0;}
-
-.stock-alert-list{
-  max-height:268px;overflow-y:auto;flex:1;
-  scrollbar-width:thin;scrollbar-color:var(--edge-strong) transparent;
-}
-.stock-alert-list::-webkit-scrollbar{width:6px;}
-.stock-alert-list::-webkit-scrollbar-thumb{background:var(--edge-strong);border-radius:999px;}
-.stock-alert-list::-webkit-scrollbar-thumb:hover{background:var(--muted-2);}
-
-.stock-alert-row{
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:12px 20px;border-bottom:1px solid var(--edge);cursor:pointer;transition:border-color .15s;
-}
-.stock-alert-row:last-child{border-bottom:none;}
-.stock-alert-row:hover{background:none;border-color:var(--edge-strong);}
-.stock-alert-row-main{display:flex;align-items:center;gap:10px;min-width:0;}
-.stock-alert-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;border:1px solid var(--ink);}
-.stock-alert-dot.habis{background:var(--ink);box-shadow:none;}
-.stock-alert-dot.menipis{background:none;box-shadow:none;}
-.stock-alert-row-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;}
-.stock-alert-row-sub{font-size:11px;color:var(--muted-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;}
-.stock-alert-row-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
-.stock-alert-row-qty{font-size:12px;color:var(--muted);white-space:nowrap;}
-.stock-alert-row-qty b{color:var(--ink);font-weight:700;}
-
-.stock-alert-empty{
-  padding:30px 18px;text-align:center;color:var(--muted-2);font-size:12.5px;
-  display:flex;flex-direction:column;align-items:center;gap:8px;
-}
-.stock-alert-empty svg{width:24px;height:24px;color:var(--muted-2);opacity:.85;}
-.stock-alert-empty.stock-alert-missing svg{color:var(--muted-2);}
-.stock-alert-empty b{color:var(--ink);font-weight:700;font-size:13px;}
-
 .dash-team-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;margin-bottom:26px;background:var(--edge);border:1px solid var(--edge);}
 .dash-team-mini{
   background:var(--bg);border:none;border-radius:0;
@@ -684,7 +716,6 @@ button{font-family:inherit;}
 @media(max-width:1100px){
   .dash-row-chart{flex-direction:column;}
   .dash-row-bottom{flex-direction:column;}
-  .dash-row-stok{flex-direction:column;}
   .dash-row-bottom > .dash-table-card:first-child{flex:1;}
 }
 
@@ -1604,6 +1635,30 @@ html,body{
   box-shadow:none!important;
 }
 
+/* Dua kasus KACA-DALAM-KACA lain yang sama persis penyebabnya, tapi belum
+   tercakup di aturan atas: dua lapis "background:var(--glass-bg)" tembus
+   pandang yang saling menumpuk di atas satu sama lain jadi lebih PEKAT &
+   pudar keabu-abuan (bukan lagi kaca merah muda/scarlet yang jernih),
+   karena warna gradien latar belakang di baliknya makin tersaring lapis
+   demi lapis:
+   1) ".timeline" milik "Aktivitas Saya" di Ringkasan (& kartu sejenis)
+      SELALU bersarang di dalam ".table-card" yang sudah kaca duluan —
+      beda dengan ".timeline#timeline-wrap" di menu Aktivitas yang berdiri
+      sendiri (bukan di dalam kartu lain) sehingga TETAP boleh kaca sendiri.
+   2) ".search-box" kolom pencarian global SELALU bersarang di dalam
+      ".topbar" yang juga sudah punya lapisan kaca sendiri (--topbar-bg) —
+      beda dengan ".search-box" pada toolbar tiap menu (Pelanggan, Proyek,
+      Tugas, dst.) yang letaknya langsung di atas gradien halaman, bukan
+      di dalam kartu kaca lain, jadi TETAP boleh kaca sendiri.
+   Perlakuannya sama seperti ".message-list" di sebelahnya: dibuat
+   transparan total supaya ikut warna kaca kartu/topbar induknya saja,
+   tanpa lapisan kaca kedua. */
+.table-card .timeline,
+.topbar .search-box{
+  background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+
 /* ============ REVENUE CHART — garis mawar tua berdenyut (luminous pulse) ============ */
 #chart-main-path{
   filter:drop-shadow(0 0 3px rgba(255,46,70,.9)) drop-shadow(0 0 10px rgba(255,31,61,.55));
@@ -1615,42 +1670,77 @@ html,body{
 }
 @media (prefers-reduced-motion:reduce){#chart-main-path{animation:none;}}
 
-/* ============ LUMINOUS GLOW — halo merah lembut memancar dari belakang
-   setiap panel kaca (kpi-card, chart-card, sidebar, topbar, dropdown),
-   memperkuat kesan "bercahaya" futuristik di atas latar gradien gelap. ============ */
-.kpi-card,.chart-card,.table-card,.funnel-card,.timeline,.task-card,.cal-agenda-card,
-.team-card,.message-composer,.integration-card,.faq-item,
-.search-box,.settings-card,.stat-mini-card,.donut-card,.stock-alert-card,
-.cmd-activity-tile,.dash-team-mini,.chart-card-main,
-.modal-box{
-  /* position:relative + z-index:0 membentuk stacking context sendiri untuk
-     setiap kartu, sehingga glow ::after (z-index:-1) di bawah ini benar-benar
-     terkurung DI BELAKANG kartunya sendiri saja — tidak lagi bisa "bocor"
-     menembus tabel/baris/kartu lain di sekitarnya (bug shadow merah yang
-     tembus ke kolom Status di tabel Gudang & Pelanggan). */
-  position:relative;isolation:isolate;
+/* ============ LUMINOUS GLOW — halo neon merah berdenyut di sekeliling
+   SETIAP kartu di SELURUH menu (Ringkasan, Pelanggan, Stock & Gudang, dst).
+
+   Sengaja diterapkan sebagai box-shadow LANGSUNG pada kartu itu sendiri —
+   BUKAN lewat pseudo-element ::after seperti versi sebelumnya. Alasannya:
+   beberapa kartu punya overflow:hidden/auto pada dirinya sendiri untuk
+   keperluan lain (.cmd-stat-card utk membungkus sparkline lama, .table-card
+   utk scroll horizontal tabel lebar, .cmd-activity-tile & .faq-item utk
+   membungkus konten). Pseudo-element ::after dianggap "anak" dari kartu,
+   sehingga ikut kepotong oleh overflow milik kartu itu sendiri — inilah
+   sebabnya sebagian kartu (mis. "Total Item (SKU x Gudang)" di menu Stock
+   & Gudang, yang memakai .cmd-stat-card) tidak ikut berdenyut. box-shadow
+   yang ditempel LANGSUNG pada elemen tidak pernah kepotong oleh overflow
+   miliknya sendiri (perilaku standar CSS — sama seperti pola umum
+   "thumbnail overflow:hidden + box-shadow tetap terlihat"), jadi caranya
+   selalu konsisten di semua kartu, semua menu, apa pun properti overflow-
+   nya, tanpa perlu mengubah layout/scroll yang sudah ada. */
+.kpi-card,.chart-card,.table-card,.funnel-card,
+.stat-mini-card,.donut-card,.stock-alert-card,
+.cmd-activity-tile,.chart-card-main,.task-card,
+.team-card,.dash-team-mini,.message-composer,.faq-item,
+.cal-agenda-card,.integration-card,.settings-card{
+  animation:card-glow-pulse-shadow 3.6s ease-in-out infinite;
 }
-.kpi-card::after,.chart-card::after,.table-card::after,.funnel-card::after,
-.stat-mini-card::after,.donut-card::after,.stock-alert-card::after,
-.cmd-activity-tile::after,.chart-card-main::after,
-.cal-agenda-card::after,.integration-card::after,.settings-card::after{
-  content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;z-index:-1;
-  box-shadow:0 0 22px -4px rgba(168,12,34,.40),0 0 44px -12px rgba(200,16,32,.28);
-  opacity:.55;transition:opacity .25s ease;
+/* Sedikit variasi jeda antar kartu dalam grid yang sama supaya seluruh
+   dashboard berdenyut seperti panel HUD, bukan berkedip serempak kaku. */
+.kpi-grid .kpi-card:nth-child(2),.team-grid .team-card:nth-child(2),
+.stat-mini-grid .stat-mini-card:nth-child(2){animation-delay:.5s;}
+.kpi-grid .kpi-card:nth-child(3),.team-grid .team-card:nth-child(3),
+.stat-mini-grid .stat-mini-card:nth-child(3){animation-delay:1s;}
+.kpi-grid .kpi-card:nth-child(4),.team-grid .team-card:nth-child(4),
+.stat-mini-grid .stat-mini-card:nth-child(4){animation-delay:1.5s;}
+@keyframes card-glow-pulse-shadow{
+  0%,100%{box-shadow:0 0 20px -5px rgba(168,12,34,.24),0 0 40px -14px rgba(200,16,32,.16);}
+  50%{box-shadow:0 0 32px -4px rgba(255,64,86,.36),0 0 58px -11px rgba(255,31,61,.24);}
 }
-[data-theme="light"] .kpi-card::after,[data-theme="light"] .chart-card::after,
-[data-theme="light"] .table-card::after,[data-theme="light"] .funnel-card::after,
-[data-theme="light"] .stat-mini-card::after,[data-theme="light"] .donut-card::after,
-[data-theme="light"] .stock-alert-card::after,[data-theme="light"] .cmd-activity-tile::after,
-[data-theme="light"] .chart-card-main::after,
-[data-theme="light"] .cal-agenda-card::after,[data-theme="light"] .integration-card::after,
-[data-theme="light"] .settings-card::after{
-  box-shadow:0 0 16px -5px rgba(200,16,32,.18),0 0 32px -10px rgba(200,16,32,.12);opacity:.4;
+@media (prefers-reduced-motion:reduce){
+  .kpi-card,.chart-card,.table-card,.funnel-card,
+  .stat-mini-card,.donut-card,.stock-alert-card,
+  .cmd-activity-tile,.chart-card-main,.task-card,
+  .team-card,.dash-team-mini,.message-composer,.faq-item,
+  .cal-agenda-card,.integration-card,.settings-card{
+    animation:none;box-shadow:0 0 20px -5px rgba(168,12,34,.24),0 0 40px -14px rgba(200,16,32,.16);
+  }
 }
-.kpi-card:hover::after,.chart-card:hover::after,.table-card:hover::after,
-.funnel-card:hover::after,.stat-mini-card:hover::after,.donut-card:hover::after,
-.stock-alert-card:hover::after,.cmd-activity-tile:hover::after,
-.cal-agenda-card:hover::after,.integration-card:hover::after,.settings-card:hover::after{opacity:.9;}
+[data-theme="light"] .kpi-card,[data-theme="light"] .chart-card,
+[data-theme="light"] .table-card,[data-theme="light"] .funnel-card,
+[data-theme="light"] .stat-mini-card,[data-theme="light"] .donut-card,
+[data-theme="light"] .stock-alert-card,[data-theme="light"] .cmd-activity-tile,
+[data-theme="light"] .chart-card-main,[data-theme="light"] .task-card,
+[data-theme="light"] .team-card,[data-theme="light"] .dash-team-mini,
+[data-theme="light"] .message-composer,[data-theme="light"] .faq-item,
+[data-theme="light"] .cal-agenda-card,[data-theme="light"] .integration-card,
+[data-theme="light"] .settings-card{
+  animation-name:card-glow-pulse-shadow-light;
+}
+@keyframes card-glow-pulse-shadow-light{
+  0%,100%{box-shadow:0 0 14px -6px rgba(200,16,32,.11),0 0 28px -11px rgba(200,16,32,.07);}
+  50%{box-shadow:0 0 20px -5px rgba(200,16,32,.16),0 0 38px -9px rgba(200,16,32,.11);}
+}
+.kpi-card:hover,.chart-card:hover,.table-card:hover,
+.funnel-card:hover,.stat-mini-card:hover,.donut-card:hover,
+.stock-alert-card:hover,.cmd-activity-tile:hover,.task-card:hover,
+.team-card:hover,.dash-team-mini:hover,.message-composer:hover,.faq-item:hover,
+.cal-agenda-card:hover,.integration-card:hover,.settings-card:hover{animation-play-state:paused;}
+
+/* Kartu hero (Total Omzet & Nett Profit) tetap pakai animasi glow-nya
+   sendiri yang lebih kuat (hero-kpi-pulse), bukan yang generik di atas —
+   selector 2-kelas di sini sengaja dibuat lebih spesifik supaya menang. */
+.kpi-card.hero-kpi-card{animation:hero-kpi-pulse 3.6s ease-in-out infinite;}
+.hero-kpi-grid .kpi-card.hero-kpi-card:nth-child(2){animation-delay:.4s;}
 
 /* ============ MODAL / DROPDOWN / TOAST — kaca lebih pekat ============ */
 .modal-overlay{background:rgba(30,4,14,.45)!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
