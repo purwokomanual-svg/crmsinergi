@@ -830,6 +830,61 @@ function pindahTampilan(namaView){
   if(namaView === 'pengawasan') renderPengawasanTim();
   if(namaView === 'pengguna') renderPenggunaAdmin();
   if(namaView === 'pengaturan') renderPengaturanAkun();
+  perbaruiIoBar(namaView);
+}
+
+/* Konfigurasi tombol Import/Export bersama (#topbar-import-btn dan
+   #topbar-export-btn, dipasang di topbar tepat di sebelah tombol ganti
+   mode gelap/terang). Satu sumber kebenaran untuk menu/tab mana yang
+   punya Import dan/atau Export apa — dulu tombolnya tersebar (Import di
+   header judul, Export terselip di ujung baris filter, sebagian malah
+   belum ada tombolnya sama sekali walau fungsinya sudah tersedia).
+   Sekarang tinggal tambah satu baris di sini kalau ada menu baru yang
+   butuh Import/Export. */
+const IO_BAR_CONFIG = {
+  'pelanggan': { impor:'pelanggan', ekspor:() => unduhPelangganCSV() },
+  'pelanggan-detail': { impor:'proyek', ekspor:() => unduhProyekPelangganCSV() },
+  'tugas': { impor:'tugas', ekspor:() => unduhTugasCSV() },
+  'gudang': { impor:'stok_item', ekspor:() => unduhStokCSV() },
+  'laporan': { ekspor:() => unduhLaporanCSV() },
+  'komisi-marketing': { ekspor:() => unduhKomisiMarketingCSV() },
+};
+// Manajemen Produk & Detail Stok punya beberapa tab dalam satu halaman —
+// konfigurasinya beda per tab, jadi dipetakan terpisah dari yang di atas.
+const IO_BAR_CONFIG_MP_TAB = {
+  produk: { impor:'stok_item', ekspor:() => unduhStokCSV() },
+  merek: { impor:'kategori_merek', ekspor:() => unduhKategoriMerekCSV() },
+  kategori: { impor:'kategori_produk', ekspor:() => unduhKategoriProdukCSV() },
+  gudang: { impor:'gudang', ekspor:() => unduhGudangListCSV() },
+};
+const IO_BAR_CONFIG_STOK_TAB = {
+  masuk: { ekspor:() => unduhStokMasukDetailCSV() },
+  keluar: { ekspor:() => unduhStokKeluarDetailCSV() },
+};
+
+function perbaruiIoBar(namaView){
+  const btnImpor = document.getElementById('topbar-import-btn');
+  const btnEkspor = document.getElementById('topbar-export-btn');
+  if(!btnImpor || !btnEkspor) return;
+
+  let cfg = IO_BAR_CONFIG[namaView];
+  if(namaView === 'manajemen-produk') cfg = IO_BAR_CONFIG_MP_TAB[MP_TAB_AKTIF];
+  if(namaView === 'stok-detail') cfg = IO_BAR_CONFIG_STOK_TAB[STOK_DETAIL_TAB_AKTIF];
+
+  if(cfg && cfg.impor){
+    btnImpor.classList.remove('hidden');
+    btnImpor.onclick = () => bukaModalImport(cfg.impor);
+  } else {
+    btnImpor.classList.add('hidden');
+    btnImpor.onclick = null;
+  }
+  if(cfg && cfg.ekspor){
+    btnEkspor.classList.remove('hidden');
+    btnEkspor.onclick = cfg.ekspor;
+  } else {
+    btnEkspor.classList.add('hidden');
+    btnEkspor.onclick = null;
+  }
 }
 
 /* ---------------------------------------------------------
@@ -1447,6 +1502,13 @@ function renderPelanggan(){
   }).join('');
 }
 
+function unduhPelangganCSV(){
+  unduhCSV('pelanggan-dealstack.csv',
+    ['Kode','Nama','Industri','Alamat','No Telepon','No WhatsApp','PIC','Status','Dibuat Oleh'],
+    DATA.pelanggan.map(p => [p.kode, p.nama, p.industri || '', p.alamat || '', p.no_telepon || '', p.no_whatsapp || '', p.nama_pic || '', labelStatusPelanggan(p.status), p.dibuat_oleh_nama || '']));
+  tampilkanToast('Data pelanggan diunduh');
+}
+
 async function hapusPelanggan(id){
   const p = DATA.pelanggan.find(x => x.id === id);
   if(!p) return;
@@ -1767,6 +1829,24 @@ function renderProyekDetail(){
   }).join('');
 }
 
+function unduhProyekPelangganCSV(){
+  if(!PELANGGAN_AKTIF_ID) return;
+  const pel = DATA.pelanggan.find(x => x.id === PELANGGAN_AKTIF_ID);
+  const q = (document.getElementById('cari-proyek-detail')?.value || '').toLowerCase();
+  const filterStatus = document.getElementById('filter-status-proyek-detail')?.value || 'semua';
+  const { awal, akhir } = dapatkanRentangPeriode('proyek-detail');
+  const data = DATA.proyek.filter(p => {
+    if(!proyekMilikPelanggan(p, PELANGGAN_AKTIF_ID)) return false;
+    const cocokCari = p.nama.toLowerCase().includes(q) || (p.kode||'').toLowerCase().includes(q);
+    const cocokStatus = filterStatus === 'semua' || p.status === filterStatus;
+    return cocokCari && cocokStatus && tanggalDalamRentang(p.tanggal, awal, akhir);
+  });
+  unduhCSV(`proyek-${pel ? pel.nama.toLowerCase().replace(/[^a-z0-9]+/g,'-') : 'pelanggan'}.csv`,
+    ['Kode','Nama Proyek','Status','Tanggal PO','Tenggat','Sub Total','Pajak (%)','Dana Lainnya','Grand Total','Total Budget','Budget Terpakai','Profit','Margin (%)'],
+    data.map(p => [p.kode, p.nama, labelStatusProyek(p.status), p.tanggal || '', p.tenggat || '', p.sub_total || 0, p.tax_persen || 0, p.dana_lainnya || 0, p.grand_total || 0, p.total_budget || 0, p.budget_terpakai || 0, hitungProfit(p.sub_total, p.budget_terpakai), hitungMarginPersen(p.sub_total, p.budget_terpakai)]));
+  tampilkanToast('Data proyek diunduh');
+}
+
 async function hapusProyek(id){
   const p = DATA.proyek.find(x => x.id === id);
   const { error } = await supabaseClient.from('proyek').delete().eq('id', id);
@@ -2070,6 +2150,28 @@ function renderTugas(){
       </td>
     </tr>`;
   }).join('');
+}
+
+function unduhTugasCSV(){
+  const filterAssignee = document.getElementById('filter-assignee-tugas');
+  const filterStatus = document.getElementById('filter-status-tugas')?.value || 'semua';
+  const isAdmin = CURRENT_USER && CURRENT_USER.peran === 'admin';
+  const data = DATA.tugas.filter(t => {
+    const cocokStatus = filterStatus === 'semua' || statusKerjaTugas(t) === filterStatus;
+    const cocokAssignee = !filterAssignee || filterAssignee.value === 'semua'
+      || (filterAssignee.value === 'kosong' && !t.ditugaskan_ke)
+      || t.ditugaskan_ke === filterAssignee.value;
+    const bolehLihat = isAdmin || !CURRENT_USER || t.ditugaskan_ke === CURRENT_USER.id || t.ditugaskan_oleh === CURRENT_USER.id || !t.ditugaskan_ke;
+    return cocokStatus && cocokAssignee && bolehLihat;
+  });
+  unduhCSV('tugas-dealstack.csv',
+    ['Judul','Deskripsi','Prioritas','Status','Ditugaskan Ke','Ditugaskan Oleh','Tenggat'],
+    data.map(t => {
+      const assignee = DATA.profil.find(p => p.id === t.ditugaskan_ke);
+      const pemberi = DATA.profil.find(p => p.id === t.ditugaskan_oleh);
+      return [t.judul, t.deskripsi || '', t.prioritas || 'normal', labelStatusKerja(statusKerjaTugas(t)), assignee ? assignee.nama : '', pemberi ? pemberi.nama : '', t.tenggat || ''];
+    }));
+  tampilkanToast('Data tugas diunduh');
 }
 
 function bukaModalTugas(){
@@ -2561,6 +2663,7 @@ function pindahTabStokDetail(tab){
   document.querySelectorAll('#view-stok-detail .mp-tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('stok-tab-' + tab).classList.add('active');
   renderDetailStok();
+  perbaruiIoBar('stok-detail');
 }
 
 function renderDetailStok(){
@@ -3119,6 +3222,7 @@ function pindahTabManajemenProduk(tab){
   if(tab === 'merek') renderMerekMaster();
   if(tab === 'kategori') renderKategoriMaster();
   if(tab === 'gudang') renderListGudangKelola();
+  perbaruiIoBar('manajemen-produk');
 }
 
 function renderStatManajemenProduk(){
@@ -3171,7 +3275,7 @@ function renderProdukMaster(){
   const filterKategori = document.getElementById('filter-kategori-produk-master').value;
 
   const data = groupProdukMaster().filter(p => {
-    const cocokCari = p.sku.toLowerCase().includes(q) || p.nama_produk.toLowerCase().includes(q);
+    const cocokCari = p.sku.toLowerCase().includes(q) || p.nama_produk.toLowerCase().includes(q) || (p.variant || '').toLowerCase().includes(q);
     const cocokMerek = filterMerek === 'semua' || p.merek === filterMerek;
     const cocokKategori = filterKategori === 'semua' || p.kategori === filterKategori;
     return cocokCari && cocokMerek && cocokKategori;
@@ -3424,6 +3528,13 @@ async function hapusKategori(id){
   tampilkanToast('Kategori dihapus');
 }
 
+function unduhKategoriProdukCSV(){
+  unduhCSV('kategori-produk-dealstack.csv',
+    ['Nama Kategori','Jumlah Produk'],
+    DATA.kategoriProduk.map(k => [k.nama, DATA.stokItem.filter(i => (i.kategori || 'Umum') === k.nama).length]));
+  tampilkanToast('Data kategori produk diunduh');
+}
+
 /* ---------------------------------------------------------
    17f-bis. KATEGORI MEREK (tab Kategori Merek) — data master
    untuk Merek/Brand produk, pola & struktur PERSIS SAMA dengan
@@ -3533,11 +3644,24 @@ async function hapusMerek(id){
   tampilkanToast('Merek dihapus');
 }
 
+function unduhKategoriMerekCSV(){
+  unduhCSV('kategori-merek-dealstack.csv',
+    ['Nama Merek','Jumlah Produk'],
+    DATA.kategoriMerek.map(m => [m.nama, DATA.stokItem.filter(i => (i.merek || 'Umum') === m.nama).length]));
+  tampilkanToast('Data kategori merek diunduh');
+}
+
 /* ---------------------------------------------------------
    17g. GUDANG (tab Gudang) — lokasi/cabang penyimpanan fisik.
    Sebelumnya lewat modal "Kelola Gudang" tersendiri; sekarang
    jadi salah satu tab di halaman Manajemen Produk & Kategori.
 --------------------------------------------------------- */
+function unduhGudangListCSV(){
+  unduhCSV('daftar-gudang-dealstack.csv',
+    ['Nama Gudang','Lokasi','Jumlah SKU Tersimpan'],
+    DATA.gudang.map(g => [g.nama, g.lokasi || '', DATA.stokItem.filter(i => i.gudang_id === g.id).length]));
+  tampilkanToast('Daftar gudang diunduh');
+}
 function renderListGudangKelola(){
   const wrap = document.getElementById('list-gudang-kelola');
   if(!wrap) return;

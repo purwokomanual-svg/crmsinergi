@@ -144,6 +144,14 @@
       <div class="dropdown-panel search-dropdown hidden" id="search-dropdown"></div>
     </div>
     <div class="topbar-right">
+      <button class="btn btn-secondary btn-topbar-io hidden" id="topbar-import-btn" title="Import data untuk menu ini">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>
+        <span>Import</span>
+      </button>
+      <button class="btn btn-secondary btn-topbar-io hidden" id="topbar-export-btn" title="Export data menu ini ke CSV">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
+        <span>Export</span>
+      </button>
       <div class="icon-btn theme-quick-toggle" id="btn-tema-cepat" onclick="toggleTema()" title="Ganti mode gelap/terang">
         <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
         <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8L6 18M18 6l1.8-1.8"/></svg>
@@ -574,10 +582,6 @@
           <p>Kelola seluruh data pelanggan dan status hubungan bisnis.</p>
         </div>
         <div class="view-head-actions">
-          <button class="btn btn-secondary" onclick="bukaModalImport('pelanggan')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>
-            Import Data
-          </button>
           <button class="btn btn-primary" onclick="bukaModalTambahPelanggan()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
             Tambah Pelanggan
@@ -675,10 +679,6 @@
           <p>Pantau seluruh PO, anggaran, dan realisasi budget khusus pelanggan ini.</p>
         </div>
         <div class="view-head-actions">
-          <button class="btn btn-secondary" onclick="bukaModalImport('proyek')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>
-            Import Data
-          </button>
           <button class="btn btn-primary" onclick="bukaModalTambahProyekUntukPelangganAktif()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
             Tambah Proyek
@@ -791,10 +791,6 @@
           <p>Kelola dan pantau tugas yang ditugaskan ke masing-masing anggota tim.</p>
         </div>
         <div class="view-head-actions">
-          <button class="btn btn-secondary" onclick="bukaModalImport('tugas')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>
-            Import Data
-          </button>
           <button class="btn btn-primary" onclick="bukaModalTugas()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
             Tambah Tugas
@@ -843,10 +839,6 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
             Manajemen Produk &amp; Kategori
           </button>
-          <button class="btn btn-secondary" onclick="bukaModalImport('stok_item')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>
-            Import Data
-          </button>
           <button class="btn btn-primary" onclick="bukaModalTambahItemStok()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
             Tambah Item
@@ -878,10 +870,6 @@
           <option value="nonaktif">Nonaktif</option>
         </select>
         <div class="toolbar-spacer"></div>
-        <button class="btn btn-secondary" onclick="unduhStokCSV()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
-          Unduh CSV
-        </button>
       </div>
 
       <div class="table-card">
@@ -935,7 +923,7 @@
         <div class="toolbar">
           <div class="search-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            <input type="text" id="cari-produk-master" placeholder="Cari SKU atau nama produk...">
+            <input type="text" id="cari-produk-master" placeholder="Cari SKU, nama produk, atau variant...">
           </div>
           <select class="filter-select" id="filter-merek-produk-master">
             <option value="semua">Semua Merek</option>
@@ -975,10 +963,6 @@
         <div class="view-head" style="margin-bottom:14px;">
           <div><p style="margin:0;">Kategori Merek dipakai untuk mengelompokkan &amp; memfilter produk berdasarkan merek/brand (mis. Samsung, Anker, Logitech). Kelola dari sini supaya tidak ada lagi merek ganda karena salah ketik.</p></div>
           <div class="view-head-actions">
-            <button class="btn btn-secondary" onclick="bukaModalImport('kategori_merek')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>
-              Import Data
-            </button>
             <button class="btn btn-primary" onclick="bukaModalTambahMerek()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
               Tambah Merek
@@ -1004,10 +988,6 @@
         <div class="view-head" style="margin-bottom:14px;">
           <div><p style="margin:0;">Kategori Produk dipakai untuk mengelompokkan &amp; memfilter produk berdasarkan jenisnya (mis. Kabel, Charger, Aksesoris). Kelola dari sini supaya tidak ada lagi kategori ganda karena salah ketik.</p></div>
           <div class="view-head-actions">
-            <button class="btn btn-secondary" onclick="bukaModalImport('kategori_produk')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>
-              Import Data
-            </button>
             <button class="btn btn-primary" onclick="bukaModalTambahKategori()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
               Tambah Kategori
@@ -1032,10 +1012,6 @@
       <div class="mp-tab-panel" id="mp-tab-gudang">
         <div class="view-head" style="margin-bottom:14px;">
           <div><p style="margin:0;">Gudang adalah lokasi/cabang penyimpanan fisik — stok setiap produk dipantau terpisah per gudang.</p></div>
-          <button class="btn btn-secondary" onclick="bukaModalImport('gudang')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>
-            Import Data
-          </button>
         </div>
         <div id="list-gudang-kelola" style="margin-bottom:18px;"></div>
         <div class="table-card" style="padding:18px;">
@@ -1111,10 +1087,6 @@
             <option value="rusak">Ada Stok Rusak</option>
           </select>
           <div class="toolbar-spacer"></div>
-          <button class="btn btn-secondary" onclick="unduhStokMasukDetailCSV()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
-            Unduh CSV
-          </button>
         </div>
 
         <div class="table-card">
@@ -1163,10 +1135,6 @@
             <option value="dipinjam">Dipinjam</option>
           </select>
           <div class="toolbar-spacer"></div>
-          <button class="btn btn-secondary" onclick="unduhStokKeluarDetailCSV()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
-            Unduh CSV
-          </button>
         </div>
 
         <div class="table-card">
@@ -1263,7 +1231,6 @@
             Komisi Marketing
           </button>
           <button class="btn btn-secondary" onclick="window.print()">Cetak</button>
-          <button class="btn btn-primary" onclick="unduhLaporanCSV()">Unduh CSV</button>
         </div>
       </div>
       <div class="toolbar no-print">
@@ -1333,10 +1300,6 @@
           <button class="btn btn-secondary" onclick="window.print()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
             Cetak Slip Komisi
-          </button>
-          <button class="btn btn-primary" onclick="unduhKomisiMarketingCSV()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>
-            Unduh CSV
           </button>
         </div>
       </div>

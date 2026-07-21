@@ -245,6 +245,25 @@ button{font-family:inherit;}
 
 .content{padding:32px 36px 64px;}
 
+/* ============ IMPORT/EXPORT DI TOPBAR — dulu tombolnya tersebar (Import
+   nempel di header judul tiap menu, Export terselip di ujung baris
+   filter), lalu sempat dipindah jadi satu baris sendiri di bawah topbar.
+   Sekarang keduanya ditaruh berdampingan LANGSUNG DI TOPBAR, tepat di
+   sebelah tombol ganti mode gelap/terang — supaya selalu terlihat & bisa
+   diklik kapan saja tanpa scroll, konsisten di semua menu, dan tidak
+   perlu baris tambahan yang memakan tinggi layar. Kontennya (target
+   import / fungsi export) ditukar lewat JS setiap pindah menu atau tab —
+   lihat perbaruiIoBar() di script.js. Kedua tombol otomatis tersembunyi
+   sendiri-sendiri kalau menu yang aktif tidak punya import dan/atau
+   export (mis. Ringkasan, Kalender, Pengaturan tidak punya keduanya). */
+.btn-topbar-io{
+  padding:8px 14px;font-size:12.5px;border-radius:0;
+}
+.btn-topbar-io svg{width:13px;height:13px;}
+.btn-topbar-io.hidden{display:none;}
+@media(max-width:960px){.btn-topbar-io span{display:none;}}
+@media(max-width:700px){.btn-topbar-io{padding:8px 10px;}}
+
 /* ============ VIEW SWITCHING ============ */
 .view{display:none;}
 .view.active{display:block;}
@@ -293,6 +312,22 @@ button{font-family:inherit;}
 .cust-actions .icon-btn svg{width:15px;height:15px;}
 
 .view-head-actions{display:flex;gap:10px;flex-wrap:wrap;}
+
+/* ============ DATA ACTIONS BAR — Import & Export ============
+   Sebelumnya tombol "Import Data" & "Unduh CSV" tersebar tidak konsisten:
+   kadang di sebelah judul halaman (view-head-actions), kadang berdiri
+   sendiri. Sekarang keduanya SELALU berdampingan (Import di kiri, Export
+   di kanan — urutan alur data yang wajar: masuk lalu keluar) dalam satu
+   strip tersendiri yang jadi elemen PALING ATAS di tiap halaman, tepat di
+   bawah topbar — sebelum judul halaman & KPI apa pun — supaya posisinya
+   konsisten & mudah ditemukan di semua menu terkait (Pelanggan, Proyek,
+   Tugas, Stock & Gudang, Manajemen Produk, Laporan, Komisi Marketing). */
+.data-actions-bar{
+  display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;
+  padding-bottom:16px;margin-bottom:20px;border-bottom:1px solid var(--edge);
+}
+.data-actions-bar .data-actions-buttons{display:flex;gap:10px;flex-wrap:wrap;}
+@media(max-width:640px){.data-actions-bar{justify-content:stretch;}.data-actions-bar .data-actions-buttons{width:100%;}.data-actions-bar .btn{flex:1;justify-content:center;}}
 
 /* ============ STAT MINI CARDS ============
    Layout dasar di sini; permukaan kaca & warna aksen final diterapkan
